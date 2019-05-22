@@ -1,9 +1,35 @@
 <html><head><title>Text adventure game</title>
 <script src="https://code.jquery.com/jquery-3.1.0.slim.min.js" 
 integrity="sha256-cRpWjoSOw5KcyIOaZNo4i6fZ9tKPhYYb6i5T9RSVJG8=" 
-crossorigin="anonymous"></head>
-<body align="center"><input onclick="parse_command($(this).val());"/></body><script>
+crossorigin="anonymous"></script><script src="test game.js"></script>
+</head><body align="center"><div></div>
+<input onclick="parse_command($(this).val());"/></body><script>
+var inventory = [];
 function parse_command(command) {
-	
+	const first = command.split(" ");
+	switch (first[0]) {
+		case "use": break;
+		case "examine": break;
+		case "go": if (first[1] == "to") break;
+		case "pick": if (first[1] == "up")  break;
+		case "inventory":  break;
+	}
+}
+
+function find(obj) {
+	for (var i = 0; i < all_objects.length; i++) {
+		if (all_objects[i].name == obj) return all_objects[i];
+	}
+	console.log("object (" + obj + ") not found.");
+}
+
+function remove_action(action) {
+	for (var i = 0; i < this.length; i++) {
+		if (this[i][0] == action) {
+			this.splice(i, 1);
+			return;
+		}
+	}
+	console.log("action (" + action + ") not found.");
 }
 </script></html>
