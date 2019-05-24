@@ -23,6 +23,13 @@ function find(obj) {
 	console.log("object (" + obj + ") not found.");
 }
 
+function find_location(location) {
+	for (var i = 0; i < game.length; i++) {
+		if (game[i].name == location) return game[i];
+	}
+	console.log("location (" + location + ") not found.");
+}
+
 function remove_action(action) {
 	for (var i = 0; i < this.length; i++) {
 		if (this[i][0] == action) {
