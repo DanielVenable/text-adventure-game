@@ -10,10 +10,9 @@ function parse_command(command) {
 	$("input").val("");
 	$('div').append('<p style="color:gray">' + command + '</p>');
 	const words = command.split(" ");
-	var invalid = false;
 	switch (words[0]) {
 		case "use":
-			invalid = true;
+			var invalid = true;
 			for (var i = 1; i < words.length; i++) {
 				if (words[i] == "on") {
 					invalid = false;
@@ -36,23 +35,41 @@ function parse_command(command) {
 							print('There is no ' + second + ' in the current room.');
 						}
 					} else {
-						print("You do not have a " + first + ".");
+						print("You do not have " + article(first) + ".");
 					}
 				}
-			} break;
+			}
+			if (invalid) print('"' + command + '" is not a valid command.'); break;
 		case "examine": 
 			const obj = words.slice(1, words.length).join(" "),
 				objects_in_room = find(game, current_room).objects;
 			var obj_exists = false;
 			for (var i = 0; i < objects_in_room.length; i++) {
 				if (objects_in_room[i] == obj) obj_exists = true;
+				break;
 			}
 			if (obj_exists || in_inventory(obj)) {
 				print(find(objects, obj).description);
 			} else {
 				print("There is no " + obj + " in the current room.");
 			} break;
-		case "go": if (words[1] == "to") break;
+		case "go":
+			if (words[1] == "to") {
+				const location = words.slice(2, words.length).join(" "),
+					adjacent_locations = find(game, current_room).adjacent_locations;
+				var invalid = true;
+				for (var i = 0; i < adjacent_locations.length; i++) {
+					if (adjacent_locations[i] == location) {
+						current_location = location;
+						print(find(game, location).description);
+						invalid = false;
+						break;
+					}
+				}
+				if (invalid) print("There is no location called " + location + " neerby.");
+			} else {
+				print('"' + command + '" is not a valid command.');
+			} break;
 		case "pick":
 			if (words[1] == "up") {
 				const obj = words.slice(2, words.length).join(" "),
@@ -68,9 +85,8 @@ function parse_command(command) {
 				}
 			} break;
 		case "inventory": print("You have: " + inventory.join(", ")); break;
-		default: invalid = true;
+		default: print('"' + command + '" is not a valid command.');
 	}
-	if (invalid) print('"' + command + '" is not a valid command.');
 }
 
 function find(array, obj) {
@@ -105,6 +121,11 @@ function actually_pick_up(obj) {
 	inventory.push(obj);
 	const objs = find(game, current_room).objects;
 	objs.splice(objs.indexOf(obj), 1);
-	return "You have a " + obj + "!";
+	return "You have " + article(obj) + "!";
+}
+
+const vowels = /[aeiou]/;
+function article(string) {
+	return (vowels.test(string.charAt(0)) ? "an " : "a ") + string;
 }
 </script></html>

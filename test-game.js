@@ -1,7 +1,7 @@
 var current_room = "prison cell",
 game = [{name: "prison cell",
-	description: `You wake up in a small prison cell with no windows.
-	The door is locked, but you see a small key hanging just outside your reach.
+	description: `You wake up in a small prison cell with no windows.<br/>
+	The door is locked, but you see a small key hanging just outside your reach.<br/>
 	The room is empty execpt for a long stick lying on the floor.`,
 	objects: ["stick", "key", "door"],
 	adjacent_locations: []}],
