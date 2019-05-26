@@ -40,7 +40,18 @@ function parse_command(command) {
 					}
 				}
 			} break;
-		case "examine": break;
+		case "examine": 
+			const obj = words.slice(1, words.length).join(" "),
+				objects_in_room = find(game, current_room).objects;
+			var obj_exists = false;
+			for (var i = 0; i < objects_in_room.length; i++) {
+				if (objects_in_room[i] == obj) obj_exists = true;
+			}
+			if (obj_exists || in_inventory(obj)) {
+				print(find(objects, obj).description);
+			} else {
+				print("There is no " + obj + " in the current room.");
+			} break;
 		case "go": if (words[1] == "to") break;
 		case "pick":
 			if (words[1] == "up") {
