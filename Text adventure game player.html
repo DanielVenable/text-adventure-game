@@ -100,4 +100,11 @@ function remove_action(obj, action) {
 function print(value) {
 	$('div').append("<p>" + value + "<p/>")
 }
+
+function actually_pick_up(obj) {
+	inventory.push(obj);
+	const objs = find(game, current_room).objects;
+	objs.splice(objs.indexOf(obj), 1);
+	return "You have a " + obj + "!";
+}
 </script></html>
