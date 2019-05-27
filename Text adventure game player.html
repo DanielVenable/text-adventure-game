@@ -62,8 +62,10 @@
 					objects_in_room = find(game, current_location).objects;
 				var obj_exists = false;
 				for (var i = 0; i < objects_in_room.length; i++) {
-					if (objects_in_room[i] == obj) obj_exists = true;
-					break;
+					if (objects_in_room[i] == obj) {
+						obj_exists = true;
+						break;
+					}
 				}
 				if (obj_exists || in_inventory(obj)) {
 					print(find(objects, obj).description);
