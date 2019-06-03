@@ -32,6 +32,6 @@ objects = [
 	{name: "door", pick_up: () => "You can't pick up a door.", actions: [],
 		description: "The large, metal door is locked shut, blocking your way out."},
 	{name: "portal", pick_up: () => "It is too heavy.", description: `It is a large, circular, portal.<br/>
-		You see a broken wire near the base of the portal, which is probably why it doesn't work right now.`,},
-	{name: "wire", pick_up: () => "The wire is firmly in place", decription: `The wire is broken near
-		the base of the portal.<br/>It is a small gap, but it won't reach far enough to connect.`,}];
+		You see a broken wire near the base of the portal, which is probably why it doesn't work right now.`},
+	{name: "wire", pick_up: () => "The wire is firmly in place", description: `The wire is broken near
+		the base of the portal.<br/>It is a small gap, but it won't reach far enough to connect.`}];
