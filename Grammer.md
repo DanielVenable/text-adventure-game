@@ -14,5 +14,7 @@
 <<<<<<< HEAD
 
 (inventory) lists your current inventory.
+
+(save as ...) saves the current game.
 =======
 >>>>>>> e1ecaf2a64494e4710ce4b174bb8270b1d631f8d

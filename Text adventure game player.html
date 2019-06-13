@@ -1,144 +1,167 @@
 <html><head><title>Text adventure game</title>
-	<script src="https://code.jquery.com/jquery-3.1.0.slim.min.js" 
-	integrity="sha256-cRpWjoSOw5KcyIOaZNo4i6fZ9tKPhYYb6i5T9RSVJG8=" 
-	crossorigin="anonymous"></script><script src="test-game.js"></script>
-	</head><body align="center"><div></div>
-	<input onkeypress="if (event.which == 13) parse_command($(this).val());"/></body><script>
-	var inventory = [];
-	print(find(game, current_location).description);
-	function parse_command(command) {
-		$("input").val("");
-		$('div').append('<p style="color:gray">' + command + '</p>');
-		const words = command.split(" ");
-		switch (words[0]) {
-			case "use":
-				var no_on = true;
-				for (var i = 1; i < words.length; i++) {
-					if (words[i] == "on") {
-						no_on = false;
-						const first = words.slice(1, i).join(" ");
-						 if (in_inventory(first)) {
-							const second = words.slice(i + 1, words.length).join(" "),
-								objects_in_room = find(game, current_location).objects;
-							var second_obj_exists = false;
-							for (var j = 0; j < objects_in_room.length; j++) {
-								if (objects_in_room[j] == second) second_obj_exists = true;
-							}
-							if (second_obj_exists) {
-								const action = find(find(objects, first).actions, second);
-								if (action) {
-									print(action.func());
-								} else {
-									print("Nothing happens.");
-								}
-							} else {
-								print('There is no ' + second + ' in the current room.');
-							}
-						} else {
-							print("You do not have " + article(first) + ".");
+<script src="https://code.jquery.com/jquery-3.1.0.slim.min.js" 
+integrity="sha256-cRpWjoSOw5KcyIOaZNo4i6fZ9tKPhYYb6i5T9RSVJG8=" 
+crossorigin="anonymous"></script><script src="test-game.js"></script>
+</head><body align="center"><div id="buttons"><button onclick="new_game()">new game</button>
+<button onclick="load_game()">load game</button></div><div id="text"></div>
+<input onkeypress="if (event.which == 13) parse_command($(this).val());"/></body><script>
+var inventory = [], saving = false, current_location, game, objects;
+if (localStorage.saved_games == "undefined") localStorage.saved_games = "[]";
+function save_game(name) {
+	var games = JSON.parse(window.localStorage.saved_games);
+	games.push({
+		current_location: current_location, game: game,
+		objects: objects, inventory: inventory, name: name});
+	window.localStorage.saved_games = JSON.stringify(games);
+	output(`Saved as "${name}"`);
+}
+
+function parse_command(command) {
+	$("input").val("");
+	$('#text').append('<p style="color:gray">' + command + '</p>');
+	const words = command.split(" ");
+	switch (words[0]) {
+		case "use":
+			var no_on = true;
+			for (var i = 1; i < words.length; i++) {
+				if (words[i] == "on") {
+					no_on = false;
+					const first = words.slice(1, i).join(" ");
+					if (in_inventory(first)) {
+						const second = words.slice(i + 1, words.length).join(" "),
+							objects_in_room = find(game, current_location).objects;
+						var second_obj_exists = false;
+						for (var j = 0; j < objects_in_room.length; j++) {
+							if (objects_in_room[j] == second) second_obj_exists = true;
 						}
-					}
-				}
-				if (no_on) {
-					const obj = words.slice(1, words.length).join(" "),
-						objects_in_room = find(game, current_location).objects;
-					var obj_exists = false;
-					for (var j = 0; j < objects_in_room.length; j++) {
-						if (objects_in_room[j] == obj) obj_exists = true;
-					}
-					if (obj_exists || in_inventory(obj)) {
-						const action = find(find(objects, obj).actions, "");
-						if (action) {
-							print(action.func());
+						if (second_obj_exists) {
+							const action = find(find(objects, first).actions, second);
+							if (action) {
+								output(action.func());
+							} else {
+								output("Nothing happens.");
+							}
 						} else {
-							print("Nothing happens.");
+							output('There is no ' + second + ' in the current room.');
 						}
 					} else {
-						print('There is no ' + obj + ' in the current room.');
+						output("You do not have " + article(first) + ".");
 					}
-				} break;
-			case "examine": 
+				}
+			}
+			if (no_on) {
 				const obj = words.slice(1, words.length).join(" "),
 					objects_in_room = find(game, current_location).objects;
 				var obj_exists = false;
-				for (var i = 0; i < objects_in_room.length; i++) {
-					if (objects_in_room[i] == obj) {
-						obj_exists = true;
+				for (var j = 0; j < objects_in_room.length; j++) {
+					if (objects_in_room[j] == obj) obj_exists = true;
+				}
+				if (obj_exists || in_inventory(obj)) {
+					const action = find(find(objects, obj).actions, "");
+					if (action) {
+						output(action.func());
+					} else {
+						output("Nothing happens.");
+					}
+				} else {
+					output('There is no ' + obj + ' in the current room.');
+				}
+			} break;
+		case "examine": 
+			const obj = words.slice(1, words.length).join(" "),
+				objects_in_room = find(game, current_location).objects;
+			var obj_exists = false;
+			for (var i = 0; i < objects_in_room.length; i++) {
+				if (objects_in_room[i] == obj) {
+					obj_exists = true;
+					break;
+				}
+			}
+			if (obj_exists || in_inventory(obj)) {
+				output(find(objects, obj).description);
+			} else {
+				output("There is no " + obj + " in the current room.");
+			} break;
+		case "go":
+			if (words[1] == "to") {
+				const location = words.slice(2, words.length).join(" "),
+					adjacent_locations = find(game, current_location).adjacent_locations;
+				var invalid = true;
+				for (var i = 0; i < adjacent_locations.length; i++) {
+					if (adjacent_locations[i] == location) {
+						current_location = location;
+						output(find(game, location).description);
+						invalid = false;
 						break;
 					}
 				}
-				if (obj_exists || in_inventory(obj)) {
-					print(find(objects, obj).description);
+				if (invalid) output("There is no location called " + location + " nearby.");
+			} else {
+				output('"' + command + '" is not a valid command.');
+			} break;
+		case "pick":
+			if (words[1] == "up") {
+				const obj = words.slice(2, words.length).join(" "),
+					objects_in_room = find(game, current_location).objects;
+				var obj_exists = false;
+				for (var j = 0; j < objects_in_room.length; j++) {
+					if (objects_in_room[j] == obj) obj_exists = true;
+				}
+				if (obj_exists) {
+					output(find(objects, obj).pick_up());
 				} else {
-					print("There is no " + obj + " in the current room.");
-				} break;
-			case "go":
-				if (words[1] == "to") {
-					const location = words.slice(2, words.length).join(" "),
-						adjacent_locations = find(game, current_location).adjacent_locations;
-					var invalid = true;
-					for (var i = 0; i < adjacent_locations.length; i++) {
-						if (adjacent_locations[i] == location) {
-							current_location = location;
-							print(find(game, location).description);
-							invalid = false;
-							break;
-						}
+					output("There is no " + obj + " in the current room.");
+				}
+			} break;
+		case "inventory": output("You have: " + inventory.join(", ")); break;
+		case "save":
+			if (words[1] == "as") {
+				const name = words.slice(2).join(" ");
+				if (find(JSON.parse(localStorage.saved_games), command)) {
+					if (confirm(`"${name}" already exists. Overwrite?`)) {
+						save_game(name);
 					}
-					if (invalid) print("There is no location called " + location + " nearby.");
 				} else {
-					print('"' + command + '" is not a valid command.');
-				} break;
-			case "pick":
-				if (words[1] == "up") {
-					const obj = words.slice(2, words.length).join(" "),
-						objects_in_room = find(game, current_location).objects;
-					var obj_exists = false;
-					for (var j = 0; j < objects_in_room.length; j++) {
-						if (objects_in_room[j] == obj) obj_exists = true;
-					}
-					if (obj_exists) {
-						print(find(objects, obj).pick_up());
-					} else {
-						print("There is no " + obj + " in the current room.");
-					}
-				} break;
-			case "inventory": print("You have: " + inventory.join(", ")); break;
-			default: print('"' + command + '" is not a valid command.');
+					save_game(name);
+				}
+			} else {
+				output(`"${command}" is not a valid command.`);
+			} break;
+		default: output(`"${command}" is not a valid command.`);
+	}
+}
+function find(array, obj) {
+	for (var i = 0; i < array.length; i++) {
+		if (array[i].name == obj) return array[i];
+	}
+	return false;
+}
+function in_inventory(obj) {
+	for (var i = 0; i < inventory.length; i++) {
+		if (inventory[i] == obj) return true;
+	}
+	return false;
+}
+function remove_action(obj, action) {
+	for (var i = 0; i < obj.length; i++) {
+		if (obj[i].name == action) {
+			obj.splice(i, 1);
+			return;
 		}
 	}
-	function find(array, obj) {
-		for (var i = 0; i < array.length; i++) {
-			if (array[i].name == obj) return array[i];
-		}
-		return false;
-	}
-	function in_inventory(obj) {
-		for (var i = 0; i < inventory.length; i++) {
-			if (inventory[i] == obj) return true;
-		}
-		return false;
-	}
-	function remove_action(obj, action) {
-		for (var i = 0; i < obj.length; i++) {
-			if (obj[i].name == action) {
-				obj.splice(i, 1);
-				return;
-			}
-		}
-		console.log("action (" + action + ") not found.");
-	}
-	function print(value) {
-		$('div').append("<p>" + value + "<p/>")
-	}
-	function actually_pick_up(obj) {
-		inventory.push(obj);
-		const objs = find(game, current_location).objects;
-		objs.splice(objs.indexOf(obj), 1);
-		return "You have " + article(obj) + ".";
-	}
-	const vowels = /[aeiou]/;
-	function article(string) {
-		return (vowels.test(string.charAt(0)) ? "an " : "a ") + string;
-	}
-	</script></html>
+	console.log("action (" + action + ") not found.");
+}
+function output(value) {
+	$('#text').append("<p>" + value + "<p/>")
+}
+function actually_pick_up(obj) {
+	inventory.push(obj);
+	const objs = find(game, current_location).objects;
+	objs.splice(objs.indexOf(obj), 1);
+	return "You have " + article(obj) + ".";
+}
+const vowels = /[aeiou]/;
+function article(string) {
+	return (vowels.test(string.charAt(0)) ? "an " : "a ") + string;
+}
+</script></html>
