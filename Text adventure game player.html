@@ -3,21 +3,38 @@
 integrity="sha256-cRpWjoSOw5KcyIOaZNo4i6fZ9tKPhYYb6i5T9RSVJG8=" 
 crossorigin="anonymous"></script><script src="test-game.js"></script>
 </head><body align="center"><div id="buttons"><button onclick="new_game()">new game</button>
-<button onclick="load_game()">load game</button></div><div id="text"></div>
+<button onclick="load_game()">load game</button><select></select></div><div id="text"></div>
 <input onkeypress="if (event.which == 13) parse_command($(this).val());"/></body><script>
 var inventory = [], saving = false, current_location, game, objects;
 if (localStorage.saved_games == "undefined") localStorage.saved_games = "[]";
+const all_games = JSON.parse(localStorage.saved_games);
+for (var i = 0; i < all_games.length; i++) {
+	$("select").append(`<option>${all_games[i].name}</option>`);
+}
+
 function save_game(name) {
-	var games = JSON.parse(window.localStorage.saved_games);
+	var games = JSON.parse(localStorage.saved_games);
 	games.push({
 		current_location: current_location, game: game,
 		objects: objects, inventory: inventory, name: name});
-	window.localStorage.saved_games = JSON.stringify(games);
+	localStorage.saved_games = JSON.stringify(games);
 	output(`Saved as "${name}"`);
 }
 
+function load_game() {
+	const selected_game = find(all_games, $('select')[0].value);
+	$("#buttons").empty();
+	console.assert(selected_game);
+	current_location = selected_game.current_location;
+	game = selected_game.game;
+	objects = selected_game.objects;
+	inventory = selected_game.inventory;
+	console.log(objects);
+	output(find(game, current_location).description);
+}
+
 function parse_command(command) {
-	$("input").val("");
+	$('input').val("");
 	$('#text').append('<p style="color:gray">' + command + '</p>');
 	const words = command.split(" ");
 	switch (words[0]) {
@@ -37,7 +54,7 @@ function parse_command(command) {
 						if (second_obj_exists) {
 							const action = find(find(objects, first).actions, second);
 							if (action) {
-								output(action.func());
+								output(run(action.func));
 							} else {
 								output("Nothing happens.");
 							}
@@ -59,7 +76,7 @@ function parse_command(command) {
 				if (obj_exists || in_inventory(obj)) {
 					const action = find(find(objects, obj).actions, "");
 					if (action) {
-						output(action.func());
+						output(run(action.func));
 					} else {
 						output("Nothing happens.");
 					}
@@ -130,6 +147,34 @@ function parse_command(command) {
 		default: output(`"${command}" is not a valid command.`);
 	}
 }
+
+function run(func) {
+	for (var i = 1; i < func.length; i++) {
+		if (func[i].is_obj) {
+			var item = find(objects, func[i].name);
+			switch (func[i].modify) {
+				case "pick up": item.pick_up = func[i].value; break;
+				case "description": item.description = func[i].value; break;
+				case "actions": item.actions.push(func[i].value); break;
+				case "remove action": remove_action(item.actions, func[i].action_name); break;
+				case "change action": find(item, func[i].action_name).func = func[i].value; break;
+				default: console.assert(false);
+			}
+		} else {
+			var item = find(game, func[i].name);
+			switch (func[i].modify) {
+				case "description": item.description = func[i].value; break;
+				case "add object": item.objects.push(value); break;
+				case "remove object": item.objects.splice(item.objects.indexOf(value), 1); break;
+				case "add location": item.adjacent_locations.push(value); break;
+				case "remove location": item.adjacent_locations.splice(item.adjacent_locations.indexOf(value), 1); break;
+				default: console.assert(false);
+			}
+		}
+	}
+	return func[0];
+} // {is_obj: ..., name: "...", modify: "...", value: ..., (action_name: "...")}
+
 function find(array, obj) {
 	for (var i = 0; i < array.length; i++) {
 		if (array[i].name == obj) return array[i];
