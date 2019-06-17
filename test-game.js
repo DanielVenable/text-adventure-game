@@ -16,9 +16,9 @@ function new_game() {
 			adjacent_locations: ["prison cell"]}
 	];
 	objects = [
-		{name: "stick", pick_up: [actually_pick_up("stick")],
+		{name: "stick", pick_up: [true, "stick"],
 			actions: [{name: "key", func: ["The stick knocks down the key, putting it within reach.",
-				{is_obj: true, name: "key", modify: "pick up", value: actually_pick_up("key")},
+				{is_obj: true, name: "key", modify: "pick up", value: [true, "key"]},
 				{is_obj: true, name: "stick", modify: "remove action", action_name: "key"}]}],
 			description: "It is a long wooden stick."},
 		
@@ -28,9 +28,13 @@ function new_game() {
 				{is_obj: false, name: "prison cell", modify: "add location", value: "hallway"},
 				{is_obj: false, name: "prison cell", modify: "description", value: "You are in a prison cell with the door wide open."}]},
 			{name: "wire", func: ["The key connects the wires and the portal turns on.",
-				{is_obj: true, name: "portal", modify: "actions", value: {name: "", func: ["You go through the portal and escape the prison. You win!"]}},
-				{is_obj: true, name: "wire", modify: "description", value: "The wire is fixed now."}
-				//inventory.splice(inventory.indexOf("key"), 1);
+				{is_obj: true, name: "portal", modify: "actions",
+					value: {name: "", func: ["You go through the portal and escape the prison. You win!"]}},
+				{is_obj: true, name: "wire", modify: "description", value: "The wire is fixed now."},
+				{modify: "inventory", name: "key"},
+				{is_obj: true, name: "portal", modify: "description", value: "It is a large, circular portal."},
+				{is_obj: false, name: "hallway", modify: "description",
+					value: "The hallway contains lots of empty prison cells.<br/>At the end of the hall you see a portal."}
 			]}],
 			description: "It is a small, metal key."},
 		{name: "door", pick_up: ["You can't pick up a door."], actions: [],
