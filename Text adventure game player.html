@@ -125,7 +125,12 @@ function parse_command(command) {
 					if (objects_in_room[j] == obj) obj_exists = true;
 				}
 				if (obj_exists) {
-					output(run(find(objects, obj).pick_up));
+					const pick_up_value = find(objects, obj).pick_up;
+					if (pick_up_value == undefined) {
+						output("You can't pick it up.");
+					} else {
+						output(run(pick_up_value));
+					}
 				} else {
 					output("There is no " + obj + " in the current room.");
 				}

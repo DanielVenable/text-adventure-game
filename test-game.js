@@ -16,6 +16,7 @@ function new_game() {
 			adjacent_locations: ["prison cell"]}
 	];
 	objects = [
+		// prison cell:
 		{name: "stick", pick_up: [true, "stick"],
 			actions: [{name: "key", func: ["The stick knocks down the key, putting it within reach.",
 				{is_obj: true, name: "key", modify: "pick up", value: [true, "key"]},
@@ -37,12 +38,12 @@ function new_game() {
 					value: "The hallway contains lots of empty prison cells.<br/>At the end of the hall you see a portal."}
 			]}],
 			description: "It is a small, metal key."},
-		{name: "door", pick_up: ["You can't pick up a door."], actions: [],
-			description: "The large, metal door is locked shut, blocking your way out."},
-		{name: "portal", pick_up: ["It is too heavy."], actions: [], description: `It is a large, circular, portal.<br/>
+		{name: "door", description: "The large, metal door is locked shut, blocking your way out."},
+		// hallway:
+		{name: "portal", description: `It is a large, circular, portal.<br/>
 			You see a broken wire near the base of the portal, which is probably why it doesn't work right now.`},
-		{name: "wire", pick_up: ["The wire is firmly in place"], actions: [], description: `The wire is broken near
-			the base of the portal.<br/>It is a small gap, but it won't reach far enough to connect.`}
+		{name: "wire", description: `The wire is broken near the base of the portal.<br/>
+			It is a small gap, but it won't reach far enough to connect.`}
 	];
 	output(find(game, current_location).description);
 }
