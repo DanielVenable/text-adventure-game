@@ -9,5 +9,3 @@
 (pick up ...) moves an item in the room to your inventory.
 
 (inventory) lists your current inventory.
-
-(save as ...) saves the current game.
