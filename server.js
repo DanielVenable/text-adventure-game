@@ -39,7 +39,7 @@ const server = http.createServer((req, res) => {
 							if (err) throw err;
 							if (command.startsWith('go to ')) {
 								sql.query(`SELECT ID, description FROM locations WHERE name = ? AND game = ?;`,
-									[command.split('go to ')[1], location[0].game],
+									[command.split(/^go to /)[1], location[0].game],
 								function (err, end_location) {
 									if (err) throw err;
 									if (end_location.length == 1) {
@@ -64,35 +64,103 @@ const server = http.createServer((req, res) => {
 									}
 								});
 							} else if (command.startsWith('pick up ')) {
+								const name = command.split(/^pick up /)[1];
 								sql.query(`SELECT ID FROM objects WHERE name = ? AND game = ? AND default_location = ?;`,
-									[command.split('pick up ')[1], location[0].game, location],
+									[name, location[0].game, locationID],
 								function (err, obj) {
 									if (err) throw err;
 									if (obj.length == 1) {
-										sql.query(`
-											SELECT grab.ID, grab.success, constraints.obj, constraints.state FROM grab
-											LEFT JOIN grab_to_constraint ON grab.ID = grab_to_constraint.grab
-											LEFT JOIN constraints ON constraints.ID = grab_to_constraint.constraint_
-											WHERE grab.obj = ?
-											ORDER BY grab.ID;`, [obj[0].ID],
-										function(err, constraints){
-											if (err) throw err;
-											const result = satisfy_constraints(states, constraints);
-											if (result) {
-												if (result.success) {
-													show_data.inventory.push(obj[0]);
-													show(show_data, `You have a ${obj}.`);
+										if (inventory.includes(obj[0].ID)) {
+											show(show_data, "You already have it.");
+										} else {
+											sql.query(`
+												SELECT grab.ID, grab.success, constraints.obj, constraints.state FROM grab
+												LEFT JOIN grab_to_constraint ON grab.ID = grab_to_constraint.grab
+												LEFT JOIN constraints ON constraints.ID = grab_to_constraint.constraint_
+												WHERE grab.obj = ?
+												ORDER BY grab.ID;`, [obj[0].ID],
+											function(err, constraints){
+												if (err) throw err;
+												const result = satisfy_constraints(states, constraints);
+												if (result) {
+													sql.query(`
+														SELECT effects.obj, effects.state, effects.text FROM grab
+														JOIN grab_to_effect ON grab.ID = grab_to_effect.grab
+														JOIN effects ON effects.ID = grab_to_effect.effect
+														WHERE grab.ID = ?`, [obj[0].ID],
+													function (err, effects) {
+														if (err) throw err;
+														const text = handle_effects(effects, objects, states);
+														if (result.success) {
+															inventory.push(obj[0].ID);
+															show(show_data, `${text ? text + ' ' : ''}You have ${a_an(name)}.`);
+														} else {
+															show(show_data, text ? text : "Nothing happens.");
+														}
+													});
+												} else {
+													show(show_data, "Nothing happens.");
 												}
-											} else {
-												show(show_data, 'Nothing happens.');
-											}
-										});
+											});
+										}
 									} else {
-										show(show_data, 'Nothing happens.');
+										show(show_data, `There is no ${name} here.`);
 									}
 								});
-							} else if (command.startsWith('use ')) {
-
+							} else if (/^use .+/.test(command)) {
+								const objs = command.split(/^use /)[1].split(' on ');
+								if (objs[1] === undefined) {
+									use_on([null, objs[0]]);
+								} else {
+									sql.query(`SELECT ID FROM objects WHERE name = ?`, [objs[0]], function (err, item1) {
+										if (err) throw err;
+										if (item1.length == 1 && inventory.includes(item1[0].ID)) {
+											use_on(objs);
+										} else {
+											show(show_data, `You don't have ${a_an(objs[0])}`);
+										}
+									});
+								}
+								function use_on(items) {
+									sql.query(`SELECT ID, default_location FROM objects WHERE name = ?`, [items[1]],
+									function (err, item2) {
+										if (err) throw err;
+										var valid_items = [];
+										item2.forEach(function (item) {
+											if (item.default_location == locationID || inventory.includes(item.ID)) {
+												valid_items.push(item);
+											}
+										});
+										if (valid_items.length == 1) {
+											sql.query(`
+												SELECT actions.ID, constraints.obj, constraints.state FROM actions
+												LEFT JOIN action_to_constraint ON actions.ID = action_to_constraint.action
+												LEFT JOIN constraints ON constraints.ID = action_to_constraint.constraint_
+												WHERE actions.obj1 = ? AND actions.obj2 = ?
+												ORDER BY actions.ID;`, items,
+											function(err, constraints){
+												if (err) throw err;
+												const result = satisfy_constraints(states, constraints);
+												if (result) {
+													sql.query(`
+														SELECT effects.obj, effects.state, effects.text FROM actions
+														JOIN action_to_effect ON action.ID = action_to_effect.action
+														JOIN effects ON effects.ID = action_to_effect.effect
+														WHERE actions.ID = ?`, [result.ID],
+													function (err, effects) {
+														if (err) throw err;
+														const text = handle_effects(effects, objects, states);
+														show(show_data, text ? text : "Nothing happens.");
+													});
+												} else {
+													show(show_data, "Nothing happens.");
+												}
+											});
+										} else {
+											show(show_data, `There is no ${items[1]} here`);
+										}
+									});
+								}
 							} else {
 								show(show_data, "Invalid command");
 							}
@@ -109,6 +177,15 @@ const server = http.createServer((req, res) => {
 		}
 	}
 });
+
+function handle_effects(effects, objects, states) {
+	var text = "";
+	effects.forEach(function (effect, index) {
+		if (effect.state) states[objects.find((obj) => obj.ID == effect.obj).ID] = effect.state;
+		if (effect.text) text += (index == 0 ? "" : " ") + effect.text;
+	});
+	return text;
+}
 
 function satisfy_constraints(states, constraints) {
 	var current_ID,
@@ -133,14 +210,22 @@ function show(data, text) {
 	sql.query(`SELECT name FROM games WHERE ID = ?`, [data.game], function (err, result) {
 		if (err) throw err;
 		if (result.length == 1) {
-			data.res.end(`
-				<html><head><title>${sanitize(result[0].name)} | text adventure games</title></head>
-				<body><p>${sanitize(text)}</p><form method="get">
-				<input onkeypress="if (event.key == 'Enter') this.parentElement.submit();" name="cmd"/>
-				<input hidden value="${toHexString(data.states)}" name="a"/>
-				<input hidden value="${data.location}" name="b"/>
-				<input hidden value="${toHexString(data.inventory)}" name="c"/></form></body></html>
-			`);
+			sql.query(`SELECT name FROM objects WHERE ID IN (?)`, [data.inventory], function (err, inventory) {
+				if (err) throw err;
+				var objects = "";
+				inventory.forEach(function (item, index) {
+					objects += ((index == 0 ? "" : ", ") + item.name);
+				});
+				data.res.end(`
+					<html><head><title>${sanitize(result[0].name)} | text adventure games</title></head>
+					<body><p>${sanitize(text)}</p><form method="get">
+					<input onkeypress="if (event.key == 'Enter') this.parentElement.submit();" name="cmd"/>
+					<input hidden value="${toHexString(data.states)}" name="a"/>
+					<input hidden value="${data.location}" name="b"/>
+					<input hidden value="${toHexString(data.inventory)}" name="c"/></form>
+					<p>You have: ${sanitize(objects)}</p></body></html>
+				`);
+			});
 		}
 	});
 }
@@ -168,4 +253,8 @@ function toByteArray(hexString) {
 		result.push(parseInt(hexString.substr(i, 2), 16));
 	}
 	return result;
+}
+
+function a_an(string) {
+	return /^[aeiou]/i.test(string) ? `an ${string}` : `a ${string}`;
 }

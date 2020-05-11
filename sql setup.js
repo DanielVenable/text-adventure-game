@@ -17,15 +17,23 @@ sql.connect(function(err) {
             foreign key (constraint_) references constraints(ID));
     `, (err) => {
         if (err) throw err;
-        sql.query(`
-            create table if not exists grab_to_constraint (
-                grab int unsigned not null,
-                constraint_ int unsigned not null,
-                foreign key (grab) references grab(ID),
-                foreign key (constraint_) references constraints(ID));
-        `, (err) => {
-            if (err) throw err;
+    });
+    sql.query(`
+        create table if not exists grab_to_constraint (
+            grab int unsigned not null,
+            constraint_ int unsigned not null,
+            foreign key (grab) references grab(ID),
+            foreign key (constraint_) references constraints(ID));
+    `, (err) => {
+        if (err) throw err;
 
-        });
+    });
+    sql.query(`create table if not exists grab_to_effect (
+        grab int unsigned not null,
+        effect int unsigned not null,
+        foreign key (grab) references grab(ID),
+        foreign key (effect) references effects(ID));
+    `, (err) => {
+        if (err) throw err
     });
 });
