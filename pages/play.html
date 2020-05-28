@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>{{ name }} | text adventure games</title>
+</head>
+
+<body>
+    <p>{{ text }}</p>
+    <form method="get" action="/play">
+        <input onkeypress="if (event.key == 'Enter') this.parentElement.submit();" name="cmd" />
+        <input hidden value="{{ states }}" name="a" />
+        <input hidden value="{{ location }}" name="b" />
+        <input hidden value="{{ inventory }}" name="c" />
+        <input type="submit" />
+    </form>{{ item_list }}
+</body>
+
+</html>

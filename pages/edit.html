@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang='en'>
+
+<head>
+    <title>text adventure game</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        span {
+            cursor: pointer;
+            text-decoration: underline;
+        }
+
+        button {
+            padding: 0px 0px;
+            list-style-type: none;
+        }
+
+        li {
+            line-height: 300%;
+        }
+    </style>
+</head>
+
+<body class="game">
+    <p>Locations</p>
+    <ul class="location">
+        <button onclick='add(this.parentElement)'>Add a location</button>
+        {{ locations }}
+    </ul>
+    <p>Objects</p>
+    <ul class="object">
+        {{ null_location_objects }}
+    </ul>
+    <button onclick='remove(this)'>Delete this game</button>
+</body>
+<script>
+    const game = '{{ id }}';
+    var opened = new Set();
+    function expand(element) {
+        if (opened.has(element)) {
+            const lists = element.getElementsByTagName('ul');
+            if (lists[0].hasAttribute('hidden')) {
+                for (const elem of lists) elem.removeAttribute('hidden');
+            } else {
+                for (const elem of lists) elem.setAttribute('hidden', 'hidden');
+            }
+        } else {
+            opened.add(element);
+            const xhttp = new XMLHttpRequest();
+            xhttp.onreadystatechange = function () {
+                if (this.readyState == 4 && this.status == 200) element.innerHTML += this.responseText;
+            }
+            xhttp.open("GET",
+                "/expand?game=" + encodeURIComponent(game) +
+                "&type=" + element.parentElement.className +
+                "&id=" + element.id, true);
+            xhttp.send();
+        }
+    }
+
+    function add(element) {
+        const xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange = function () {
+            if (this.readyState == 4 && this.status == 200) element.innerHTML += this.responseText;
+        }
+        xhttp.open("POST", "/add", true);
+        const name = encodeURIComponent(prompt(`Choose a name for the ${element.className}.`, ""));
+        if (name == "null" || name == "") return;
+        if (element.className == "location") {
+            const description = encodeURIComponent(prompt(`Choose a description for the ${element.className}.`, ""));
+            if (description == "null" || description == "") return;
+            xhttp.send(
+                "game=" + game +
+                "&type=" + element.className +
+                "&name=" + name +
+                "&description=" + description);
+        } else if (element.className == "object") {
+            xhttp.send(
+                "game=" + game +
+                "&type=" + element.className +
+                "&name=" + name +
+                "&location=" + element.parentElement.id);
+        }
+            
+    }
+
+    function remove(element) {
+        var text =
+            "Are you sure you want to delete this " +
+            element.parentElement.className + "? This operation cannot be undone";
+        if (confirm(text)) {
+            const xhttp = new XMLHttpRequest();
+            xhttp.onreadystatechange = function () {
+                if (this.readyState == 4) {
+                    if (this.status == 202) {
+                        element.remove();
+                    } else if (this.status == 410) {
+                        window.location.replace("/");
+                    }
+                }
+            }
+            xhttp.open("DELETE",
+                "/remove?game=" + encodeURIComponent(game) +
+                "&type=" + element.parentElement.className +
+                "&id=" + element.id, true);
+            xhttp.send();
+        }
+    }
+
+    function make_start(element) {
+        const xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange = function () {
+            if (this.readyState == 4 && this.status == 202) {
+                const old_start = document.getElementsByClassName('start')[0];
+                old_start.className = "";
+                old_start.innerHTML += `<button onclick="make_start(this.parentElement)">make start</button>`;
+                element.className = 'start';
+                element.getElementsByTagName('button')[1].remove();
+            }
+        }
+        xhttp.open("POST", `/setstart`);
+        xhttp.send(`id=${element.id}&game=${game}`);
+    }
+</script>
+
+</html>

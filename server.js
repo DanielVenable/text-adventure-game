@@ -4,6 +4,8 @@ const url = require('url');
 const fs = require('fs');
 const port = 8000;
 
+process.chdir(__dirname + '/pages');
+
 var sql = mysql.createConnection({
 	host: "localhost",
 	user: "text_adventure_game",
@@ -11,11 +13,9 @@ var sql = mysql.createConnection({
 	database: "text_adventure_games"
 });
 
-sql.connect(function(err) {
+sql.connect(err => {
 	if (err) throw err;
-	server.listen(port, () => {
-		console.log(`Server running at http://localhost:${port}/`);
-	});
+	server.listen(port, () => console.log(`Server running at http://localhost:${port}/`));
 });
 
 const server = http.createServer((req, res) => {
@@ -191,12 +191,7 @@ const server = http.createServer((req, res) => {
 			result.forEach(function (game) {
 				game_list += `<li><a href="/start?game=${encodeURIComponent(game.name)}">${sanitize(game.name)}</a></li>`;
 			});
-			res.end(`
-				<html><head><title>Text adventure game</title></head>
-				<body><h3>Choose a game to play:</h3><ul>${game_list}</ul>
-				<h3>Or <a href="/edit">edit a game</a>.</h3>
-				<h3>Or <a href="/new">make your own game</h3></body></html>
-			`);
+			show_file('home-page.html', res, {game_list: game_list});
 		});
 	} else if (parsed_url.pathname == '/start') {
 		const name = parsed_url.query.game;
@@ -204,16 +199,14 @@ const server = http.createServer((req, res) => {
 		[name], function (err, result) {
 			if (err) throw err;
 			if (result.length == 1) {
-				res.end(`
-					<html><head><title>${sanitize(name)} | text adventure games</title></head>
-					<body><p>${sanitize(result[0].description)}</p><form method="get" action="/play">
-					<input onkeypress="if (event.key == 'Enter') this.parentElement.submit();" name="cmd"/>
-					<input hidden name="a"/>
-					<input hidden value="${result[0].ID}" name="b"/>
-					<input hidden name="c"/>
-					<input type="submit"></form>
-					</body></html> 
-				`);
+				show_file('play.html', res, {
+					name: sanitize(name),
+					text: sanitize(result[0].description),
+					states: "",
+					location: result[0].ID,
+					inventory: "",
+					item_list: ""
+				});
 			}
 		});
 	} else if (req.url == '/edit') {
@@ -221,13 +214,7 @@ const server = http.createServer((req, res) => {
 			if (err) throw err;
 			var game_list = "";
 			result.forEach(game => game_list += `<option>${sanitize(game.name)}</option>`);
-			res.end(`
-				<html><head><title>text adventure game</title></head>
-				<body><form>
-					<label>Choose a game to edit: <select name="game">${game_list}</select></label><br>
-					<input type="submit">
-				</form></body></html>
-			`);
+			show_file('choose-edit.html', res, {game_list: game_list});
 		});
 	} else if (parsed_url.pathname == '/edit' && parsed_url.query.game) {
 		sql.query(`SELECT * FROM games WHERE name = ?`,	[parsed_url.query.game], (err, game) => {
@@ -236,117 +223,41 @@ const server = http.createServer((req, res) => {
 				sql.query(`SELECT * FROM locations WHERE game = ?`, [game[0].ID], (err, locations) => {
 					if (err) throw err;
 					var location_list = "";
-					locations.forEach(location => location_list += `
+					for (location of locations) location_list += game[0].start == location.ID ? `
+						<li id="${location.ID}" class="start">
+							<span onclick="expand(this.parentElement)">${sanitize(location.name)}</span>&emsp;
+							<button onclick="remove(this.parentElement)">delete</button>&emsp;
+						</li>
+					` : `
 						<li id="${location.ID}">
 							<span onclick="expand(this.parentElement)">${sanitize(location.name)}</span>&emsp;
 							<button onclick="remove(this.parentElement)">delete</button>&emsp;
-							${game[0].default_location == location.ID ? "" :
-							`<button onclick="make_default(this.parentElement)">make default</button>`}
+							<button onclick="make_start(this.parentElement)">make start</button>
 						</li>
-					`);
-					res.end(`
-						<html><head><title>text adventure game</title><style>
-						span {
-							cursor: pointer;
-							text-decoration: underline;
-						}
-						button {
-							padding: 0px 0px;
-						}
-						li {
-							line-height: 300%
-						}
-						</style></head><body class="game">
-						<p>Locations</p>
-						<ul class="location">
-						<button onclick='add(this.parentElement)'>Add a location</button>
-						${location_list}</ul>
-						<button onclick='remove(this)'>Delete this game</button>
-						</body><script>
-						const game = ${game[0].ID};
-						var opened = new Set();
-						function expand(element) {
-							if (opened.has(element)) {
-								element.innerHTML = element.innerHTML.split("<ul")[0];
-								opened.delete(element);
-							} else {
-								opened.add(element);
-								const xhttp = new XMLHttpRequest();
-								xhttp.onreadystatechange = function() {
-									if (this.readyState == 4 && this.status == 200) element.innerHTML += this.responseText;
-								}	
-								xhttp.open("GET", 
-									"/expand?game=" + encodeURIComponent(game) + 
-									"&type=" + element.parentElement.className +
-									"&id=" + element.id, true);
-								xhttp.send();
-							}
-						}
-
-						function add(element) {
-							const xhttp = new XMLHttpRequest();
-							xhttp.onreadystatechange = function() {
-								if (this.readyState == 4 && this.status == 200) element.innerHTML += this.responseText;
-							}
-							xhttp.open("POST", "/add", true);
-							const name = encodeURIComponent(prompt("Choose a name for the location.", ""));
-							if (name == "null" || name == "") return;
-							const description = encodeURIComponent(prompt("Choose a description for the loctation.", ""));
-							if (description == "null" || description == "") return;
-							xhttp.send(
-								"game=" + encodeURIComponent(game) +
-								"&type=" + element.className +
-								"&name=" + name +
-								"&description=" + description);
-						}
-
-						function remove(element) {
-							var text = 
-								"Are you sure you want to delete this " +
-								element.parentElement.className + "? This operation cannot be undone";
-							if (confirm(text)) {
-								const xhttp = new XMLHttpRequest();
-								xhttp.onreadystatechange = function() {
-									if (this.readyState == 4) {
-										if (this.status == 202) {
-											element.remove();
-										} else if (this.status == 410) {
-											window.location.replace("/");
-										} 
-									}
-								}
-								xhttp.open("DELETE", 
-									"/remove?game=" + encodeURIComponent(game) + 
-									"&type=" + element.parentElement.className +
-									"&id=" + element.id, true);
-								xhttp.send();
-							}
-						}
-
-						function make_default(element) {
-							const xhttp = new XMLHttpRequest();
-							xhttp.onreadystatechange = function() {
-								if (this.readyState == 4 && this.status == 202) {
-									
-								}
-							}
-							xhttp.open()
-						}
-						</script></html>
-					`);
+					`;
+					sql.query(`SELECT * FROM objects WHERE default_location IS NULL AND game = ?`,
+					[game[0].ID], (err, objects) => {
+						if (err) throw err;
+						var obj_list = "";
+						for (const obj of objects) obj_list += `
+							<li id="${obj.ID}">
+								<span onclick="expand(this.parentElement)">${sanitize(obj.name)}</span>&emsp;
+								<button onclick='remove(this.parentElement)'>delete</button>
+							</li>`
+						show_file('edit.html', res, {
+							id: game[0].ID,
+							locations: location_list,
+							null_location_objects: obj_list
+						});
+					});
+					
 				});
 			} else {
 				invalid_request(res);
 			}
 		});
 	} else if (req.url == '/new') {
-		res.end(`
-			<html><head><title>text adventure game</title></head>
-			<body><form method="POST" action="/create"
-				<p>Choose a name for your game:</p><input name="name">
-				<input type="submit">
-			</form></body></html>
-		`);
+		show_file('new-game.html', res);
 	} else if (req.url == '/create' && req.method == 'POST') {
 		var data = "";
 		req.on('data', chunk => data += chunk);
@@ -369,13 +280,12 @@ const server = http.createServer((req, res) => {
 				[parsed_url.query.id], (err, result) => {
 					if (err) throw err;
 					res.write(`<ul class="object"><button onclick='add(this.parentElement)'>Add an object</button>`);
-					for (const obj of result) {
+					for (const obj of result)
 						res.write(`
 							<li id="${obj.ID}">
 								<span onclick="expand(this.parentElement)">${sanitize(obj.name)}</span>&emsp;
 								<button onclick='remove(this.parentElement)'>delete</button>
 							</li>`);
-					}
 					res.end(`</ul>`);
 				});
 				break;
@@ -383,7 +293,7 @@ const server = http.createServer((req, res) => {
 				sql.query(`SELECT * FROM actions JOIN objects ON actions.obj1 = objects.ID OR actions.obj1 WHERE actions.obj1 = ? OR obj2 = ?`,
 				[parsed_url.query.id, parsed_url.query.id], (err, result) => {
 					if (err) throw err;
-					res.write(`<ul class="action">`);
+					res.write(`<ul class="action"><button onclick='add(this.parentElement)'>Add an action</button>`);
 					for (const action of result) {
 						res.write(`
 							<li id="${action.ID}">
@@ -438,31 +348,46 @@ const server = http.createServer((req, res) => {
 							invalid_request(res);
 						} else {
 							res.statusCode = 200;
-							res.end(`
-								<li id="${result.insertID}">
-								<span onclick="expand(this.parentElement)">${sanitize(data.name)}</span>&emsp;
-								<button onclick='remove(this.parentElement)'>delete</button>
-								</li>
-							`);
+							show_file('location-item.html', res, {
+								id: result.insertID,
+								name: sanitize(data.name)
+							});
 						}
 					});
 					break;
 				case "object":
 					sql.query(`INSERT INTO objects (game, name, default_location) values (?,?,?)`,
-					[data.game, data.name, data.description], (err, result) => {
+					[data.game, data.name, data.location], (err, result) => {
 						if (err) {
 							invalid_request(res);
 						} else {
-							
+							res.end(`
+								<li id="${result.insertID}">
+									<span onclick="expand(this.parentElement)">${sanitize(data.name)}</span>&emsp;
+									<button onclick='remove(this.parentElement)'>delete</button>
+								</li>`);						
 						}
 					});
 				default: invalid_request(res);
 			}
-		});		
+		});
+	} else if (req.url == '/setstart') {
+		var data = "";
+		req.on('data', chunk => data += chunk);
+		req.on('end', () => {
+			data = url.parse('?' + data, true).query;
+			sql.query(`UPDATE games SET start = ? WHERE ID = ?`, [data.id, data.game], err => {
+				if (err) {
+					invalid_request(res);
+				} else {
+					res.statusCode = 202;
+					res.end();
+				}
+			});
+		});
 	} else {
 		res.statusCode = 404;
-		res.end(`<html><head><title>404</title></head>
-			<body><p>Sorry, but this page does not exist. Click <a href="/">here</a> to go home.</p></body></html>`);	
+		show_file('404.html', res);	
 	}
 });
 
@@ -499,15 +424,14 @@ function show(data, text) {
 		if (err) throw err;
 		if (result.length == 1) {
 			if (data.inventory.length == 0) {
-				data.res.end(`
-					<html><head><title>${sanitize(result[0].name)} | text adventure games</title></head>
-					<body><p>${sanitize(text)}</p><form method="get">
-					<input onkeypress="if (event.key == 'Enter') this.parentElement.submit();" name="cmd"/>
-					<input hidden value="${toHexString(data.states)}" name="a"/>
-					<input hidden value="${data.location}" name="b"/>
-					<input hidden value="${toHexString(data.inventory)}" name="c"/>
-					<input type="submit"></form></body></html> 
-				`);
+				show_file('play.html', data.res, {
+					name: sanitize(result[0].name),
+					text: sanitize(text),
+					states: toHexString(data.states),
+					location: data.location,
+					inventory: "",
+					item_list: ""
+				});
 			} else {
 				sql.query(`SELECT name FROM objects WHERE ID IN (?)`, [data.inventory], function (err, inventory) {
 					if (err) throw err;
@@ -515,16 +439,14 @@ function show(data, text) {
 					inventory.forEach(function (item, index) {
 						objects += ((index == 0 ? "" : ", ") + item.name);
 					});
-					data.res.end(`
-						<html><head><title>${sanitize(result[0].name)} | text adventure games</title></head>
-						<body><p>${sanitize(text)}</p><form method="get">
-						<input onkeypress="if (event.key == 'Enter') this.parentElement.submit();" name="cmd"/>
-						<input hidden value="${toHexString(data.states)}" name="a"/>
-						<input hidden value="${data.location}" name="b"/>
-						<input hidden value="${data.inventory.join(' ')}" name="c"/>
-						<input type="submit"></form>
-						<p>You have: ${sanitize(objects)}</p></body></html> 
-					`);
+					show_file('play.html', data.res, {
+						name: sanitize(result[0].name),
+						text: sanitize(text),
+						states: toHexString(data.states),
+						location: data.location,
+						inventory: data.inventory.join(' '),
+						item_list: `<p>You have: ${sanitize(objects)}</p>`
+					});
 				});
 			}
 		}
@@ -533,10 +455,18 @@ function show(data, text) {
 
 function invalid_request(res) {
 	res.statusCode = 400;
-	res.end(`
-		<html><head><title>Oops</title></head>
-		<body><p>Sorry, but the request is invalid. Click <a href="/">here</a> to go home.</p></body></html>
-	`);
+	show_file('invalid-request.html', res);
+}
+
+function show_file(path, res, object) {
+	fs.readFile(path, (err, file) => {
+		if (err) throw err;
+		res.end(parse_literals(file.toString(), object));
+	});
+}
+
+function parse_literals(string, object) {
+	return string.replace(/{{ \w+ }}/g, item => object[item.replace(/{{ (\w+) }}/, '$1')]);
 }
 
 function sanitize(str) {
@@ -563,8 +493,4 @@ function toHalfByteArray(hexString) {
 
 function a_an(string) {
 	return /^[aeiou]/i.test(string) ? `an ${string}` : `a ${string}`;
-}
-
-function parse_literals(string, object) {
-	return string.replace(/{{ \w+ }}/g, item => object[item.replace(/{{ (\w+) }}/, '$1')]);
 }
