@@ -376,10 +376,6 @@ async function show_file(path) {
 	return util.format.apply(null, arguments);
 }
 
-function parse_literals(string, object) {
-	return string.replace(/{{ \w+ }}/g, item => object[item.replace(/{{ (\w+) }}/, '$1')]);
-}
-
 function sanitize(str) {
 	return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
