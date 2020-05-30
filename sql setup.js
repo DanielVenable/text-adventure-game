@@ -39,11 +39,11 @@ sql.connect(err => {
         CREATE TABLE IF NOT EXISTS objects (
             ID int unsigned NOT NULL AUTO_INCREMENT,
             name varchar(255) DEFAULT NULL,
-            default_location int unsigned DEFAULT NULL,
+            location int unsigned DEFAULT NULL,
             game int unsigned NOT NULL,
             PRIMARY KEY (ID),
             FOREIGN KEY (game) REFERENCES games (ID) ON DELETE CASCADE,
-            FOREIGN KEY (default_location) REFERENCES locations (ID) ON DELETE SET NULL);
+            FOREIGN KEY (location) REFERENCES locations (ID) ON DELETE SET NULL);
               
         CREATE TABLE IF NOT EXISTS actions (
             ID int unsigned NOT NULL AUTO_INCREMENT,

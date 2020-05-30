@@ -25,16 +25,16 @@
     <p>Locations</p>
     <ul class="location">
         <button onclick='add(this.parentElement)'>Add a location</button>
-        {{ locations }}
+        %s
     </ul>
     <p>Objects</p>
     <ul class="object">
-        {{ null_location_objects }}
+        %s
     </ul>
     <button onclick='remove(this)'>Delete this game</button>
 </body>
 <script>
-    const game = '{{ id }}';
+    const game = '%d';
     var opened = new Set();
     function expand(element) {
         if (opened.has(element)) {

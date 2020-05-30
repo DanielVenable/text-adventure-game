@@ -2,18 +2,18 @@
 <html>
 
 <head>
-    <title>{{ name }} | text adventure games</title>
+    <title>%s | text adventure games</title>
 </head>
 
 <body>
-    <p>{{ text }}</p>
+    <p>%s</p>
     <form method="get" action="/play">
-        <input onkeypress="if (event.key == 'Enter') this.parentElement.submit();" name="cmd" />
-        <input hidden value="{{ states }}" name="a" />
-        <input hidden value="{{ location }}" name="b" />
-        <input hidden value="{{ inventory }}" name="c" />
+        <input onkeypress="if (event.key == 'Enter') this.parentElement.submit();" name="cmd">
+        <input hidden value="%s" name="a">
+        <input hidden value="%d" name="b">
+        <input hidden value="%s" name="c">
         <input type="submit" />
-    </form>{{ item_list }}
+    </form>%s
 </body>
 
 </html>
