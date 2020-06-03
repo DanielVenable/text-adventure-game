@@ -1,3 +1,5 @@
+'use strict';
+
 const http = require('http');
 const mysql = require('mysql');
 const url = require('url');
@@ -5,7 +7,7 @@ const fs = require('fs');
 const util = require('util');
 const port = 8000;
 
-process.chdir(__dirname + '/pages');
+process.chdir(__dirname + '/files');
 
 const sql = mysql.createConnection({
 	host: "localhost",
@@ -19,10 +21,10 @@ const query = util.promisify(sql.query).bind(sql);
 
 const files = {
 	readFile: util.promisify(fs.readFile),
-	get: async path =>
-		files[path] ?
-		files[path] :
-		files[path] = (await files.readFile(path)).toString()
+	get: async function (path) {
+		if (!this[path]) files[path] = (await this.readFile(path)).toString();
+		return this[path];
+	}
 };
 
 http.createServer(async (req, res) => {
@@ -37,7 +39,7 @@ http.createServer(async (req, res) => {
 			var inventory = parsed_url.query.c.split(' ').map(parseInt).filter(elem => !isNaN(elem));
 			const location = await query(`SELECT * FROM locations WHERE ID = ?`, [locationID]);
 			const show_data = {
-				res:res, game:location[0].game, states:states, location:locationID, inventory:inventory
+				res: res, game: location[0].game, states: states, location: locationID, inventory: inventory
 			};
 			const objects = await query(`SELECT * FROM objects WHERE game = ? ORDER BY ID`, [location[0].game]);
 			if (command.startsWith('go to ')) {
@@ -108,11 +110,11 @@ http.createServer(async (req, res) => {
 			} else if (/^use .+/.test(command)) {
 				const objs = command.split(/^use /)[1].split(' on ');
 				if (objs[1] === undefined) {
-					use_on(null, objs[0]);
+					await use_on(null, objs[0]);
 				} else {
 					const item1 = await query(`SELECT ID FROM objects WHERE name = ?`, [objs[0]]);
 					if (item1.length == 1 && inventory.includes(item1[0].ID)) {
-						use_on(item1[0].ID, objs[1]);
+						await use_on(item1[0].ID, objs[1]);
 					} else {
 						show(show_data, `You don't have ${a_an(objs[0])}`);
 					}
@@ -170,28 +172,23 @@ http.createServer(async (req, res) => {
 			const file = await show_file('choose-edit.html', game_list);
 			res.end(file);
 		} else if (parsed_url.pathname == '/edit' && parsed_url.query.game) {
-			const game = await query(`SELECT * FROM games WHERE name = ?`,	[parsed_url.query.game]);
+			const game = await query(`SELECT * FROM games WHERE name = ?`, [parsed_url.query.game]);
 			const locations = await query(`SELECT * FROM locations WHERE game = ?`, [game[0].ID]);
 			var location_list = "";
-			for (const location of locations) location_list += game[0].start == location.ID ? `
-				<li id="${location.ID}" class="start">
-					<span onclick="expand(this.parentElement)">${sanitize(location.name)}</span>&emsp;
-					<button onclick="remove(this.parentElement)">delete</button>&emsp;
-				</li>
-				` : `
-				<li id="${location.ID}">
-					<span onclick="expand(this.parentElement)">${sanitize(location.name)}</span>&emsp;
-					<button onclick="remove(this.parentElement)">delete</button>&emsp;
-					<button onclick="make_start(this.parentElement)">make start</button>
-				</li>
-				`;
+			for (const location of locations) {
+				if (game[0].start == location.ID) {
+					location_list += await show_file('location.html',
+						location.ID, "start",
+						sanitize(location.name), "hidden");
+				} else {
+					location_list += await show_file('location.html',
+						location.ID, "",
+						sanitize(location.name), "");
+				}
+			}
 			const objects = await query(`SELECT * FROM objects WHERE location IS NULL AND game = ?`, [game[0].ID]);
 			var obj_list = "";
-			for (const obj of objects) obj_list += `
-				<li id="${obj.ID}">
-					<span onclick="expand(this.parentElement)">${sanitize(obj.name)}</span>&emsp;
-					<button onclick='remove(this.parentElement)'>delete</button>
-				</li>`;
+			for (const obj of objects) obj_list += await show_file('object.html', obj.ID, obj.name);
 			const file = await show_file('edit.html',
 				location_list,
 				obj_list,
@@ -203,46 +200,40 @@ http.createServer(async (req, res) => {
 		} else if (req.url == '/create' && req.method == 'POST') {
 			var data = "";
 			req.on('data', chunk => data += chunk);
-			req.on('end', async () => {
+			await end(req);
+			try {
 				data = url.parse('?' + data, true).query.name;
-				try {
-					await query(`INSERT INTO games (name) values (?)`, [data]);
-					res.setHeader('Location', `/edit?game=${data}`);
-				} catch (error) {
-					res.setHeader('Location', `/edit`);
-					console.error(error);
-				} finally {
-					res.statusCode = 302;
-					res.end();
-				}
-			});
+				await query(`INSERT INTO games (name) values (?)`, [data]);
+				res.setHeader('Location', `/edit?game=${data}`);
+			} catch (error) {
+				res.setHeader('Location', `/edit`);
+				console.error(error);
+			} finally {
+				res.statusCode = 302;
+				res.end();
+			}
 		} else if (parsed_url.pathname == '/expand') {
 			switch (parsed_url.query.type) {
 				case "location":
 					var result = await query(`SELECT name, ID FROM objects WHERE location = ?`, [parsed_url.query.id]);
-					res.write(`<ul class="object"><button onclick='add(this.parentElement)'>Add an object</button>`);
-					for (const obj of result)
-						res.write(`
-							<li id="${obj.ID}">
-								<span onclick="expand(this.parentElement)">${sanitize(obj.name)}</span>&emsp;
-								<button onclick='remove(this.parentElement)'>delete</button>
-							</li>`);
+					res.write(`<ul class="object"><li class="button"><button onclick='add(this.parentElement.parentElement)'>Add an object</button></li>`);
+					for (const obj of result) res.write(await show_file('object.html', obj.ID, sanitize(obj.name)));
 					res.end(`</ul>`);
 					break;
 				case "object":
 					var result = await query(`
 						SELECT * FROM actions
-						JOIN objects ON actions.obj1 = objects.ID OR actions.obj1
+						JOIN objects ON actions.obj1 = objects.ID
 						WHERE actions.obj1 = ? OR obj2 = ?`,
 						[parsed_url.query.id, parsed_url.query.id]);
-					res.write(`<ul class="action"><button onclick='add(this.parentElement)'>Add an action</button>`);
-					for (const action of result)
-						res.write(`
-							<li id="${action.ID}">
-								<span onclick="expand(this.parentElement)">
-									use ${sanitize(action.obj1)}${action.obj2 ? ` on ${sanitize(action.obj2)}` : ''}
-								</span>&emsp;<button onclick='remove(this.parentElement)'>delete</button>
-							</li>`);
+					res.write(`<ul class="action"><li class="button"><button onclick='add(this.parentElement.parentElement)'>Add an action</button></li>`);
+					for (const action of result) {
+						const obj2 = await query(`SELECT name FROM objects WHERE ID = ?`, [action.obj2]);
+						res.write(await show_file(
+							'item.html', action.ID, "",
+							`use ${sanitize(action.name)}${obj2.length ? ` on ${sanitize(obj2[0].name)}` : ''}`, ""
+						));
+					}
 					res.end(`</ul>`);
 					break;
 				default: invalid_request(res);
@@ -268,42 +259,60 @@ http.createServer(async (req, res) => {
 					break;
 				default: invalid_request(res);
 			}
-		} else if (req.url == '/add') {
+		} else if (req.url == '/add' && req.method == 'POST') {
 			var data = "";
 			req.on('data', chunk => data += chunk);
-			req.on('end', async () => {
-				data = url.parse('?' + data, true).query;
-				switch (data.type) {
-					case "location":
-						var result = await query(`INSERT INTO locations (game, name, description) values (?,?,?)`,
-							[data.game, data.name, data.description]);
-						res.statusCode = 200;
-						const file = await show_file('location-item.html',
-							result.insertID,
-							sanitize(data.name));
-						res.end(file);
-						break;
-					case "object":
-						var result = await query(`INSERT INTO objects (game, name, location) values (?,?,?)`,
-							[data.game, data.name, data.location]);
-						res.end(`
-							<li id="${result.insertID}">
-								<span onclick="expand(this.parentElement)">${sanitize(data.name)}</span>&emsp;
-								<button onclick='remove(this.parentElement)'>delete</button>
-							</li>`);
-						break;					
-					default: invalid_request(res);
-				}
-			});
+			await end(req);
+			data = url.parse('?' + data, true).query;
+			switch (data.type) {
+				case "location":
+					var result = await query(`INSERT INTO locations (game, name, description) values (?,?,?)`,
+						[data.game, data.name, data.description]);
+					res.statusCode = 200;
+					var file = await show_file('location.html',
+						location.ID, "",
+						sanitize(location.name), "");
+					res.end(file);
+					break;
+				case "object":
+					var result = await query(`INSERT INTO objects (game, name, location) values (?,?,?)`,
+						[data.game, data.name, data.location]);
+					var file = await show_file('object.html', result.insertID, sanitize(data.name));
+					res.end(file);
+					break;
+				case "action":
+					var result = await query(`INSERT INTO actions (obj1) values (?)`, [data.obj]);
+					const name = await query(`SELECT name FROM objects WHERE ID = ?`, [data.obj]);
+					var file = await show_file('item.html', result.insertID, "",
+						`use ${sanitize(name)}`, "");
+					res.end(file);
+					break;
+				default: invalid_request(res);
+			}
 		} else if (req.url == '/setstart') {
 			var data = "";
 			req.on('data', chunk => data += chunk);
-			req.on('end', async () => {
-				data = url.parse('?' + data, true).query;
-				await query(`UPDATE games SET start = ? WHERE ID = ?`, [data.id, data.game]);
-				res.statusCode = 202;
-				res.end();
-			});
+			await end(req);
+			data = url.parse('?' + data, true).query;
+			await query(`UPDATE games SET start = ? WHERE ID = ?`, [data.id, data.game]);
+			res.statusCode = 202;
+			res.end();
+		} else if (req.url == '/rename' && req.method == 'POST') {
+			var data = "";
+			req.on('data', chunk => data += chunk);
+			await end(req);
+			data = url.parse('?' + data, true).query;
+			switch (data.type) {
+				case "location":
+					await query(`UPDATE locations SET name = ? WHERE ID = ?`, [data.name, data.id]);
+					break;
+				case "object":
+					await query(`UPDATE objects SET name = ? WHERE ID = ?`, [data.name, data.id]);
+					break;
+				default: throw "Not a valid type";
+			}
+			res.statusCode = 202;
+			res.end();
 		} else {
 			res.statusCode = 404;
 			const file = await show_file('404.html');
@@ -317,7 +326,7 @@ http.createServer(async (req, res) => {
 
 function handle_effects(effects, objects, states) {
 	var text = "";
-	effects.forEach(function (effect, index) {
+	effects.forEach((effect, index) => {
 		if (effect.state) states[objects.findIndex((obj) => obj.ID == effect.obj)] = effect.state;
 		if (effect.text) text += (index == 0 ? "" : " ") + effect.text;
 	});
@@ -342,7 +351,7 @@ function satisfy_constraints(states, constraints, objects) {
 async function show(data, text) {
 	const result = await query(`SELECT name FROM games WHERE ID = ?`, [data.game]);
 	if (data.inventory.length == 0) {
-		const file = await show_file('play.html', 
+		const file = await show_file('play.html',
 			sanitize(result[0].name),
 			sanitize(text),
 			toHexString(data.states),
@@ -351,7 +360,7 @@ async function show(data, text) {
 	} else {
 		const inventory = await query(`SELECT name FROM objects WHERE ID IN (?)`, [data.inventory]);
 		var objects = "";
-		inventory.forEach((item, index) => 
+		inventory.forEach((item, index) =>
 			objects += ((index == 0 ? "" : ", ") + item.name)
 		);
 		const file = await show_file('play.html',
@@ -362,17 +371,17 @@ async function show(data, text) {
 			data.inventory.join(' '),
 			`<p>You have: ${sanitize(objects)}</p>`
 		);
-		res.end(file);
-	}		
+		data.res.end(file);
+	}
 }
 
 function invalid_request(res) {
 	res.statusCode = 400;
-	show_file('invalid-request.html').then(res.end, err => {throw err;});
+	show_file('invalid-request.html').then(res.end, console.error);
 }
 
 async function show_file(path) {
-	path = await files.get(path);
+	arguments[0] = await files.get(path);
 	return util.format.apply(null, arguments);
 }
 
@@ -384,7 +393,7 @@ function toHexString(halfByteArray) {
 	for (var i = 0; i < halfByteArray.length; i++) {
 		if (halfByteArray[i] == undefined) halfByteArray[i] = 0;
 	}
-	return halfByteArray.map(function(byte) {
+	return halfByteArray.map(function (byte) {
 		return ('0' + (byte & 0xF).toString(16)).slice(-1);
 	}).join('');
 }
@@ -400,4 +409,8 @@ function toHalfByteArray(hexString) {
 
 function a_an(string) {
 	return /^[aeiou]/i.test(string) ? `an ${string}` : `a ${string}`;
+}
+
+function end(req) {
+	return new Promise(respond => req.on('end', respond));
 }
