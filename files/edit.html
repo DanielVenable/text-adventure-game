@@ -14,12 +14,16 @@
             padding: 0px 0px;
         }
 
-        .button {
+        .nobullet {
             list-style: none;
         }
 
         li {
             line-height: 300%;
+        }
+
+        iframe {
+            border: 1px solid black;
         }
     </style>
 </head>
@@ -27,15 +31,17 @@
 <body class="game">
     <p>Locations</p>
     <ul class="location">
-        <li class="button"><button onclick='add(this.parentElement.parentElement)'>Add a location</button></li>
+        <li class="nobullet"><button onclick='add(this.parentElement.parentElement)'>Add a location</button></li>
         %s
     </ul>
     <p>Objects</p>
     <ul class="object">
-        <li class="button"><button onclick='add(this.parentElement.parentElement)'>Add an object</button></li>
+        <li class="nobullet"><button onclick='add(this.parentElement.parentElement)'>Add an object</button></li>
         %s
     </ul>
     <button onclick='remove(this)'>Delete this game</button>
+    <p></p>
+    <iframe onload="this.height = this.contentWindow.document.body.scrollHeight + 24;" src="/start?game=%s"></iframe>
 </body>
 <script>
     const game = '%d';
@@ -117,7 +123,7 @@
     function rename(element) {
         const elem = element.getElementsByTagName('span')[0];
         const text = elem.innerHTML;
-        elem.innerHTML = `<input value="${elem.innerText.replace(/\"/g, '&quot;')}" onchange="end_rename(this);">`;
+        elem.innerHTML = `<input value="${elem.innerText.replace(/\"/g, '&quot;')}" onblur="end_rename(this);" onkeypress="if (event.key == 'Enter') end_rename(this);">`;
         elem.getElementsByTagName('input')[0].select();
     }
 
@@ -142,6 +148,18 @@
         old_start.getElementsByTagName("button")[2].hidden = false;
         element.className = 'start';
         element.getElementsByTagName('button')[2].hidden = true;
+    }
+
+    function change_description(element) {
+        const xhttp = new XMLHttpRequest();
+        xhttp.open("POST", "/changedescription");
+        xhttp.send(`game=${game}&id=${element.parentElement.parentElement.parentElement.id}&description=${encodeURIComponent(element.value)}`);
+    }
+
+    function change_item(element) {
+        const xhttp = new XMLHttpRequest();
+        xhttp.open("POST", '/changeitem');
+        xhttp.send(`game=${game}&id=${element.parentElement.parentElement.id}&newitem=${element.value}`);
     }
 </script>
 

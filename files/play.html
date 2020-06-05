@@ -1,19 +1,22 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 
 <head>
     <title>%s | text adventure games</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
 
 <body>
     <p>%s</p>
-    <form method="get" action="/play">
+    <form method="get" action="/play" autocomplete="off">
         <input onkeypress="if (event.key == 'Enter') this.parentElement.submit();" name="cmd">
         <input hidden value="%s" name="a">
         <input hidden value="%d" name="b">
         <input hidden value="%s" name="c">
-        <input type="submit" />
+        <input type="submit">
     </form>%s
+    <p></p>
+    <a href="/start?game=%s"><button>Restart this game</button></a>
 </body>
 
 </html>
