@@ -28,7 +28,7 @@
     </style>
 </head>
 
-<body class="game">
+<body>
     <p>Locations</p>
     <ul class="location">
         <li class="nobullet"><button onclick='add(this.parentElement.parentElement)'>Add a location</button></li>
@@ -43,6 +43,7 @@
     <p></p>
     <iframe onload="this.height = this.contentWindow.document.body.scrollHeight + 24;" src="/start?game=%s"></iframe>
 </body>
+
 <script>
     const game = '%d';
     var opened = new Set();
@@ -62,8 +63,8 @@
             }
             xhttp.open("GET",
                 "/expand?game=" + encodeURIComponent(game) +
-                "&type=" + element.parentElement.className +
-                "&id=" + element.id, true);
+                "&type=" + element.parentElement.classList[0] +
+                "&id=" + element.classList[0], true);
             xhttp.send();
         }
     }
@@ -74,25 +75,28 @@
             if (this.readyState == 4 && this.status == 200) element.innerHTML += this.responseText;
         }
         xhttp.open("POST", "/add", true);
-        if (element.className == "action") {
+        if (["action", "constraint", "effect"].includes(element.classList[0])) {
             xhttp.send(
                 "game=" + game +
-                "&type=action&obj=" + element.parentElement.id);
+                "&type=" + element.classList[0] +
+                "&obj=" + element.parentElement.parentElement.parentElement.classList[0] +
+                "&item=" + element.parentElement.classList[0] +
+                "&parenttype=" + element.parentElement.parentElement.classList[0]);
         } else {
-            const name = encodeURIComponent(prompt(`Choose a name for the ${element.className}.`, ""));
+            const name = encodeURIComponent(prompt(`Choose a name for the ${element.classList[0]}.`, ""));
             if (name == "null" || name == "") return;
-            if (element.className == "location") {
-                const description = encodeURIComponent(prompt(`Choose a description for the ${element.className}.`, ""));
+            if (element.classList[0] == "location") {
+                const description = encodeURIComponent(prompt(`Choose a description for the location.`, ""));
                 if (description == "null" || description == "") return;
                 xhttp.send(
                     "game=" + game +
                     "&type=location&name=" + name +
                     "&description=" + description);
-            } else if (element.className == "object") {
+            } else if (element.classList[0] == "object") {
                 xhttp.send(
                     "game=" + game +
                     "&type=object&name=" + name +
-                    "&location=" + element.parentElement.id);
+                    "&location=" + element.parentElement.classList[0]);
             }
         }
     }
@@ -100,7 +104,7 @@
     function remove(element) {
         var text =
             "Are you sure you want to delete this " +
-            element.parentElement.className + "? This operation cannot be undone";
+            element.parentElement.classList[0] + "? This operation cannot be undone";
         if (confirm(text)) {
             const xhttp = new XMLHttpRequest();
             xhttp.onreadystatechange = function () {
@@ -114,8 +118,8 @@
             }
             xhttp.open("DELETE",
                 "/remove?game=" + encodeURIComponent(game) +
-                "&type=" + element.parentElement.className +
-                "&id=" + element.id, true);
+                "&type=" + element.parentElement.classList[0] +
+                "&id=" + element.classList[0], true);
             xhttp.send();
         }
     }
@@ -130,36 +134,37 @@
     function end_rename(element) {
         const text = element.value;
         const xhttp = new XMLHttpRequest();
-        xhttp.open("POST", "/rename");
+        xhttp.open("POST", "/rename", true);
         xhttp.send(
-            "id=" + element.parentElement.parentElement.id +
+            "id=" + element.parentElement.parentElement.classList[0] +
             "&name=" + encodeURIComponent(text) +
             "&game=" + game +
-            "&type=" + element.parentElement.parentElement.parentElement.className);
+            "&type=" + element.parentElement.parentElement.parentElement.classList[0]);
         element.outerHTML = text.replace(/</g, '&lt;').replace(/>/g, '&gt;');
     }
 
     function make_start(element) {
         const xhttp = new XMLHttpRequest();
-        xhttp.open("POST", `/setstart`);
-        xhttp.send(`id=${element.id}&game=${game}`);
+        xhttp.open("POST", `/setstart`, true);
+        xhttp.send(`id=${element.classList[0]}&game=${game}`);
         const old_start = document.getElementsByClassName('start')[0];
-        old_start.className = "";
+        old_start.classList.remove('start');
         old_start.getElementsByTagName("button")[2].hidden = false;
-        element.className = 'start';
+        element.classList.add('start');
         element.getElementsByTagName('button')[2].hidden = true;
     }
 
     function change_description(element) {
         const xhttp = new XMLHttpRequest();
-        xhttp.open("POST", "/changedescription");
-        xhttp.send(`game=${game}&id=${element.parentElement.parentElement.parentElement.id}&description=${encodeURIComponent(element.value)}`);
+        xhttp.open("POST", "/changedescription", true);
+        xhttp.send(`game=${game}&id=${element.parentElement.parentElement.parentElement.classList[0]}&description=${encodeURIComponent(element.value)}`);
     }
 
     function change_item(element) {
         const xhttp = new XMLHttpRequest();
-        xhttp.open("POST", '/changeitem');
-        xhttp.send(`game=${game}&id=${element.parentElement.parentElement.id}&newitem=${element.value}`);
+        xhttp.open("POST", '/changeitem', true);
+        const type = element.parentElement.parentElement.classList[0];
+        xhttp.send(`game=${game}&id=${element.parentElement.classList[0]}&newitem=${element.value}&type=${type}`);
     }
 </script>
 
