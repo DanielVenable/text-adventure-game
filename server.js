@@ -225,22 +225,22 @@ http.createServer(async (req, res) => {
 						break;
 					case "action":
 						var constraints = await query(`
-							SELECT * FROM constraint_and_effect
+							SELECT constraint_and_effect.obj, constraint_and_effect.state FROM constraint_and_effect
 							JOIN action_to_constraint ON constraint_and_effect.ID = action_to_constraint.constraint_
 							WHERE action_to_constraint.action = ?`, [parsed_url.query.id]);
 						var effects = await query(`
-							SELECT * FROM constraint_and_effect
+							SELECT constraint_and_effect.obj, constraint_and_effect.state FROM constraint_and_effect
 							JOIN action_to_effect ON constraint_and_effect.ID = action_to_effect.effect
 							WHERE action_to_effect.action = ?`, [parsed_url.query.id]);
 						res.write(await show_file('list-start.html', 'constraint', 'a constraint'));
 						for (const constraint of constraints)
-							res.write(await show_file('constraint.html',
-								await all_objects(parsed_url.query.game, constraint.ID), constraint.state));
+							res.write(await show_file('constraint.html', constraint.obj,
+								await all_objects(parsed_url.query.game, constraint.obj), constraint.state));
 						res.write('</ul>');
 						res.write(await show_file('list-start.html', 'effect', 'an effect'));
 						for (const effect of effects)
-							res.write(await show_file('effect.html',
-								await all_objects(parsed_url.query.game, effect.ID), effect.state));
+							res.write(await show_file('effect.html', effect.obj,
+								await all_objects(parsed_url.query.game, effect.obj), effect.state));
 						res.end('</ul>');
 						break;
 					default: await invalid_request(res);
@@ -294,7 +294,7 @@ http.createServer(async (req, res) => {
 					case "effect":
 						await add_constraint_or_effect(data.obj, data.type === 'constraint', data.parenttype, data.item);
 						var file = await show_file(data.type === 'constraint' ? 'constraint.html' : 'effect.html',
-							await all_objects(data.game, data.obj), 0);
+							data.obj, await all_objects(data.game, data.obj), 0);
 						res.end(file);
 						break;
 					default: await invalid_request(res);
@@ -315,11 +315,11 @@ http.createServer(async (req, res) => {
 				}
 				res.statusCode = 202;
 				res.end();
-			} else if (req.url == '/changedescription') {
+			} else if (req.url == '/change/description') {
 				await query(`UPDATE locations SET description = ? WHERE ID = ?`, [data.description, data.id]);
 				res.statusCode = 202;
 				res.end();
-			} else if (req.url == '/changeitem') {
+			} else if (req.url == '/change/item') {
 				await query(`UPDATE actions SET obj2 = ? WHERE ID = ?`,
 					[data.newitem === "null" ? null : data.newitem, data.id]);
 				res.statusCode = 202;
@@ -352,6 +352,16 @@ http.createServer(async (req, res) => {
 					await query(`DELETE FROM actions WHERE ID = ?`, [parsed_url.query.id]);
 					res.statusCode = 202;
 					res.end();
+				case "constraint":
+				case "effect":
+					remove_constraint_or_effect(
+						parsed_url.query.id,
+						parsed_url.query.type === 'constraint',
+						parsed_url.query.parenttype,
+						parsed_url.query.item);
+					res.statusCode = 202;
+					res.end();
+					break;
 				default: await invalid_request(res);
 			}
 		} else {
@@ -440,6 +450,7 @@ async function all_objects(game, id) {
  * @param {number} state an integer from 0 to 15
  */
 async function add_constraint_or_effect(obj, is_constraint, type, item, state = 0) {
+	if (!['action', 'grab', 'path'].includes(item)) throw "invalid parameter";
 	const exists = await query(`SELECT ID FROM constraint_and_effect WHERE obj = ? AND state = ?`, [item, state]);
 	if (exists.length) {
 		var id = exists[0].ID;
@@ -451,6 +462,28 @@ async function add_constraint_or_effect(obj, is_constraint, type, item, state = 
 		await query(`INSERT INTO ${type}_to_constraint (${type}, constraint_) values (?, ?)`, [item, id]);
 	} else {
 		await query(`INSERT INTO ${type}_to_effect (${type}, effect) values (?, ?)`, [item, id]);
+	}
+}
+const table_list = {action: 'actions', grab: 'grab', path: 'paths'};
+/**
+ * @param {number} obj the ID of an object
+ * @param {boolean} is_constraint
+ * @param {'action' | 'grab' | 'path'} type
+ * @param {number} item the ID of an action, grab, or path
+ */
+async function remove_constraint_or_effect(obj, is_constraint, type, item) {
+	if (!['action', 'grab', 'path'].includes(type)) throw "invalid parameter";
+	const table = table_list[type];
+	if (is_constraint) {
+		await query(`
+			DELETE ${type}_to_constraint FROM constraint_and_effect
+			JOIN ${type}_to_constraint ON ${type}_to_constraint.constraint_ = constraint_and_effect.ID
+			WHERE ${type}_to_constraint.${type} = ? AND constraint_and_effect.obj = ?`, [item, obj]);
+	} else {
+		await query(`
+			DELETE ${type}_to_effect FROM constraint_and_effect
+			JOIN ${type}_to_effect ON ${type}_to_effect.effect = constraint_and_effect.ID
+			WHERE ${type}_to_effect.${type} = ? AND constraint_and_effect.obj = ?`, [item, obj]);
 	}
 }
 

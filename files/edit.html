@@ -2,170 +2,178 @@
 <html lang='en'>
 
 <head>
-    <title>text adventure game</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <style>
-        span {
-            cursor: pointer;
-            text-decoration: underline;
-        }
+	<title>text adventure game</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<style>
+		span {
+			cursor: pointer;
+			text-decoration: underline;
+		}
 
-        button {
-            padding: 0px 0px;
-        }
+		button {
+			padding: 0px 0px;
+		}
 
-        .nobullet {
-            list-style: none;
-        }
+		.nobullet {
+			list-style: none;
+		}
 
-        li {
-            line-height: 300%;
-        }
+		li {
+			line-height: 300%;
+		}
 
-        iframe {
-            border: 1px solid black;
-        }
-    </style>
+		iframe {
+			border: 1px solid black;
+		}
+	</style>
 </head>
 
 <body>
-    <p>Locations</p>
-    <ul class="location">
-        <li class="nobullet"><button onclick='add(this.parentElement.parentElement)'>Add a location</button></li>
-        %s
-    </ul>
-    <p>Objects</p>
-    <ul class="object">
-        <li class="nobullet"><button onclick='add(this.parentElement.parentElement)'>Add an object</button></li>
-        %s
-    </ul>
-    <button onclick='remove(this)'>Delete this game</button>
-    <p></p>
-    <iframe onload="this.height = this.contentWindow.document.body.scrollHeight + 24;" src="/start?game=%s"></iframe>
+	<p>Locations</p>
+	<ul class="location">
+		<li class="nobullet"><button onclick='add(this.parentElement.parentElement)'>Add a location</button></li>
+		%s
+	</ul>
+	<p>Objects</p>
+	<ul class="object">
+		<li class="nobullet"><button onclick='add(this.parentElement.parentElement)'>Add an object</button></li>
+		%s
+	</ul>
+	<button onclick='remove(this)'>Delete this game</button>
+	<p></p>
+	<iframe onload="this.height = this.contentWindow.document.body.scrollHeight + 24;" src="/start?game=%s"></iframe>
 </body>
 
 <script>
-    const game = '%d';
-    var opened = new Set();
-    function expand(element) {
-        if (opened.has(element)) {
-            const lists = element.getElementsByTagName('ul');
-            if (lists[0].hidden) {
-                for (const elem of lists) elem.hidden = false;
-            } else {
-                for (const elem of lists) elem.hidden = true;
-            }
-        } else {
-            opened.add(element);
-            const xhttp = new XMLHttpRequest();
-            xhttp.onreadystatechange = function () {
-                if (this.readyState == 4 && this.status == 200) element.innerHTML += this.responseText;
-            }
-            xhttp.open("GET",
-                "/expand?game=" + encodeURIComponent(game) +
-                "&type=" + element.parentElement.classList[0] +
-                "&id=" + element.classList[0], true);
-            xhttp.send();
-        }
-    }
+	const game = '%d';
+	var opened = new Set();
+	function expand(element) {
+		if (opened.has(element)) {
+			const lists = element.getElementsByTagName('ul');
+			if (lists[0].hidden) {
+				for (const elem of lists) elem.hidden = false;
+			} else {
+				for (const elem of lists) elem.hidden = true;
+			}
+		} else {
+			opened.add(element);
+			const xhttp = new XMLHttpRequest();
+			xhttp.onreadystatechange = function () {
+				if (this.readyState == 4 && this.status == 200) element.innerHTML += this.responseText;
+			}
+			xhttp.open("GET",
+				"/expand?game=" + encodeURIComponent(game) +
+				"&type=" + element.parentElement.classList[0] +
+				"&id=" + element.classList[0], true);
+			xhttp.send();
+		}
+	}
 
-    function add(element) {
-        const xhttp = new XMLHttpRequest();
-        xhttp.onreadystatechange = function () {
-            if (this.readyState == 4 && this.status == 200) element.innerHTML += this.responseText;
-        }
-        xhttp.open("POST", "/add", true);
-        if (["action", "constraint", "effect"].includes(element.classList[0])) {
-            xhttp.send(
-                "game=" + game +
-                "&type=" + element.classList[0] +
-                "&obj=" + element.parentElement.parentElement.parentElement.classList[0] +
-                "&item=" + element.parentElement.classList[0] +
-                "&parenttype=" + element.parentElement.parentElement.classList[0]);
-        } else {
-            const name = encodeURIComponent(prompt(`Choose a name for the ${element.classList[0]}.`, ""));
-            if (name == "null" || name == "") return;
-            if (element.classList[0] == "location") {
-                const description = encodeURIComponent(prompt(`Choose a description for the location.`, ""));
-                if (description == "null" || description == "") return;
-                xhttp.send(
-                    "game=" + game +
-                    "&type=location&name=" + name +
-                    "&description=" + description);
-            } else if (element.classList[0] == "object") {
-                xhttp.send(
-                    "game=" + game +
-                    "&type=object&name=" + name +
-                    "&location=" + element.parentElement.classList[0]);
-            }
-        }
-    }
+	function add(element) {
+		const xhttp = new XMLHttpRequest();
+		xhttp.onreadystatechange = function () {
+			if (this.readyState == 4 && this.status == 200) element.innerHTML += this.responseText;
+		}
+		xhttp.open("POST", "/add", true);
+		if (["action", "constraint", "effect"].includes(element.classList[0])) {
+			xhttp.send(
+				"game=" + game +
+				"&type=" + element.classList[0] +
+				"&obj=" + element.parentElement.parentElement.parentElement.classList[0] +
+				"&item=" + element.parentElement.classList[0] +
+				"&parenttype=" + element.parentElement.parentElement.classList[0]);
+		} else {
+			const name = encodeURIComponent(prompt(`Choose a name for the ${element.classList[0]}.`, ""));
+			if (name == "null" || name == "") return;
+			if (element.classList[0] == "location") {
+				const description = encodeURIComponent(prompt(`Choose a description for the location.`, ""));
+				if (description == "null" || description == "") return;
+				xhttp.send(
+					"game=" + game +
+					"&type=location&name=" + name +
+					"&description=" + description);
+			} else if (element.classList[0] == "object") {
+				xhttp.send(
+					"game=" + game +
+					"&type=object&name=" + name +
+					"&location=" + element.parentElement.classList[0]);
+			}
+		}
+	}
 
-    function remove(element) {
-        var text =
-            "Are you sure you want to delete this " +
-            element.parentElement.classList[0] + "? This operation cannot be undone";
-        if (confirm(text)) {
-            const xhttp = new XMLHttpRequest();
-            xhttp.onreadystatechange = function () {
-                if (this.readyState == 4) {
-                    if (this.status == 202) {
-                        element.remove();
-                    } else if (this.status == 410) {
-                        window.location.replace("/");
-                    }
-                }
-            }
-            xhttp.open("DELETE",
-                "/remove?game=" + encodeURIComponent(game) +
-                "&type=" + element.parentElement.classList[0] +
-                "&id=" + element.classList[0], true);
-            xhttp.send();
-        }
-    }
+	function remove(element) {
+		var text =
+			"Are you sure you want to delete this " +
+			element.parentElement.classList[0] + "? This operation cannot be undone";
+		if (confirm(text)) {
+			const xhttp = new XMLHttpRequest();
+			xhttp.onreadystatechange = function () {
+				if (this.readyState == 4) {
+					if (this.status == 202) {
+						element.remove();
+					} else if (this.status == 410) {
+						window.location.replace("/");
+					}
+				}
+			}
+			xhttp.open("DELETE",
+				"/remove?game=" + game +
+				"&type=" + element.parentElement.classList[0] +
+				"&id=" + element.classList[0] +
+				(['constraint', 'effect'].includes(element.parentElement.classList[0]) ? 
+				"&item=" + element.parentElement.parentElement.classList[0] +
+				"&parenttype=" + element.parentElement.parentElement.parentElement.classList[0] : ''), true);
+			xhttp.send();
+		}
+	}
 
-    function rename(element) {
-        const elem = element.getElementsByTagName('span')[0];
-        const text = elem.innerHTML;
-        elem.innerHTML = `<input value="${elem.innerText.replace(/\"/g, '&quot;')}" onblur="end_rename(this);" onkeypress="if (event.key == 'Enter') end_rename(this);">`;
-        elem.getElementsByTagName('input')[0].select();
-    }
+	function rename(element) {
+		const elem = element.getElementsByTagName('span')[0];
+		const text = elem.innerHTML;
+		elem.innerHTML = `<input value="${elem.innerText.replace(/\"/g, '&quot;')}" onblur="end_rename(this);" onkeypress="if (event.key == 'Enter') end_rename(this);">`;
+		elem.getElementsByTagName('input')[0].select();
+	}
 
-    function end_rename(element) {
-        const text = element.value;
-        const xhttp = new XMLHttpRequest();
-        xhttp.open("POST", "/rename", true);
-        xhttp.send(
-            "id=" + element.parentElement.parentElement.classList[0] +
-            "&name=" + encodeURIComponent(text) +
-            "&game=" + game +
-            "&type=" + element.parentElement.parentElement.parentElement.classList[0]);
-        element.outerHTML = text.replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    }
+	function end_rename(element) {
+		const text = element.value;
+		const xhttp = new XMLHttpRequest();
+		xhttp.open("POST", "/rename", true);
+		xhttp.send(
+			"id=" + element.parentElement.parentElement.classList[0] +
+			"&name=" + encodeURIComponent(text) +
+			"&game=" + game +
+			"&type=" + element.parentElement.parentElement.parentElement.classList[0]);
+		element.outerHTML = text.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+	}
 
-    function make_start(element) {
-        const xhttp = new XMLHttpRequest();
-        xhttp.open("POST", `/setstart`, true);
-        xhttp.send(`id=${element.classList[0]}&game=${game}`);
-        const old_start = document.getElementsByClassName('start')[0];
-        old_start.classList.remove('start');
-        old_start.getElementsByTagName("button")[2].hidden = false;
-        element.classList.add('start');
-        element.getElementsByTagName('button')[2].hidden = true;
-    }
+	function make_start(element) {
+		const xhttp = new XMLHttpRequest();
+		xhttp.open("POST", `/setstart`, true);
+		xhttp.send(`id=${element.classList[0]}&game=${game}`);
+		const old_start = document.getElementsByClassName('start')[0];
+		old_start.classList.remove('start');
+		old_start.getElementsByTagName("button")[2].hidden = false;
+		element.classList.add('start');
+		element.getElementsByTagName('button')[2].hidden = true;
+	}
 
-    function change_description(element) {
-        const xhttp = new XMLHttpRequest();
-        xhttp.open("POST", "/changedescription", true);
-        xhttp.send(`game=${game}&id=${element.parentElement.parentElement.parentElement.classList[0]}&description=${encodeURIComponent(element.value)}`);
-    }
+	function change_description(element) {
+		const xhttp = new XMLHttpRequest();
+		xhttp.open("POST", "/change/description", true);
+		xhttp.send(`game=${game}&id=${element.parentElement.parentElement.parentElement.classList[0]}&description=${encodeURIComponent(element.value)}`);
+	}
 
-    function change_item(element) {
-        const xhttp = new XMLHttpRequest();
-        xhttp.open("POST", '/changeitem', true);
-        const type = element.parentElement.parentElement.classList[0];
-        xhttp.send(`game=${game}&id=${element.parentElement.classList[0]}&newitem=${element.value}&type=${type}`);
-    }
+	function change_item(element) {
+		const xhttp = new XMLHttpRequest();
+		xhttp.open("POST", '/change/item', true);
+		xhttp.send(`game=${game}&id=${element.parentElement.classList[0]}&newitem=${element.value}`);
+	}
+
+	function change_constraint_or_effect_item(element) {
+		const xhttp = new XMLHttpRequest();
+		xhttp.open("POST", 'change/constraintoreffect', true);
+		xhttp.send(`game=${game}&`);
+	}
 </script>
 
 </html>
