@@ -5,13 +5,17 @@
 	<title>text adventure game</title>
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<style>
-		span {
-			cursor: pointer;
-			text-decoration: underline;
+		button {
+			padding: 0;
 		}
 
-		button {
-			padding: 0px 0px;
+		button.link {
+			font: inherit;
+			line-height: 100%;
+			background-color: transparent;
+			cursor: pointer;
+			border: 0;
+			text-decoration: underline;
 		}
 
 		.nobullet {
@@ -24,29 +28,47 @@
 
 		iframe {
 			border: 1px solid black;
+			background-color: white;
+			float: left;
 		}
+
+		.editor {
+			float: left;
+		}
+		
 	</style>
 </head>
 
 <body>
-	<p>Locations</p>
-	<ul class="location">
-		<li class="nobullet"><button onclick='add(this.parentElement.parentElement)'>Add a location</button></li>
-		%s
-	</ul>
-	<p>Objects</p>
-	<ul class="object">
-		<li class="nobullet"><button onclick='add(this.parentElement.parentElement)'>Add an object</button></li>
-		%s
-	</ul>
-	<button onclick='remove(this)'>Delete this game</button>
-	<p></p>
+	<div class="editor">
+		<h3>Locations</h3>
+		<ul class="location">
+			<li class="nobullet"><button onclick='add(this.parentElement.parentElement)'>Add a location</button></li>
+			%s
+		</ul>
+		<h3>Objects</h3>
+		<ul class="object">
+			<li class="nobullet"><button onclick='add(this.parentElement.parentElement)'>Add an object</button></li>
+			%s
+		</ul>
+		<button onclick='remove(this)'>Delete this game</button>
+		<p></p>
+	</div>
 	<iframe onload="this.height = this.contentWindow.document.body.scrollHeight + 24;" src="/start?game=%s"></iframe>
 </body>
 
 <script>
 	const game = '%d';
 	var opened = new Set();
+
+	function update_selects(elem) {
+		var values = new Set();
+		const selects = elem.getElementsByTagName('select');
+		for (const select of selects) values.add(select.value);
+		for (const select of selects) for (const option of select)
+			if (option.value != 'null' && !option.selected)	option.hidden = values.has(option.value);
+	}
+
 	function expand(element) {
 		if (opened.has(element)) {
 			const lists = element.getElementsByTagName('ul');
@@ -59,7 +81,8 @@
 			opened.add(element);
 			const xhttp = new XMLHttpRequest();
 			xhttp.onreadystatechange = function () {
-				if (this.readyState == 4 && this.status == 200) element.innerHTML += this.responseText;
+				if (this.readyState == 4 && this.status == 200)
+					element.insertAdjacentHTML('beforeend', this.responseText);
 			}
 			xhttp.open("GET",
 				"/expand?game=" + encodeURIComponent(game) +
@@ -72,14 +95,15 @@
 	function add(element) {
 		const xhttp = new XMLHttpRequest();
 		xhttp.onreadystatechange = function () {
-			if (this.readyState == 4 && this.status == 200) element.innerHTML += this.responseText;
+			if (this.readyState == 4 && this.status == 200)
+				element.insertAdjacentHTML('beforeend', this.responseText);
+			update_selects(element);
 		}
 		xhttp.open("POST", "/add", true);
 		if (["action", "constraint", "effect"].includes(element.classList[0])) {
 			xhttp.send(
 				"game=" + game +
 				"&type=" + element.classList[0] +
-				"&obj=" + element.parentElement.parentElement.parentElement.classList[0] +
 				"&item=" + element.parentElement.classList[0] +
 				"&parenttype=" + element.parentElement.parentElement.classList[0]);
 		} else {
@@ -120,15 +144,15 @@
 				"/remove?game=" + game +
 				"&type=" + element.parentElement.classList[0] +
 				"&id=" + element.classList[0] +
-				(['constraint', 'effect'].includes(element.parentElement.classList[0]) ? 
-				"&item=" + element.parentElement.parentElement.classList[0] +
-				"&parenttype=" + element.parentElement.parentElement.parentElement.classList[0] : ''), true);
+				(['constraint', 'effect'].includes(element.parentElement.classList[0]) ?
+					"&item=" + element.parentElement.parentElement.classList[0] +
+					"&parenttype=" + element.parentElement.parentElement.parentElement.classList[0] : ''), true);
 			xhttp.send();
 		}
 	}
 
 	function rename(element) {
-		const elem = element.getElementsByTagName('span')[0];
+		const elem = element.getElementsByTagName('a')[0];
 		const text = elem.innerHTML;
 		elem.innerHTML = `<input value="${elem.innerText.replace(/\"/g, '&quot;')}" onblur="end_rename(this);" onkeypress="if (event.key == 'Enter') end_rename(this);">`;
 		elem.getElementsByTagName('input')[0].select();
@@ -169,10 +193,28 @@
 		xhttp.send(`game=${game}&id=${element.parentElement.classList[0]}&newitem=${element.value}`);
 	}
 
-	function change_constraint_or_effect_item(element) {
+	function change_constraint_or_effect(element) {
+		if (element.parentElement.classList[0] !== "NaN") {
+			const xhttp = new XMLHttpRequest();
+			xhttp.open("DELETE",
+				"/remove?game=" + game +
+				"&type=" + element.parentElement.classList[0] +
+				"&id=" + element.classList[0] +
+				"&item=" + element.parentElement.parentElement.classList[0] +
+				"&parenttype=" + element.parentElement.parentElement.parentElement.classList[0], true);
+			xhttp.send();
+		}
 		const xhttp = new XMLHttpRequest();
-		xhttp.open("POST", 'change/constraintoreffect', true);
-		xhttp.send(`game=${game}&`);
+		xhttp.open("POST", '/add', true);
+		xhttp.send(
+			"game=" + game +
+			"&obj=" + element.getElementsByTagName('select')[0].value +
+			"&type=" + element.parentElement.classList[0] +
+			"&item=" + element.parentElement.parentElement.classList[0] +
+			"&parenttype=" + element.parentElement.parentElement.parentElement.classList[0] +
+			"&state=" + element.getElementsByTagName('input')[0].value);
+		element.classList[0] = element.getElementsByTagName('select')[0].value;
+		update_selects(element.parentElement);
 	}
 </script>
 

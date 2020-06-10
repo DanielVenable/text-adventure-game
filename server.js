@@ -134,7 +134,7 @@ http.createServer(async (req, res) => {
 							const result = satisfy_constraints(states, constraints, objects);
 							if (result) {
 								const effects = await query(`
-									SELECT constraint_and_effect.obj, constraint_and_effect.state, constraint_and_effect.text FROM actions
+									SELECT constraint_and_effect.obj, constraint_and_effect.state, actions.text FROM actions
 									JOIN action_to_effect ON actions.ID = action_to_effect.action
 									JOIN constraint_and_effect ON constraint_and_effect.ID = action_to_effect.effect
 									WHERE actions.ID = ?;`, [result.ID]);
@@ -292,7 +292,12 @@ http.createServer(async (req, res) => {
 						break;
 					case "constraint":
 					case "effect":
-						await add_constraint_or_effect(data.obj, data.type === 'constraint', data.parenttype, data.item);
+						if (data.obj && data.obj !== 'null') await add_constraint_or_effect(
+							data.obj,
+							data.type === 'constraint',
+							data.parenttype,
+							data.item,
+							data.state);
 						var file = await show_file(data.type === 'constraint' ? 'constraint.html' : 'effect.html',
 							data.obj, await all_objects(data.game, data.obj), 0);
 						res.end(file);
@@ -330,6 +335,7 @@ http.createServer(async (req, res) => {
 				res.end(file);
 			}
 		} else if (req.method == 'DELETE' && parsed_url.pathname == '/remove') {
+			res.statusCode = 202;
 			switch (parsed_url.query.type) {
 				case "game":
 					await query(`DELETE FROM games WHERE ID = ?`, [parsed_url.query.game]);
@@ -339,19 +345,17 @@ http.createServer(async (req, res) => {
 				case "location":
 					await query(`DELETE FROM locations WHERE ID = ? AND game = ?`,
 						[parsed_url.query.id, parsed_url.query.game]);
-					res.statusCode = 202;
 					res.end();
 					break;
 				case "object":
 					await query(`DELETE FROM objects WHERE ID = ? AND game = ?`,
 						[parsed_url.query.id, parsed_url.query.game]);
-					res.statusCode = 202;
 					res.end();
 					break;
 				case "action":
 					await query(`DELETE FROM actions WHERE ID = ?`, [parsed_url.query.id]);
-					res.statusCode = 202;
 					res.end();
+					break;
 				case "constraint":
 				case "effect":
 					remove_constraint_or_effect(
@@ -359,7 +363,6 @@ http.createServer(async (req, res) => {
 						parsed_url.query.type === 'constraint',
 						parsed_url.query.parenttype,
 						parsed_url.query.item);
-					res.statusCode = 202;
 					res.end();
 					break;
 				default: await invalid_request(res);
@@ -450,8 +453,8 @@ async function all_objects(game, id) {
  * @param {number} state an integer from 0 to 15
  */
 async function add_constraint_or_effect(obj, is_constraint, type, item, state = 0) {
-	if (!['action', 'grab', 'path'].includes(item)) throw "invalid parameter";
-	const exists = await query(`SELECT ID FROM constraint_and_effect WHERE obj = ? AND state = ?`, [item, state]);
+	if (!['action', 'grab', 'path'].includes(type)) throw "invalid parameter";
+	const exists = await query(`SELECT ID FROM constraint_and_effect WHERE obj = ? AND state = ?`, [obj, state]);
 	if (exists.length) {
 		var id = exists[0].ID;
 	} else {
