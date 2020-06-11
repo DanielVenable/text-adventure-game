@@ -27,6 +27,10 @@ const files = {
 	}
 };
 
+const table_list = {action: 'actions', pick_up_action: 'grab', path: 'paths'};
+const start_table_list = {action: 'action_to_', pick_up_action: 'grab_to_', path: 'path_to_'};
+const column_list = {action: 'action', pick_up_action: 'grab', path: 'path'};
+
 http.createServer(async (req, res) => {
 	try {
 		res.setHeader('Content-Type', 'text/html');
@@ -37,7 +41,7 @@ http.createServer(async (req, res) => {
 				const command = parsed_url.query.cmd.toLowerCase();
 				const states = toHalfByteArray(parsed_url.query.a);
 				const locationID = parsed_url.query.b;
-				var inventory = parsed_url.query.c.split(' ').map(parseInt).filter(elem => !isNaN(elem));
+				const inventory = parsed_url.query.c.split(' ').map(x => parseInt(x)).filter(elem => !isNaN(elem));
 				const location = await query(`SELECT * FROM locations WHERE ID = ?`, [locationID]);
 				const show_data = {
 					res: res, game: location[0].game, states: states, location: locationID, inventory: inventory
@@ -82,7 +86,7 @@ http.createServer(async (req, res) => {
 							show(show_data, "You already have it.");
 						} else {
 							const constraints = await query(`
-								SELECT grab.ID, grab.success, constraint_and_effect.obj, constraint_and_effect.state FROM grab
+								SELECT grab.ID, grab.text, grab.success, constraint_and_effect.obj, constraint_and_effect.state FROM grab
 								LEFT JOIN grab_to_constraint ON grab.ID = grab_to_constraint.grab
 								LEFT JOIN constraint_and_effect ON constraint_and_effect.ID = grab_to_constraint.constraint_
 								WHERE grab.obj = ?
@@ -93,7 +97,7 @@ http.createServer(async (req, res) => {
 									SELECT constraint_and_effect.obj, constraint_and_effect.state FROM grab
 									JOIN grab_to_effect ON grab.ID = grab_to_effect.grab
 									JOIN constraint_and_effect ON constraint_and_effect.ID = grab_to_effect.effect
-									WHERE grab.ID = ?`, [obj[0].ID]);
+									WHERE grab.ID = ?`, [result.ID]);
 								handle_effects(effects, objects, states);
 								if (result.success) {
 									inventory.push(obj[0].ID);
@@ -126,7 +130,7 @@ http.createServer(async (req, res) => {
 						for (const item of item2) if (item.location == locationID || inventory.includes(item.ID)) valid_items.push(item);
 						if (valid_items.length == 1) {
 							const constraints = await query(`
-								SELECT actions.ID, constraint_and_effect.obj, constraint_and_effect.state FROM actions
+								SELECT actions.ID, actions.text, constraint_and_effect.obj, constraint_and_effect.state FROM actions
 								LEFT JOIN action_to_constraint ON actions.ID = action_to_constraint.action
 								LEFT JOIN constraint_and_effect ON constraint_and_effect.ID = action_to_constraint.constraint_
 								WHERE actions.obj1 = ? AND actions.obj2 = ?
@@ -134,7 +138,7 @@ http.createServer(async (req, res) => {
 							const result = satisfy_constraints(states, constraints, objects);
 							if (result) {
 								const effects = await query(`
-									SELECT constraint_and_effect.obj, constraint_and_effect.state, actions.text FROM actions
+									SELECT constraint_and_effect.obj, constraint_and_effect.state FROM actions
 									JOIN action_to_effect ON actions.ID = action_to_effect.action
 									JOIN constraint_and_effect ON constraint_and_effect.ID = action_to_effect.effect
 									WHERE actions.ID = ?;`, [result.ID]);
@@ -203,35 +207,48 @@ http.createServer(async (req, res) => {
 			} else if (parsed_url.pathname == '/expand') {
 				switch (parsed_url.query.type) {
 					case "location":
-						var result = await query(`SELECT name, ID FROM objects WHERE location = ?`, [parsed_url.query.id]);
 						var description = await query(`SELECT description FROM locations WHERE ID = ?`, [parsed_url.query.id]);
+						res.write(await show_file('textarea.html', description[0].description));
+						var result = await query(`SELECT name, ID FROM objects WHERE location = ?`, [parsed_url.query.id]);
 						res.write(await show_file('list-start.html', 'object', 'an object'));
-						res.write(`<li class="nobullet"><textarea onchange="change_description(this);">${description[0].description}</textarea></li>`);
 						for (const obj of result) res.write(await show_file('object.html', obj.ID, sanitize(obj.name)));
 						res.end(`</ul>`);
 						break;
 					case "object":
-						var result = await query(`
-							SELECT actions.ID, objects.name, actions.obj2 FROM actions
-							JOIN objects ON actions.obj1 = objects.ID
-							WHERE actions.obj1 = ?`,
-							[parsed_url.query.id, parsed_url.query.id]);
+						var object = await query(`SELECT name FROM objects WHERE ID = ?`, [parsed_url.query.id]);
+						var result = await query(`SELECT actions.ID, actions.obj2 FROM actions WHERE actions.obj1 = ?`,
+							[parsed_url.query.id]);
 						res.write(await show_file('list-start.html', 'action', 'an action'));
 						for (const action of result)
 							res.write(await show_file('action.html',
-								action.ID, sanitize(action.name),
+								action.ID, sanitize(object[0].name),
 								await all_objects(parsed_url.query.game, action.obj2)));
-						res.end(`</ul>`);
+						res.write(`</ul>`);
+						var result = await query(`SELECT * FROM grab WHERE grab.obj = ?`, [parsed_url.query.id]);
+						res.write(await show_file('list-start.html', 'pick_up_action', 'a pick up action'));
+						for (const grab of result)
+							res.write(await show_file('pick-up-action.html',
+								grab.ID, object[0].name,
+								grab.success ? 'checked' : ''));
+						res.end('</ul>');
 						break;
 					case "action":
+					case "pick_up_action":
+					case "path":
+						var table = table_list[parsed_url.query.type];
+						var text = await query(`SELECT text FROM ?? WHERE ID = ?`, [table, parsed_url.query.id]);
+						res.write(await show_file('textarea.html', text[0].text));
+						const table_part = {action: "action", path: "path", pick_up_action: "grab"};
+						let combined_table = table_part[parsed_url.query.type] + "_to_constraint";
 						var constraints = await query(`
 							SELECT constraint_and_effect.obj, constraint_and_effect.state FROM constraint_and_effect
-							JOIN action_to_constraint ON constraint_and_effect.ID = action_to_constraint.constraint_
-							WHERE action_to_constraint.action = ?`, [parsed_url.query.id]);
+							JOIN ${combined_table} ON constraint_and_effect.ID = ${combined_table}.constraint_
+							WHERE ${combined_table}.${table_part[parsed_url.query.type]} = ?`, [parsed_url.query.id]);
+						combined_table = table_part[parsed_url.query.type] + "_to_effect";
 						var effects = await query(`
 							SELECT constraint_and_effect.obj, constraint_and_effect.state FROM constraint_and_effect
-							JOIN action_to_effect ON constraint_and_effect.ID = action_to_effect.effect
-							WHERE action_to_effect.action = ?`, [parsed_url.query.id]);
+							JOIN ${combined_table} ON constraint_and_effect.ID = ${combined_table}.effect
+							WHERE ${combined_table}.${table_part[parsed_url.query.type]} = ?`, [parsed_url.query.id]);
 						res.write(await show_file('list-start.html', 'constraint', 'a constraint'));
 						for (const constraint of constraints)
 							res.write(await show_file('constraint.html', constraint.obj,
@@ -258,7 +275,7 @@ http.createServer(async (req, res) => {
 			if (req.url == '/create') {
 				try {
 					data = url.parse('?' + data, true).query.name;
-					await query(`INSERT INTO games (name) values (?)`, [data]);
+					await query(`INSERT INTO games (name) VALUES (?)`, [data]);
 					res.setHeader('Location', `/edit?game=${data}`);
 				} catch (error) {
 					res.setHeader('Location', `/edit`);
@@ -270,7 +287,7 @@ http.createServer(async (req, res) => {
 			} else if (req.url == '/add') {
 				switch (data.type) {
 					case "location":
-						var result = await query(`INSERT INTO locations (game, name, description) values (?,?,?)`,
+						var result = await query(`INSERT INTO locations (game, name, description) VALUES (?,?,?)`,
 							[data.game, data.name.toLowerCase(), data.description]);
 						var file = await show_file('location.html',
 							data.ID, "",
@@ -278,16 +295,23 @@ http.createServer(async (req, res) => {
 						res.end(file);
 						break;
 					case "object":
-						var result = await query(`INSERT INTO objects (game, name, location) values (?,?,?)`,
-							[data.game, data.name.toLowerCase(), typeof data.location === 'number' ? data.location : null]);
-						var file = await show_file('object.html', result.insertID, sanitize(data.name.toLowerCase()));
+						var result = await query(`INSERT INTO objects (game, name, location) VALUES (?,?,?)`,
+							[data.game, data.name.toLowerCase(), isNaN(parseInt(data.location)) ? null : data.location]);
+						var file = await show_file('object.html', result.insertId, sanitize(data.name.toLowerCase()));
 						res.end(file);
 						break;
 					case "action":
-						var result = await query(`INSERT INTO actions (obj1) values (?)`, [data.item]);
-						const name = await query(`SELECT name FROM objects WHERE ID = ?`, [data.item]);
+						var result = await query(`INSERT INTO actions (obj1) VALUES (?)`, [data.item]);
+						var name = await query(`SELECT name FROM objects WHERE ID = ?`, [data.item]);
 						var file = await show_file('action.html',
-							result.insertID, sanitize(name[0].name), await all_objects(data.game));
+							result.insertId, sanitize(name[0].name), await all_objects(data.game));
+						res.end(file);
+						break;
+					case "pick_up_action":
+						var result = await query(`INSERT INTO grab (obj) VALUES (?)`, [data.item]);
+						var name = await query(`SELECT name FROM objects WHERE ID = ?`, [data.item]);
+						var file = await show_file('pick-up-action.html',
+							result.insertId, sanitize(name[0].name), 'checked');
 						res.end(file);
 						break;
 					case "constraint":
@@ -321,7 +345,11 @@ http.createServer(async (req, res) => {
 				res.statusCode = 202;
 				res.end();
 			} else if (req.url == '/change/description') {
-				await query(`UPDATE locations SET description = ? WHERE ID = ?`, [data.description, data.id]);
+				if (data.type === 'location') {
+					await query(`UPDATE locations SET description = ? WHERE ID = ?`, [data.text, data.id]);
+				} else {
+					await query(`UPDATE ?? SET text = ? WHERE ID = ?`, [table_list[data.type], data.text, data.id]);
+				}
 				res.statusCode = 202;
 				res.end();
 			} else if (req.url == '/change/item') {
@@ -329,6 +357,8 @@ http.createServer(async (req, res) => {
 					[data.newitem === "null" ? null : data.newitem, data.id]);
 				res.statusCode = 202;
 				res.end();
+			} else if (req.url == '/change/success') {
+				await query(`UPDATE grab SET success = ? WHERE ID = ?`, [data.state, data.id]);
 			} else {
 				res.statusCode = 404;
 				const file = await show_file('404.html');
@@ -358,7 +388,7 @@ http.createServer(async (req, res) => {
 					break;
 				case "constraint":
 				case "effect":
-					remove_constraint_or_effect(
+					await remove_constraint_or_effect(
 						parsed_url.query.id,
 						parsed_url.query.type === 'constraint',
 						parsed_url.query.parenttype,
@@ -390,7 +420,9 @@ function satisfy_constraints(states, constraints, objects) {
 			valid = constraint;
 			current_ID = constraint.ID;
 		}
-		if (states[objects.findIndex((obj) => obj.ID == constraint.obj)] != constraint.state) valid = false;
+		let state = states[objects.findIndex(obj => obj.ID == constraint.obj)];
+		if (state === undefined) state = 0;
+		if (state != constraint.state) valid = false;
 	}
 	return valid;
 }
@@ -448,45 +480,43 @@ async function all_objects(game, id) {
 /**
  * @param {number} obj the ID of an object
  * @param {boolean} is_constraint
- * @param {'action' | 'grab' | 'path'} type
+ * @param {'action' | 'pick_up_action' | 'path'} type
  * @param {number} item the ID of an action, grab, or path
  * @param {number} state an integer from 0 to 15
  */
 async function add_constraint_or_effect(obj, is_constraint, type, item, state = 0) {
-	if (!['action', 'grab', 'path'].includes(type)) throw "invalid parameter";
 	const exists = await query(`SELECT ID FROM constraint_and_effect WHERE obj = ? AND state = ?`, [obj, state]);
 	if (exists.length) {
 		var id = exists[0].ID;
 	} else {
-		const new_item = await query(`INSERT INTO constraint_and_effect (obj, state) values (?, ?)`, [obj, state]);
-		var id = new_item.insertID;
+		const new_item = await query(`INSERT INTO constraint_and_effect (obj, state) VALUES (?, ?)`, [obj, state]);
+		var id = new_item.insertId;
 	}
 	if (is_constraint) {
-		await query(`INSERT INTO ${type}_to_constraint (${type}, constraint_) values (?, ?)`, [item, id]);
+		await query(`INSERT INTO ${start_table_list[type]}constraint (${column_list[type]}, constraint_) VALUES (?, ?)`, [item, id]);
 	} else {
-		await query(`INSERT INTO ${type}_to_effect (${type}, effect) values (?, ?)`, [item, id]);
+		await query(`INSERT INTO ${start_table_list[type]}effect (${column_list[type]}, effect) VALUES (?, ?)`, [item, id]);
 	}
 }
-const table_list = {action: 'actions', grab: 'grab', path: 'paths'};
 /**
  * @param {number} obj the ID of an object
  * @param {boolean} is_constraint
- * @param {'action' | 'grab' | 'path'} type
+ * @param {'action' | 'pick_up_action' | 'path'} type
  * @param {number} item the ID of an action, grab, or path
  */
 async function remove_constraint_or_effect(obj, is_constraint, type, item) {
-	if (!['action', 'grab', 'path'].includes(type)) throw "invalid parameter";
-	const table = table_list[type];
 	if (is_constraint) {
+		const table = start_table_list[type] + 'constraint';
 		await query(`
-			DELETE ${type}_to_constraint FROM constraint_and_effect
-			JOIN ${type}_to_constraint ON ${type}_to_constraint.constraint_ = constraint_and_effect.ID
-			WHERE ${type}_to_constraint.${type} = ? AND constraint_and_effect.obj = ?`, [item, obj]);
+			DELETE ${table} FROM constraint_and_effect
+			JOIN ${table} ON ${table}.constraint_ = constraint_and_effect.ID
+			WHERE ${table}.${column_list[type]} = ? AND constraint_and_effect.obj = ?`, [item, obj]);
 	} else {
+		const table = start_table_list[type] + 'effect';
 		await query(`
-			DELETE ${type}_to_effect FROM constraint_and_effect
-			JOIN ${type}_to_effect ON ${type}_to_effect.effect = constraint_and_effect.ID
-			WHERE ${type}_to_effect.${type} = ? AND constraint_and_effect.obj = ?`, [item, obj]);
+			DELETE ${table} FROM constraint_and_effect
+			JOIN ${table} ON ${table}.effect = constraint_and_effect.ID
+			WHERE ${table}.${column_list[type]} = ? AND constraint_and_effect.obj = ?`, [item, obj]);
 	}
 }
 

@@ -28,19 +28,17 @@
 
 		iframe {
 			border: 1px solid black;
-			background-color: white;
-			float: left;
 		}
 
-		.editor {
-			float: left;
+		body {
+			display: flex;
+			flex-wrap: wrap;
 		}
-		
 	</style>
 </head>
 
 <body>
-	<div class="editor">
+	<div>
 		<h3>Locations</h3>
 		<ul class="location">
 			<li class="nobullet"><button onclick='add(this.parentElement.parentElement)'>Add a location</button></li>
@@ -54,7 +52,9 @@
 		<button onclick='remove(this)'>Delete this game</button>
 		<p></p>
 	</div>
-	<iframe onload="this.height = this.contentWindow.document.body.scrollHeight + 24;" src="/start?game=%s"></iframe>
+	<iframe onload="this.height = this.contentWindow.document.body.scrollHeight + 24;"
+		src="/start?game=%s"
+		title="Play your game"></iframe>
 </body>
 
 <script>
@@ -72,11 +72,10 @@
 	function expand(element) {
 		if (opened.has(element)) {
 			const lists = element.getElementsByTagName('ul');
-			if (lists[0].hidden) {
-				for (const elem of lists) elem.hidden = false;
-			} else {
-				for (const elem of lists) elem.hidden = true;
-			}
+			const textarea = element.getElementsByTagName('textarea');
+			const show = !lists[0].hidden;
+			if (textarea.length) textarea[0].hidden = show;
+			for (const elem of lists) elem.hidden = show;
 		} else {
 			opened.add(element);
 			const xhttp = new XMLHttpRequest();
@@ -100,7 +99,7 @@
 			update_selects(element);
 		}
 		xhttp.open("POST", "/add", true);
-		if (["action", "constraint", "effect"].includes(element.classList[0])) {
+		if (["action", "pick_up_action", "path", "constraint", "effect"].includes(element.classList[0])) {
 			xhttp.send(
 				"game=" + game +
 				"&type=" + element.classList[0] +
@@ -184,7 +183,10 @@
 	function change_description(element) {
 		const xhttp = new XMLHttpRequest();
 		xhttp.open("POST", "/change/description", true);
-		xhttp.send(`game=${game}&id=${element.parentElement.parentElement.parentElement.classList[0]}&description=${encodeURIComponent(element.value)}`);
+		xhttp.send("game=" + game + 
+			"&id=" + element.parentElement.classList[0] + 
+			"&text=" + encodeURIComponent(element.value) +
+			"&type=" + element.parentElement.parentElement.classList[0]);
 	}
 
 	function change_item(element) {
@@ -193,8 +195,14 @@
 		xhttp.send(`game=${game}&id=${element.parentElement.classList[0]}&newitem=${element.value}`);
 	}
 
-	function change_constraint_or_effect(element) {
-		if (element.parentElement.classList[0] !== "NaN") {
+	function change_success(element) {
+		const xhttp = new XMLHttpRequest();
+		xhttp.open("POST", '/change/success', true);
+		xhttp.send(`game=${game}&id=${element.parentElement.parentElement.classList[0]}&state=${element.checked ? 1 : 0}`);
+	}
+
+	async function change_constraint_or_effect(element) {
+		if (element.classList[0] !== "NaN") {
 			const xhttp = new XMLHttpRequest();
 			xhttp.open("DELETE",
 				"/remove?game=" + game +
@@ -203,6 +211,7 @@
 				"&item=" + element.parentElement.parentElement.classList[0] +
 				"&parenttype=" + element.parentElement.parentElement.parentElement.classList[0], true);
 			xhttp.send();
+			await new Promise(resolve => xhttp.onreadystatechange = function() {if (this.readyState === 4) resolve()});
 		}
 		const xhttp = new XMLHttpRequest();
 		xhttp.open("POST", '/add', true);
@@ -213,7 +222,7 @@
 			"&item=" + element.parentElement.parentElement.classList[0] +
 			"&parenttype=" + element.parentElement.parentElement.parentElement.classList[0] +
 			"&state=" + element.getElementsByTagName('input')[0].value);
-		element.classList[0] = element.getElementsByTagName('select')[0].value;
+		element.className = element.getElementsByTagName('select')[0].value;
 		update_selects(element.parentElement);
 	}
 </script>

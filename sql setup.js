@@ -31,7 +31,7 @@ sql.query(`
         start int unsigned NOT NULL,
         end int unsigned NOT NULL,
         game int unsigned NOT NULL,
-        text varchar(255),
+        text varchar(255) DEFAULT "",
         PRIMARY KEY (ID),
         FOREIGN KEY (start) REFERENCES locations (ID) ON DELETE CASCADE,
         FOREIGN KEY (end) REFERENCES locations (ID) ON DELETE CASCADE);
@@ -49,7 +49,7 @@ sql.query(`
         ID int unsigned NOT NULL AUTO_INCREMENT,
         obj1 int unsigned NOT NULL,
         obj2 int unsigned,
-        text varchar(255),
+        text varchar(255) DEFAULT "",
         PRIMARY KEY (ID),
         FOREIGN KEY (obj1) REFERENCES objects (ID) ON DELETE CASCADE,
         FOREIGN KEY (obj2) REFERENCES objects (ID) ON DELETE CASCADE);
@@ -58,7 +58,7 @@ sql.query(`
         ID int unsigned NOT NULL AUTO_INCREMENT,
         obj int unsigned NOT NULL,
         success boolean NOT NULL DEFAULT true,
-        text varchar(255),
+        text varchar(255) DEFAULT "",
         PRIMARY KEY (ID),
         FOREIGN KEY (obj) REFERENCES objects (ID) ON DELETE CASCADE);
 
