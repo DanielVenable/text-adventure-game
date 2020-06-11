@@ -5,7 +5,8 @@ const mysql = require('mysql');
 const url = require('url');
 const fs = require('fs');
 const util = require('util');
-const port = 8000;
+const { RSA_NO_PADDING } = require('constants');
+const port = process.argv[2] ? process.argv[2] : 8000;
 
 process.chdir(__dirname + '/files');
 
@@ -62,9 +63,9 @@ http.createServer(async (req, res) => {
 						const result = satisfy_constraints(states, constraints, objects);
 						if (result) {
 							const effects = await query(`
-								SELECT constriant_and_effect.obj, constraint_and_effect.state FROM paths
+								SELECT constraint_and_effect.obj, constraint_and_effect.state FROM paths
 								JOIN path_to_effect ON paths.ID = path_to_effect.path
-								JOIN constrant_and_effect ON constraint_and_effect.ID = path_to_effect.effect
+								JOIN constraint_and_effect ON constraint_and_effect.ID = path_to_effect.effect
 								WHERE paths.start = ? AND paths.end = ?`,
 								[location[0].ID, end_location[0].ID]);
 							handle_effects(effects, objects, states);
@@ -212,6 +213,11 @@ http.createServer(async (req, res) => {
 						var result = await query(`SELECT name, ID FROM objects WHERE location = ?`, [parsed_url.query.id]);
 						res.write(await show_file('list-start.html', 'object', 'an object'));
 						for (const obj of result) res.write(await show_file('object.html', obj.ID, sanitize(obj.name)));
+						res.write(`</ul>`);
+						res.write(await show_file('list-start.html', 'path', 'a path'));
+						const paths = await query(`SELECT * FROM paths WHERE start = ?`, [parsed_url.query.id]);
+						for (const path of paths) res.write(await show_file('path.html',
+							path.ID, await all_locations(parsed_url.query.game, parsed_url.query.id, path.end)));
 						res.end(`</ul>`);
 						break;
 					case "object":
@@ -314,6 +320,12 @@ http.createServer(async (req, res) => {
 							result.insertId, sanitize(name[0].name), 'checked');
 						res.end(file);
 						break;
+					case "path":
+						var result = await query(`INSERT INTO paths (start, game) VALUES (?, ?)`, [data.item, data.game])
+						var name = await query(`SELECT name FROM locations WHERE ID = ?`, [data.item]);
+						var file = await show_file('path.html', result.insertId, await all_locations(data.game, data.item));
+						res.end(file);
+						break;
 					case "constraint":
 					case "effect":
 						if (data.obj && data.obj !== 'null') await add_constraint_or_effect(
@@ -353,8 +365,10 @@ http.createServer(async (req, res) => {
 				res.statusCode = 202;
 				res.end();
 			} else if (req.url == '/change/item') {
-				await query(`UPDATE actions SET obj2 = ? WHERE ID = ?`,
-					[data.newitem === "null" ? null : data.newitem, data.id]);
+				if (data.type == 'action') {
+					await query(`UPDATE actions SET obj2 = ? WHERE ID = ?`, [data.newitem, data.id]);
+				} else if (data.type == 'path')
+					await query(`UPDATE paths SET end = ? WHERE ID = ?`, [data.newitem, data.id]);
 				res.statusCode = 202;
 				res.end();
 			} else if (req.url == '/change/success') {
@@ -370,21 +384,23 @@ http.createServer(async (req, res) => {
 				case "game":
 					await query(`DELETE FROM games WHERE ID = ?`, [parsed_url.query.game]);
 					res.statusCode = 410;
-					res.end();
 					break;
 				case "location":
 					await query(`DELETE FROM locations WHERE ID = ? AND game = ?`,
 						[parsed_url.query.id, parsed_url.query.game]);
-					res.end();
 					break;
 				case "object":
 					await query(`DELETE FROM objects WHERE ID = ? AND game = ?`,
 						[parsed_url.query.id, parsed_url.query.game]);
-					res.end();
 					break;
 				case "action":
 					await query(`DELETE FROM actions WHERE ID = ?`, [parsed_url.query.id]);
-					res.end();
+					break;
+				case "pick_up_action":
+					await query(`DELETE FROM grab WHERE ID = ?`, [parsed_url.query.id]);
+					break;
+				case "path":
+					await query(`DELETE FROM paths WHERE ID = ?`, [parsed_url.query.id]);
 					break;
 				case "constraint":
 				case "effect":
@@ -393,10 +409,10 @@ http.createServer(async (req, res) => {
 						parsed_url.query.type === 'constraint',
 						parsed_url.query.parenttype,
 						parsed_url.query.item);
-					res.end();
 					break;
-				default: await invalid_request(res);
+				default: res.statusCode = 404;
 			}
+			res.end();
 		} else {
 			await invalid_request(res);
 		}
@@ -404,7 +420,7 @@ http.createServer(async (req, res) => {
 		await invalid_request(res);
 		console.error(error);
 	}
-}).listen(port);
+}).listen(port, () => console.log(`Server running at http://localhost:${port}`));
 
 function handle_effects(effects, objects, states) {
 	for (const effect of effects) states[objects.findIndex(obj => obj.ID == effect.obj)] = effect.state;
@@ -474,7 +490,13 @@ async function all_objects(game, id) {
 	const objs = await query(`SELECT * FROM objects WHERE game = ? ORDER BY location`, [game]);
 	const options = objs.map(elem =>
 		`<option value="${elem.ID}" ${id == elem.ID ? 'selected' : ''}>${elem.name}</option>`);
-	return `<option value="null"></option>` + options.join('');
+	return `<option></option>` + options.join('');
+}
+async function all_locations(game, no, id) {
+	const locations = await query(`SELECT * FROM locations WHERE game = ?`, [game]);
+	const options = locations.map(elem => elem.ID == no ? '' :
+		`<option value="${elem.ID}" ${id == elem.ID ? 'selected' : ''}>${elem.name}</option>`);
+	return `<option></option>` + options.join('');
 }
 
 /**

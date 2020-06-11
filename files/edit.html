@@ -192,7 +192,10 @@
 	function change_item(element) {
 		const xhttp = new XMLHttpRequest();
 		xhttp.open("POST", '/change/item', true);
-		xhttp.send(`game=${game}&id=${element.parentElement.classList[0]}&newitem=${element.value}`);
+		xhttp.send("game=" + game +
+			"&type=" + element.parentElement.parentElement.classList[0] +
+			"&id=" + element.parentElement.classList[0] +
+			"&newitem=" + element.value);
 	}
 
 	function change_success(element) {

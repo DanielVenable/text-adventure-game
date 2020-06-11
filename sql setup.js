@@ -29,7 +29,7 @@ sql.query(`
     CREATE TABLE IF NOT EXISTS paths (
         ID int unsigned NOT NULL AUTO_INCREMENT,
         start int unsigned NOT NULL,
-        end int unsigned NOT NULL,
+        end int unsigned,
         game int unsigned NOT NULL,
         text varchar(255) DEFAULT "",
         PRIMARY KEY (ID),
