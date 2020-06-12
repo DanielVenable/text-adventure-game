@@ -2,16 +2,47 @@
 <html lang="en">
 
 <head>
-    <title>text adventure game</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>text adventure game</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<style>
+		#warning {
+			background-color: yellow;
+		}
+	</style>
 </head>
 
 <body>
-    <form method="POST" action="/create">
-        <lable for="name">Choose a name for your game:</lable><br>
-        <input id="name" name="name">
-        <input type="submit">
-    </form>
+	<form method="GET" action="/edit" onsubmit="create(event)">
+		<lable for="name">Choose a name for your game:</lable><br>
+		<input id="name" name="name" onkeyup="check_name(event)">
+		<input id="submit" type="submit">
+	</form>
+	<p><span id="warning" hidden>Name already taken.</span></p>
 </body>
+
+<script>
+	const input = document.getElementById('name');
+	const submit = document.getElementById('submit');
+	const warning = document.getElementById('warning');
+
+	function check_name() {
+		const xhttp = new XMLHttpRequest();
+		xhttp.onreadystatechange = function () {
+			if (this.readyState == 4) {
+				submit.disabled = this.responseText == "1";
+				warning.hidden = this.responseText == "0";
+			}
+		}
+		xhttp.open('GET', `/check/game?name=${encodeURIComponent(input.value)}`, true);
+		xhttp.send();
+	}
+
+	function create(event) {
+		const xhttp = new XMLHttpRequest();
+		xhttp.open('POST', '/create', false);
+		xhttp.send(`name=${encodeURIComponent(input.value)}`);
+		if (xhttp.status == 409) event.preventDefault();
+	}
+</script>
 
 </html>

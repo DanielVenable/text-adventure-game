@@ -132,7 +132,7 @@
 			const xhttp = new XMLHttpRequest();
 			xhttp.onreadystatechange = function () {
 				if (this.readyState == 4) {
-					if (this.status == 202) {
+					if (this.status == 204) {
 						element.remove();
 					} else if (this.status == 410) {
 						window.location.replace("/");
@@ -200,8 +200,11 @@
 
 	function change_success(element) {
 		const xhttp = new XMLHttpRequest();
-		xhttp.open("POST", '/change/success', true);
-		xhttp.send(`game=${game}&id=${element.parentElement.parentElement.classList[0]}&state=${element.checked ? 1 : 0}`);
+		xhttp.open("POST", '/change/item', true);
+		xhttp.send("game=" + game +
+			"&id=" + element.parentElement.parentElement.classList[0] +
+			"&state=" + element.checked ? 1 : 0 +
+			"&type=pick_up_action");
 	}
 
 	async function change_constraint_or_effect(element) {

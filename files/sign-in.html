@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Sign in | Text adventure game</title>
+	<style>
+		div {
+			padding: 50px;
+			border: 1px solid black;
+			box-shadow: 5px 5px 5px gray;
+		}
+
+		form {
+			line-height: 150%;
+		}
+
+		body {
+			display: flex;
+			justify-content: center;
+			align-items: center;
+		}
+
+		.link {
+			color: blue;
+			cursor: pointer;
+			text-decoration: underline;
+		}
+
+		#warning {
+			background-color: yellow;
+		}
+	</style>
+</head>
+
+<body>
+	<div id="sign-in">
+		<h3>Sign in:</h3>
+		<form action="/signin" method="POST">
+			<label>Username:<br><input name="username"></label><br>
+			<label>Password:<br><input type="password" name="password"></label><br>
+			<label><input type="checkbox" name="remember">Remember me for 100 days</label><br>
+			<input name="url" value="%s" hidden>
+			<input type="submit" value="Sign in">
+			<p %s><span id="warning">Incorrect username or password.</span></p>
+		</form>
+		<p>Don't have an account? <span class="link" onclick="signup()">Sign up!</span></p>
+		<p><small>By signing in you agree to the use of cookies.</small></p>
+	</div>
+	<div id="sign-up" hidden>
+		<h3>Sign up:</h3>
+		<form action="/signup" method="POST">
+			<label>Username:<br><input name="username"></label><br>
+			<label>Password:<br><input type="password" name="password"></label><br>
+			<label>Comfirm password:<br><input type="password"></label><br>
+			<label>Email:<br><input type="email" name="email"></label><br>
+			<label><input type="checkbox" name="remember">Remember me for 100 days</label><br>
+			<input name="url" value="%s" hidden>
+			<input type="submit" value="Sign up">
+		</form>
+		<p>Have an account? <span class="link" onclick="signin()">Sign in!</span></p>
+		<p><small>By signing up you agree to the use of cookies.<br>
+		We will not send you any emails except to reset your password.<br>
+		We will not share your email with anyone.</small></p>
+	</div>
+</body>
+
+<script>
+	const signinbox = document.getElementById('sign-in');
+	const signupbox = document.getElementById('sign-up');
+
+	function signin() {
+		signinbox.hidden = false;
+		signupbox.hidden = true;
+	}
+
+	function signup() {
+		signinbox.hidden = true;
+		signupbox.hidden = false;
+	}
+</script>
+
+</html>

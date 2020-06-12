@@ -5,7 +5,7 @@ const mysql = require('mysql');
 const url = require('url');
 const fs = require('fs');
 const util = require('util');
-const { RSA_NO_PADDING } = require('constants');
+const crypto = require('crypto');
 const port = process.argv[2] ? process.argv[2] : 8000;
 
 process.chdir(__dirname + '/files');
@@ -19,6 +19,7 @@ const sql = mysql.createConnection({
 sql.connect();
 
 const query = util.promisify(sql.query).bind(sql);
+const randomBytes = util.promisify(crypto.randomBytes);
 
 const files = {
 	readFile: util.promisify(fs.readFile),
@@ -31,6 +32,8 @@ const files = {
 const table_list = {action: 'actions', pick_up_action: 'grab', path: 'paths'};
 const start_table_list = {action: 'action_to_', pick_up_action: 'grab_to_', path: 'path_to_'};
 const column_list = {action: 'action', pick_up_action: 'grab', path: 'path'};
+
+let tokens = [];
 
 http.createServer(async (req, res) => {
 	try {
@@ -205,6 +208,9 @@ http.createServer(async (req, res) => {
 			} else if (req.url == '/new') {
 				const file = await show_file('new-game.html');
 				res.end(file);
+			} else if (req.url == '/signin') {
+				const file = await show_file('sign-in.html', '/', 'hidden', '/');
+				res.end(file);
 			} else if (parsed_url.pathname == '/expand') {
 				switch (parsed_url.query.type) {
 					case "location":
@@ -268,6 +274,12 @@ http.createServer(async (req, res) => {
 						break;
 					default: await invalid_request(res);
 				}
+			} else if (parsed_url.pathname == '/check/game') {
+				const taken = await query(`SELECT COUNT(*) FROM games WHERE name = ?`, [parsed_url.query.name]);
+				res.end(String(taken[0]['COUNT(*)']));
+			} else if (parsed_url.pathname == '/check/username') {
+				const taken = await query(`SELECT COUNT(*) FROM users WHERE username = ?`, [parsed_url.query.username]);
+				res.end(String(taken[0]['COUNT(*)']));
 			} else {
 				res.statusCode = 404;
 				const file = await show_file('404.html');
@@ -280,14 +292,11 @@ http.createServer(async (req, res) => {
 			data = url.parse('?' + data, true).query;
 			if (req.url == '/create') {
 				try {
-					data = url.parse('?' + data, true).query.name;
-					await query(`INSERT INTO games (name) VALUES (?)`, [data]);
-					res.setHeader('Location', `/edit?game=${data}`);
+					await query(`INSERT INTO games (name) VALUES (?)`, [data.name]);
+					res.statusCode = 201;
 				} catch (error) {
-					res.setHeader('Location', `/edit`);
-					console.error(error);
+					res.statusCode = 409;
 				} finally {
-					res.statusCode = 302;
 					res.end();
 				}
 			} else if (req.url == '/add') {
@@ -342,7 +351,7 @@ http.createServer(async (req, res) => {
 				}
 			} else if (req.url == '/setstart') {
 				await query(`UPDATE games SET start = ? WHERE ID = ?`, [data.id, data.game]);
-				res.statusCode = 202;
+				res.statusCode = 204;
 				res.end();
 			} else if (req.url == '/rename') {
 				switch (data.type) {
@@ -354,7 +363,7 @@ http.createServer(async (req, res) => {
 						break;
 					default: throw "Not a valid type";
 				}
-				res.statusCode = 202;
+				res.statusCode = 204;
 				res.end();
 			} else if (req.url == '/change/description') {
 				if (data.type === 'location') {
@@ -362,24 +371,44 @@ http.createServer(async (req, res) => {
 				} else {
 					await query(`UPDATE ?? SET text = ? WHERE ID = ?`, [table_list[data.type], data.text, data.id]);
 				}
-				res.statusCode = 202;
+				res.statusCode = 204;
 				res.end();
 			} else if (req.url == '/change/item') {
 				if (data.type == 'action') {
 					await query(`UPDATE actions SET obj2 = ? WHERE ID = ?`, [data.newitem, data.id]);
-				} else if (data.type == 'path')
+				} else if (data.type == 'path') {
 					await query(`UPDATE paths SET end = ? WHERE ID = ?`, [data.newitem, data.id]);
-				res.statusCode = 202;
+				} else if (data.type == 'pick_up_action')
+					await query(`UPDATE grab SET success = ? WHERE ID = ?`, [data.state, data.id]);
+				res.statusCode = 204;
 				res.end();
-			} else if (req.url == '/change/success') {
-				await query(`UPDATE grab SET success = ? WHERE ID = ?`, [data.state, data.id]);
+			} else if (req.url == '/signin') {
+				const user = await query(`SELECT ID FROM users WHERE username = ? AND hash = ?`,
+					[data.username, crypto.createHash('sha256').update(data.password).digest('hex')]);
+				if (user.length) {
+					//await create_token(res, user[0].ID);
+					res.setHeader('Location', data.url);
+					res.statusCode = 303;
+					res.end();
+				} else {
+					res.statusCode = 401;
+					const file = await show_file('sign-in.html', data.url, '', data.url);
+					res.end(file);
+				}
+			} else if (req.url == '/signup') {
+				const hash = crypto.createHash('sha256').update(data.password).digest('hex');
+				const result = await query('INSERT INTO users (username, hash) VALUES (?, ?)', [data.username, hash]);
+				//await create_token(res, result.insertId);
+				res.setHeader('Location', data.url);
+				res.statusCode = 303;
+				res.end();
 			} else {
 				res.statusCode = 404;
 				const file = await show_file('404.html');
 				res.end(file);
 			}
 		} else if (req.method == 'DELETE' && parsed_url.pathname == '/remove') {
-			res.statusCode = 202;
+			res.statusCode = 204;
 			switch (parsed_url.query.type) {
 				case "game":
 					await query(`DELETE FROM games WHERE ID = ?`, [parsed_url.query.game]);
@@ -562,4 +591,8 @@ function toHalfByteArray(hexString) {
 
 function a_an(string) {
 	return /^[aeiou]/i.test(string) ? `an ${string}` : `a ${string}`;
+}
+
+function create_token(res, user) {
+	
 }
