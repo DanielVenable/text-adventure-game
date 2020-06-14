@@ -34,6 +34,10 @@ const table_list = {action: 'actions', pick_up_action: 'grab', path: 'paths'};
 const start_table_list = {action: 'action_to_', pick_up_action: 'grab_to_', path: 'path_to_'};
 const column_list = {action: 'action', pick_up_action: 'grab', path: 'path'};
 
+const go_to = /^go (?:to )?(.+)$/;
+const use = /^use (.+) (?:on (.+))?$/;
+const pick_up = /^(?:pick up|grab|get) (.+)$/;
+
 http.createServer(async (req, res) => {
 	try {
 		let user, userid;
@@ -52,13 +56,16 @@ http.createServer(async (req, res) => {
 				const inventory = parsed_url.query.c.split(' ').map(x => parseInt(x)).filter(elem => !isNaN(elem));
 				const location = await query(`SELECT * FROM locations WHERE ID = ?`, [locationID]);
 				const show_data = {
-					res: res, game: location[0].game, states: states, location: locationID, inventory: inventory
+					res, game: location[0].game, states, location: locationID, inventory
 				};
 				const objects = await query(`SELECT * FROM objects WHERE game = ? ORDER BY ID`, [location[0].game]);
-				if (command.startsWith('go to ')) {
+				const split_go_to = command.match(go_to);
+				const split_pick_up = command.match(pick_up)
+				const split_use = command.match(use);
+				if (split_go_to) {
 					const end_location = await query(`
 						SELECT ID, description FROM locations WHERE name = ? AND game = ?`,
-						[command.split(/^go to /)[1], location[0].game]);
+						[split_go_to[1], location[0].game]);
 					if (end_location.length == 1) {
 						const constraints = await query(`
 							SELECT paths.ID, paths.text, constraint_and_effect.obj, constraint_and_effect.state FROM paths
@@ -77,21 +84,20 @@ http.createServer(async (req, res) => {
 								[location[0].ID, end_location[0].ID]);
 							handle_effects(effects, objects, states);
 							show_data.location = end_location[0].ID;
-							show(show_data, (result.text ? result.text + ' ' : '') + end_location[0].description);
+							await show(show_data, (result.text ? result.text + ' ' : '') + end_location[0].description);
 						} else {
-							show(show_data, 'Nothing happens.');
+							await show(show_data, 'Nothing happens.');
 						}
 					} else {
-						show(show_data, 'Nothing happens.');
+						await show(show_data, 'Nothing happens.');
 					}
-				} else if (command.startsWith('pick up ')) {
-					const name = command.split(/^pick up /)[1];
+				} else if (split_pick_up) {
 					const obj = await query(`
 						SELECT ID FROM objects WHERE name = ? AND game = ? AND location = ?;`,
-						[name, location[0].game, locationID]);
+						[split_pick_up[1], location[0].game, locationID]);
 					if (obj.length == 1) {
 						if (inventory.includes(obj[0].ID)) {
-							show(show_data, "You already have it.");
+							await show(show_data, "You already have it.");
 						} else {
 							const constraints = await query(`
 								SELECT grab.ID, grab.text, grab.success, constraint_and_effect.obj, constraint_and_effect.state FROM grab
@@ -109,27 +115,26 @@ http.createServer(async (req, res) => {
 								handle_effects(effects, objects, states);
 								if (result.success) {
 									inventory.push(obj[0].ID);
-									show(show_data, `${result.text ? result.text + ' ' : ''}You have ${a_an(name)}.`);
+									await show(show_data, `${result.text ? result.text + ' ' : ''}You have ${a_an(split_pick_up[1])}.`);
 								} else {
-									show(show_data, result.text ? result.text : "Nothing happens.");
+									await show(show_data, result.text ? result.text : "Nothing happens.");
 								}
 							} else {
-								show(show_data, "Nothing happens.");
+								await show(show_data, "Nothing happens.");
 							}
 						}
 					} else {
-						show(show_data, `There is no ${name} here.`);
+						await show(show_data, `There is no ${split_pick_up[1]} here.`);
 					}
-				} else if (/^use .+/.test(command)) {
-					const objs = command.split(/^use /)[1].split(' on ');
-					if (objs[1] === undefined) {
-						await use_on(null, objs[0]);
+				} else if (split_use) {
+					if (split_use[2] === undefined) {
+						await use_on(null, split_use[1]);
 					} else {
-						const item1 = await query(`SELECT ID FROM objects WHERE name = ?`, [objs[0]]);
+						const item1 = await query(`SELECT ID FROM objects WHERE name = ?`, [split_use[1]]);
 						if (item1.length == 1 && inventory.includes(item1[0].ID)) {
-							await use_on(item1[0].ID, objs[1]);
+							await use_on(item1[0].ID, split_use[2]);
 						} else {
-							show(show_data, `You don't have ${a_an(objs[0])}`);
+							await show(show_data, `You don't have ${a_an(split_use[1])}`);
 						}
 					}
 					async function use_on(first_ID, second_name) {
@@ -151,16 +156,16 @@ http.createServer(async (req, res) => {
 									JOIN constraint_and_effect ON constraint_and_effect.ID = action_to_effect.effect
 									WHERE actions.ID = ?;`, [result.ID]);
 								handle_effects(effects, objects, states);
-								show(show_data, result.text ? result.text : "Nothing happens.");
+								await show(show_data, result.text ? result.text : "Nothing happens.");
 							} else {
-								show(show_data, "Nothing happens.");
+								await show(show_data, "Nothing happens.");
 							}
 						} else {
-							show(show_data, `There is no ${second_name} here`);
+							await show(show_data, `There is no ${split_use[2]} here`);
 						}
 					}
 				} else {
-					show(show_data, "Invalid command");
+					await show(show_data, "Invalid command");
 				}
 			} else if (req.url == '/') {
 				const result = await query(`SELECT name FROM games WHERE start IS NOT NULL ORDER BY name`);
@@ -599,6 +604,7 @@ function a_an(string) {
 
 const jwtKey = crypto.randomBytes(256);
 const expire_seconds = 900;
+const refresh_expire_seconds = 60*60*24*100;
 
 function create_token(res, username) {
 	const token = jwt.sign({ username }, jwtKey, {
@@ -607,7 +613,8 @@ function create_token(res, username) {
 	});
 	res.setHeader('Set-Cookie', cookie.serialize('token', token, {
 		maxAge: expire_seconds,
-		httpOnly: true
+		httpOnly: true,
+		sameSite: true
 	}));
 	// add secure when https
 }
