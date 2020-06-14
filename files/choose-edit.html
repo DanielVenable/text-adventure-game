@@ -2,15 +2,20 @@
 <html lang="en">
 
 <head>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>text adventure game</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<link rel="stylesheet" href="navbar.css">
+	<title>text adventure game</title>
 </head>
 
 <body>
-    <form>
-        <label>Choose a game to edit: <select name="game">%s</select></label><br>
-        <input type="submit">
-    </form>
+	<div id="navbar">
+		<a href="/" class="left">Home</a>
+		<a href="/signin" class="right">Sign in/Sign up</a>
+	</div>
+	<form class="container">
+		<label>Choose a game to edit: <select name="game">%s</select></label><br>
+		<input type="submit">
+	</form>
 </body>
 
 </html>

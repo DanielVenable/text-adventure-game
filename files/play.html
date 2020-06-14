@@ -2,21 +2,38 @@
 <html lang="en">
 
 <head>
-    <title>%s | text adventure games</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>%s | text adventure games</title>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<link rel="stylesheet" href="navbar.css">
 </head>
 
 <body>
-    <p>%s</p>
-    <form method="get" action="/play" autocomplete="off">
-        <input onkeypress="if (event.key == 'Enter') this.parentElement.submit();" name="cmd">
-        <input hidden value="%s" name="a">
-        <input hidden value="%d" name="b">
-        <input hidden value="%s" name="c">
-        <input type="submit">
-    </form>%s
-    <p></p>
-    <a href="/start?game=%s"><button>Restart this game</button></a>
+	<div id="navbar" onload="iframe_hide(this)">
+		<a class="left" href="/">Home</a>
+		<a class="right" href="/signin">Sign in/Sign up</a>
+	</div>
+	<div class="container">
+		<p>%s</p>
+		<form method="get" action="/play" autocomplete="off">
+			<input onkeypress="if (event.key == 'Enter') this.parentElement.submit();" name="cmd">
+			<input hidden value="%s" name="a">
+			<input hidden value="%d" name="b">
+			<input hidden value="%s" name="c">
+			<input type="submit">
+		</form>%s
+		<p></p>
+		<a href="/start?game=%s"><button>Restart this game</button></a>
+	</div>
 </body>
+
+<script>
+	const element = document.getElementById('navbar');
+	try {
+		if (window.self !== window.top) element.hidden = true;
+	} catch (e) {
+		element.hidden = true;
+	}
+</script>
 
 </html>

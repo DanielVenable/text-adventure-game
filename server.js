@@ -6,6 +6,8 @@ const url = require('url');
 const fs = require('fs');
 const util = require('util');
 const crypto = require('crypto');
+const jwt = require('jsonwebtoken');
+const cookie = require('cookie');
 const port = process.argv[2] ? process.argv[2] : 8000;
 
 process.chdir(__dirname + '/files');
@@ -19,7 +21,6 @@ const sql = mysql.createConnection({
 sql.connect();
 
 const query = util.promisify(sql.query).bind(sql);
-const randomBytes = util.promisify(crypto.randomBytes);
 
 const files = {
 	readFile: util.promisify(fs.readFile),
@@ -33,10 +34,13 @@ const table_list = {action: 'actions', pick_up_action: 'grab', path: 'paths'};
 const start_table_list = {action: 'action_to_', pick_up_action: 'grab_to_', path: 'path_to_'};
 const column_list = {action: 'action', pick_up_action: 'grab', path: 'path'};
 
-let tokens = [];
-
 http.createServer(async (req, res) => {
 	try {
+		let user, userid;
+		try {
+			user = jwt.verify(cookie.parse(req.headers.cookie).token, jwtKey).username;
+			userid = await query('SELECT ID FROM users WHERE username = ?', user);
+		} catch (e) {}
 		res.setHeader('Content-Type', 'text/html');
 		res.statusCode = 200;
 		const parsed_url = url.parse(req.url, true);
@@ -206,11 +210,12 @@ http.createServer(async (req, res) => {
 					game[0].ID);
 				res.end(file);
 			} else if (req.url == '/new') {
-				const file = await show_file('new-game.html');
-				res.end(file);
+				res.end(await show_file('new-game.html'));
 			} else if (req.url == '/signin') {
-				const file = await show_file('sign-in.html', '/', 'hidden', '/');
-				res.end(file);
+				res.end(await show_file('sign-in.html', '/', 'hidden', '/'));
+			} else if (req.url == '/navbar.css') {
+				res.setHeader('Content-Type', 'text/css');
+				res.end(await show_file('navbar.css'));
 			} else if (parsed_url.pathname == '/expand') {
 				switch (parsed_url.query.type) {
 					case "location":
@@ -282,8 +287,7 @@ http.createServer(async (req, res) => {
 				res.end(String(taken[0]['COUNT(*)']));
 			} else {
 				res.statusCode = 404;
-				const file = await show_file('404.html');
-				res.end(file);
+				res.end(await show_file('404.html'));
 			}
 		} else if (req.method == 'POST') {
 			var data = "";
@@ -386,7 +390,7 @@ http.createServer(async (req, res) => {
 				const user = await query(`SELECT ID FROM users WHERE username = ? AND hash = ?`,
 					[data.username, crypto.createHash('sha256').update(data.password).digest('hex')]);
 				if (user.length) {
-					//await create_token(res, user[0].ID);
+					create_token(res, data.username);
 					res.setHeader('Location', data.url);
 					res.statusCode = 303;
 					res.end();
@@ -397,8 +401,8 @@ http.createServer(async (req, res) => {
 				}
 			} else if (req.url == '/signup') {
 				const hash = crypto.createHash('sha256').update(data.password).digest('hex');
-				const result = await query('INSERT INTO users (username, hash) VALUES (?, ?)', [data.username, hash]);
-				//await create_token(res, result.insertId);
+				await query('INSERT INTO users (username, hash) VALUES (?, ?)', [data.username, hash]);
+				create_token(res, data.username);
 				res.setHeader('Location', data.url);
 				res.statusCode = 303;
 				res.end();
@@ -593,6 +597,17 @@ function a_an(string) {
 	return /^[aeiou]/i.test(string) ? `an ${string}` : `a ${string}`;
 }
 
-function create_token(res, user) {
-	
+const jwtKey = crypto.randomBytes(256);
+const expire_seconds = 900;
+
+function create_token(res, username) {
+	const token = jwt.sign({ username }, jwtKey, {
+		algorithm: "HS256",
+		expiresIn: expire_seconds,
+	});
+	res.setHeader('Set-Cookie', cookie.serialize('token', token, {
+		maxAge: expire_seconds,
+		httpOnly: true
+	}));
+	// add secure when https
 }

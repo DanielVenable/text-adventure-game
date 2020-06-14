@@ -21,9 +21,17 @@ sql.query(`
 		ID int unsigned NOT NULL AUTO_INCREMENT,
 		name varchar(255) NOT NULL,
 		start int unsigned,
+		public tinyint(1) DEFAULT 0,
 		PRIMARY KEY (ID),
 		UNIQUE KEY name (name),
 		FOREIGN KEY (start) REFERENCES locations (ID) ON DELETE SET NULL);
+
+	CREATE TABLE IF NOT EXISTS user_to_game (
+		user int unsigned NOT NULL,
+		game int unsigned NOT NULL,
+		permission tinyint unsigned NOT NULL,
+		FOREIGN KEY (user) REFERENCES users (ID) ON DELETE CASCADE,
+		FOREIGN KEY (game) REFERENCES games (ID) ON DELETE CASCADE);
 
 	CREATE TABLE IF NOT EXISTS locations (
 		ID int unsigned NOT NULL AUTO_INCREMENT,

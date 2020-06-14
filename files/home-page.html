@@ -4,13 +4,19 @@
 <head>
     <title>Text adventure game</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="navbar.css">
 </head>
 
 <body>
-    <h3>Choose a game to play:</h3>
-    <ul>%s</ul>
-    <h3>Or <a href="/edit">edit a game</a></h3>
-    <h3>Or <a href="/new">make your own game</h3>
+    <div id="navbar">
+        <a href="/signin" class="right">Sign in/Sign up</a>
+    </div>
+    <div class="container">
+        <h3>Choose a game to play:</h3>
+        <ul>%s</ul>
+        <h3>Or <a href="/edit">edit a game</a></h3>
+        <h3>Or <a href="/new">make your own game</h3>
+    </div>
 </body>
 
 </html>

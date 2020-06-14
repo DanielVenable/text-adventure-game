@@ -4,6 +4,7 @@
 <head>
 	<title>text adventure game</title>
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<link rel="stylesheet" href="navbar.css">
 	<style>
 		button {
 			padding: 0;
@@ -30,7 +31,7 @@
 			border: 1px solid black;
 		}
 
-		body {
+		.container {
 			display: flex;
 			flex-wrap: wrap;
 		}
@@ -38,23 +39,29 @@
 </head>
 
 <body>
-	<div>
-		<h3>Locations</h3>
-		<ul class="location">
-			<li class="nobullet"><button onclick='add(this.parentElement.parentElement)'>Add a location</button></li>
-			%s
-		</ul>
-		<h3>Objects</h3>
-		<ul class="object">
-			<li class="nobullet"><button onclick='add(this.parentElement.parentElement)'>Add an object</button></li>
-			%s
-		</ul>
-		<button onclick='remove(this)'>Delete this game</button>
-		<p></p>
+	<div id="navbar">
+		<a href="/" class="left">Home</a>
+		<a href="/signin" class="right">Sign in/Sign up</a>
 	</div>
-	<iframe onload="this.height = this.contentWindow.document.body.scrollHeight + 24;"
-		src="/start?game=%s"
-		title="Play your game"></iframe>
+	<div class="container">
+		<div>
+			<h3>Locations</h3>
+			<ul class="location">
+				<li class="nobullet"><button onclick='add(this.parentElement.parentElement)'>Add a location</button></li>
+				%s
+			</ul>
+			<h3>Objects</h3>
+			<ul class="object">
+				<li class="nobullet"><button onclick='add(this.parentElement.parentElement)'>Add an object</button></li>
+				%s
+			</ul>
+			<button onclick='remove(this)'>Delete this game</button>
+			<p></p>
+		</div>
+		<iframe onload="this.height = this.contentWindow.document.body.scrollHeight + 24;"
+			src="/start?game=%s"
+			title="Play your game"></iframe>
+	</div>
 </body>
 
 <script>
