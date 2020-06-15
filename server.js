@@ -8,6 +8,7 @@ const util = require('util');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const cookie = require('cookie');
+const { parse } = require('path');
 const port = process.argv[2] ? process.argv[2] : 8000;
 
 process.chdir(__dirname + '/files');
@@ -30,12 +31,12 @@ const files = {
 	}
 };
 
-const table_list = {action: 'actions', pick_up_action: 'grab', path: 'paths'};
-const start_table_list = {action: 'action_to_', pick_up_action: 'grab_to_', path: 'path_to_'};
-const column_list = {action: 'action', pick_up_action: 'grab', path: 'path'};
+const table_list = { action: 'actions', pick_up_action: 'grab', path: 'paths' };
+const start_table_list = { action: 'action_to_', pick_up_action: 'grab_to_', path: 'path_to_' };
+const column_list = { action: 'action', pick_up_action: 'grab', path: 'path' };
 
 const go_to = /^go (?:to )?(.+)$/;
-const use = /^use (.+) (?:on (.+))?$/;
+const use = /^use (?:(.+) on )?(.+)$/;
 const pick_up = /^(?:pick up|grab|get) (.+)$/;
 
 http.createServer(async (req, res) => {
@@ -44,27 +45,39 @@ http.createServer(async (req, res) => {
 		try {
 			user = jwt.verify(cookie.parse(req.headers.cookie).token, jwtKey).username;
 			userid = await query('SELECT ID FROM users WHERE username = ?', user);
-		} catch (e) {}
+			userid = userid[0].ID
+		} catch (e) { }
 		res.setHeader('Content-Type', 'text/html');
 		res.statusCode = 200;
 		const parsed_url = url.parse(req.url, true);
 		if (req.method == 'GET') {
+			const permission = await query(`
+				SELECT permission FROM user_to_game
+				WHERE user = ? AND game = ?`,
+				[userid, parsed_url.query.game]);
 			if (parsed_url.pathname == "/play") {
 				const command = parsed_url.query.cmd.toLowerCase();
 				const states = toHalfByteArray(parsed_url.query.a);
 				const locationID = parsed_url.query.b;
 				const inventory = parsed_url.query.c.split(' ').map(x => parseInt(x)).filter(elem => !isNaN(elem));
 				const location = await query(`SELECT * FROM locations WHERE ID = ?`, [locationID]);
+				const game = await query(`SELECT public, name FROM games WHERE ID = ?`, [location[0].game]);
+				if (!game[0].public)
+					restrict(await query(`
+						SELECT * FROM user_to_game
+						WHERE user = ? AND game = ?`,
+						[userid, location[0].game]
+					), 0);
 				const show_data = {
 					res, game: location[0].game, states, location: locationID, inventory
 				};
 				const objects = await query(`SELECT * FROM objects WHERE game = ? ORDER BY ID`, [location[0].game]);
 				const split_go_to = command.match(go_to);
-				const split_pick_up = command.match(pick_up)
+				const split_pick_up = command.match(pick_up);
 				const split_use = command.match(use);
 				if (split_go_to) {
 					const end_location = await query(`
-						SELECT ID, description FROM locations WHERE name = ? AND game = ?`,
+							SELECT ID, description FROM locations WHERE name = ? AND game = ?`,
 						[split_go_to[1], location[0].game]);
 					if (end_location.length == 1) {
 						const constraints = await query(`
@@ -73,7 +86,7 @@ http.createServer(async (req, res) => {
 							LEFT JOIN constraint_and_effect ON constraint_and_effect.ID = path_to_constraint.constraint_
 							WHERE paths.start = ? AND paths.end = ?
 							ORDER BY paths.ID;`,
-							[location[0].ID, end_location[0].ID]);
+							[locationID, end_location[0].ID]);
 						const result = satisfy_constraints(states, constraints, objects);
 						if (result) {
 							const effects = await query(`
@@ -81,7 +94,7 @@ http.createServer(async (req, res) => {
 								JOIN path_to_effect ON paths.ID = path_to_effect.path
 								JOIN constraint_and_effect ON constraint_and_effect.ID = path_to_effect.effect
 								WHERE paths.start = ? AND paths.end = ?`,
-								[location[0].ID, end_location[0].ID]);
+								[locationID, end_location[0].ID]);
 							handle_effects(effects, objects, states);
 							show_data.location = end_location[0].ID;
 							await show(show_data, (result.text ? result.text + ' ' : '') + end_location[0].description);
@@ -127,8 +140,8 @@ http.createServer(async (req, res) => {
 						await show(show_data, `There is no ${split_pick_up[1]} here.`);
 					}
 				} else if (split_use) {
-					if (split_use[2] === undefined) {
-						await use_on(null, split_use[1]);
+					if (split_use[1] === undefined) {
+						await use_on(null, split_use[2]);
 					} else {
 						const item1 = await query(`SELECT ID FROM objects WHERE name = ?`, [split_use[1]]);
 						if (item1.length == 1 && inventory.includes(item1[0].ID)) {
@@ -161,7 +174,7 @@ http.createServer(async (req, res) => {
 								await show(show_data, "Nothing happens.");
 							}
 						} else {
-							await show(show_data, `There is no ${split_use[2]} here`);
+							await show(show_data, `There is no ${second_name} here`);
 						}
 					}
 				} else {
@@ -192,6 +205,9 @@ http.createServer(async (req, res) => {
 				res.end(file);
 			} else if (parsed_url.pathname == '/edit' && parsed_url.query.game) {
 				const game = await query(`SELECT * FROM games WHERE name = ?`, [parsed_url.query.game]);
+				restrict(await query(`
+					SELECT permission FROM user_to_game
+					WHERE user = ? AND game = ?`, [userid, game[0].ID]), 1);
 				const locations = await query(`SELECT * FROM locations WHERE game = ?`, [game[0].ID]);
 				var location_list = "";
 				for (const location of locations) {
@@ -222,67 +238,77 @@ http.createServer(async (req, res) => {
 				res.setHeader('Content-Type', 'text/css');
 				res.end(await show_file('navbar.css'));
 			} else if (parsed_url.pathname == '/expand') {
-				switch (parsed_url.query.type) {
-					case "location":
-						var description = await query(`SELECT description FROM locations WHERE ID = ?`, [parsed_url.query.id]);
-						res.write(await show_file('textarea.html', description[0].description));
-						var result = await query(`SELECT name, ID FROM objects WHERE location = ?`, [parsed_url.query.id]);
-						res.write(await show_file('list-start.html', 'object', 'an object'));
-						for (const obj of result) res.write(await show_file('object.html', obj.ID, sanitize(obj.name)));
-						res.write(`</ul>`);
-						res.write(await show_file('list-start.html', 'path', 'a path'));
-						const paths = await query(`SELECT * FROM paths WHERE start = ?`, [parsed_url.query.id]);
-						for (const path of paths) res.write(await show_file('path.html',
-							path.ID, await all_locations(parsed_url.query.game, parsed_url.query.id, path.end)));
-						res.end(`</ul>`);
-						break;
-					case "object":
-						var object = await query(`SELECT name FROM objects WHERE ID = ?`, [parsed_url.query.id]);
-						var result = await query(`SELECT actions.ID, actions.obj2 FROM actions WHERE actions.obj1 = ?`,
-							[parsed_url.query.id]);
-						res.write(await show_file('list-start.html', 'action', 'an action'));
-						for (const action of result)
-							res.write(await show_file('action.html',
-								action.ID, sanitize(object[0].name),
-								await all_objects(parsed_url.query.game, action.obj2)));
-						res.write(`</ul>`);
-						var result = await query(`SELECT * FROM grab WHERE grab.obj = ?`, [parsed_url.query.id]);
-						res.write(await show_file('list-start.html', 'pick_up_action', 'a pick up action'));
-						for (const grab of result)
-							res.write(await show_file('pick-up-action.html',
-								grab.ID, object[0].name,
-								grab.success ? 'checked' : ''));
-						res.end('</ul>');
-						break;
-					case "action":
-					case "pick_up_action":
-					case "path":
-						var table = table_list[parsed_url.query.type];
-						var text = await query(`SELECT text FROM ?? WHERE ID = ?`, [table, parsed_url.query.id]);
-						res.write(await show_file('textarea.html', text[0].text));
-						const table_part = {action: "action", path: "path", pick_up_action: "grab"};
-						let combined_table = table_part[parsed_url.query.type] + "_to_constraint";
-						var constraints = await query(`
-							SELECT constraint_and_effect.obj, constraint_and_effect.state FROM constraint_and_effect
-							JOIN ${combined_table} ON constraint_and_effect.ID = ${combined_table}.constraint_
-							WHERE ${combined_table}.${table_part[parsed_url.query.type]} = ?`, [parsed_url.query.id]);
-						combined_table = table_part[parsed_url.query.type] + "_to_effect";
-						var effects = await query(`
-							SELECT constraint_and_effect.obj, constraint_and_effect.state FROM constraint_and_effect
-							JOIN ${combined_table} ON constraint_and_effect.ID = ${combined_table}.effect
-							WHERE ${combined_table}.${table_part[parsed_url.query.type]} = ?`, [parsed_url.query.id]);
-						res.write(await show_file('list-start.html', 'constraint', 'a constraint'));
-						for (const constraint of constraints)
-							res.write(await show_file('constraint.html', constraint.obj,
-								await all_objects(parsed_url.query.game, constraint.obj), constraint.state));
-						res.write('</ul>');
-						res.write(await show_file('list-start.html', 'effect', 'an effect'));
-						for (const effect of effects)
-							res.write(await show_file('effect.html', effect.obj,
-								await all_objects(parsed_url.query.game, effect.obj), effect.state));
-						res.end('</ul>');
-						break;
-					default: await invalid_request(res);
+				restrict(permission, 1);
+				const permission = await query(`
+					SELECT permission FROM user_to_game
+					WHERE user = ? AND game = ?`,
+					[userid, parsed_url.query.game]);
+				if (permission.length && permission[0].permission >= 1) {
+					switch (parsed_url.query.type) {
+						case "location":
+							var description = await query(`SELECT description FROM locations WHERE ID = ?`, [parsed_url.query.id]);
+							res.write(await show_file('textarea.html', description[0].description));
+							var result = await query(`SELECT name, ID FROM objects WHERE location = ?`, [parsed_url.query.id]);
+							res.write(await show_file('list-start.html', 'object', 'an object'));
+							for (const obj of result) res.write(await show_file('object.html', obj.ID, sanitize(obj.name)));
+							res.write(`</ul>`);
+							res.write(await show_file('list-start.html', 'path', 'a path'));
+							const paths = await query(`SELECT * FROM paths WHERE start = ?`, [parsed_url.query.id]);
+							for (const path of paths) res.write(await show_file('path.html',
+								path.ID, await all_locations(parsed_url.query.game, parsed_url.query.id, path.end)));
+							res.end(`</ul>`);
+							break;
+						case "object":
+							var object = await query(`SELECT name FROM objects WHERE ID = ?`, [parsed_url.query.id]);
+							var result = await query(`SELECT actions.ID, actions.obj2 FROM actions WHERE actions.obj1 = ?`,
+								[parsed_url.query.id]);
+							res.write(await show_file('list-start.html', 'action', 'an action'));
+							for (const action of result)
+								res.write(await show_file('action.html',
+									action.ID, sanitize(object[0].name),
+									await all_objects(parsed_url.query.game, action.obj2)));
+							res.write(`</ul>`);
+							var result = await query(`SELECT * FROM grab WHERE grab.obj = ?`, [parsed_url.query.id]);
+							res.write(await show_file('list-start.html', 'pick_up_action', 'a pick up action'));
+							for (const grab of result)
+								res.write(await show_file('pick-up-action.html',
+									grab.ID, object[0].name,
+									grab.success ? 'checked' : ''));
+							res.end('</ul>');
+							break;
+						case "action":
+						case "pick_up_action":
+						case "path":
+							var table = table_list[parsed_url.query.type];
+							var text = await query(`SELECT text FROM ?? WHERE ID = ?`, [table, parsed_url.query.id]);
+							res.write(await show_file('textarea.html', text[0].text));
+							const table_part = { action: "action", path: "path", pick_up_action: "grab" };
+							let combined_table = table_part[parsed_url.query.type] + "_to_constraint";
+							var constraints = await query(`
+								SELECT constraint_and_effect.obj, constraint_and_effect.state FROM constraint_and_effect
+								JOIN ${combined_table} ON constraint_and_effect.ID = ${combined_table}.constraint_
+								WHERE ${combined_table}.${table_part[parsed_url.query.type]} = ?`, [parsed_url.query.id]);
+							combined_table = table_part[parsed_url.query.type] + "_to_effect";
+							var effects = await query(`
+								SELECT constraint_and_effect.obj, constraint_and_effect.state FROM constraint_and_effect
+								JOIN ${combined_table} ON constraint_and_effect.ID = ${combined_table}.effect
+								WHERE ${combined_table}.${table_part[parsed_url.query.type]} = ?`, [parsed_url.query.id]);
+							res.write(await show_file('list-start.html', 'constraint', 'a constraint'));
+							for (const constraint of constraints)
+								res.write(await show_file('constraint.html', constraint.obj,
+									await all_objects(parsed_url.query.game, constraint.obj), constraint.state));
+							res.write('</ul>');
+							res.write(await show_file('list-start.html', 'effect', 'an effect'));
+							for (const effect of effects)
+								res.write(await show_file('effect.html', effect.obj,
+									await all_objects(parsed_url.query.game, effect.obj), effect.state));
+							res.end('</ul>');
+							break;
+						default: await invalid_request(res);
+					}
+				} else {
+					res.statusCode = 401;
+					res.end();
 				}
 			} else if (parsed_url.pathname == '/check/game') {
 				const taken = await query(`SELECT COUNT(*) FROM games WHERE name = ?`, [parsed_url.query.name]);
@@ -299,98 +325,22 @@ http.createServer(async (req, res) => {
 			req.on('data', chunk => data += chunk);
 			await new Promise(resolve => req.on('end', resolve));
 			data = url.parse('?' + data, true).query;
-			if (req.url == '/create') {
+			const permission = await query(`
+				SELECT permission FROM user_to_game
+				WHERE user = ? AND game = ?`,
+				[userid, data.game]);
+			if (req.url == '/create' && userid) {
 				try {
-					await query(`INSERT INTO games (name) VALUES (?)`, [data.name]);
+					const game = await query(`INSERT INTO games (name) VALUES (?)`, [data.name]);
+					await query(`
+						INSERT INTO user_to_game (user, game, permission)
+						VALUES (?, ?, 2)`, [userid, game.insertId]);
 					res.statusCode = 201;
 				} catch (error) {
 					res.statusCode = 409;
 				} finally {
 					res.end();
 				}
-			} else if (req.url == '/add') {
-				switch (data.type) {
-					case "location":
-						var result = await query(`INSERT INTO locations (game, name, description) VALUES (?,?,?)`,
-							[data.game, data.name.toLowerCase(), data.description]);
-						var file = await show_file('location.html',
-							data.ID, "",
-							sanitize(data.name.toLowerCase()), "");
-						res.end(file);
-						break;
-					case "object":
-						var result = await query(`INSERT INTO objects (game, name, location) VALUES (?,?,?)`,
-							[data.game, data.name.toLowerCase(), isNaN(parseInt(data.location)) ? null : data.location]);
-						var file = await show_file('object.html', result.insertId, sanitize(data.name.toLowerCase()));
-						res.end(file);
-						break;
-					case "action":
-						var result = await query(`INSERT INTO actions (obj1) VALUES (?)`, [data.item]);
-						var name = await query(`SELECT name FROM objects WHERE ID = ?`, [data.item]);
-						var file = await show_file('action.html',
-							result.insertId, sanitize(name[0].name), await all_objects(data.game));
-						res.end(file);
-						break;
-					case "pick_up_action":
-						var result = await query(`INSERT INTO grab (obj) VALUES (?)`, [data.item]);
-						var name = await query(`SELECT name FROM objects WHERE ID = ?`, [data.item]);
-						var file = await show_file('pick-up-action.html',
-							result.insertId, sanitize(name[0].name), 'checked');
-						res.end(file);
-						break;
-					case "path":
-						var result = await query(`INSERT INTO paths (start, game) VALUES (?, ?)`, [data.item, data.game])
-						var name = await query(`SELECT name FROM locations WHERE ID = ?`, [data.item]);
-						var file = await show_file('path.html', result.insertId, await all_locations(data.game, data.item));
-						res.end(file);
-						break;
-					case "constraint":
-					case "effect":
-						if (data.obj && data.obj !== 'null') await add_constraint_or_effect(
-							data.obj,
-							data.type === 'constraint',
-							data.parenttype,
-							data.item,
-							data.state);
-						var file = await show_file(data.type === 'constraint' ? 'constraint.html' : 'effect.html',
-							data.obj, await all_objects(data.game, data.obj), 0);
-						res.end(file);
-						break;
-					default: await invalid_request(res);
-				}
-			} else if (req.url == '/setstart') {
-				await query(`UPDATE games SET start = ? WHERE ID = ?`, [data.id, data.game]);
-				res.statusCode = 204;
-				res.end();
-			} else if (req.url == '/rename') {
-				switch (data.type) {
-					case "location":
-						await query(`UPDATE locations SET name = ? WHERE ID = ?`, [data.name.toLowerCase(), data.id]);
-						break;
-					case "object":
-						await query(`UPDATE objects SET name = ? WHERE ID = ?`, [data.name.toLowerCase(), data.id]);
-						break;
-					default: throw "Not a valid type";
-				}
-				res.statusCode = 204;
-				res.end();
-			} else if (req.url == '/change/description') {
-				if (data.type === 'location') {
-					await query(`UPDATE locations SET description = ? WHERE ID = ?`, [data.text, data.id]);
-				} else {
-					await query(`UPDATE ?? SET text = ? WHERE ID = ?`, [table_list[data.type], data.text, data.id]);
-				}
-				res.statusCode = 204;
-				res.end();
-			} else if (req.url == '/change/item') {
-				if (data.type == 'action') {
-					await query(`UPDATE actions SET obj2 = ? WHERE ID = ?`, [data.newitem, data.id]);
-				} else if (data.type == 'path') {
-					await query(`UPDATE paths SET end = ? WHERE ID = ?`, [data.newitem, data.id]);
-				} else if (data.type == 'pick_up_action')
-					await query(`UPDATE grab SET success = ? WHERE ID = ?`, [data.state, data.id]);
-				res.statusCode = 204;
-				res.end();
 			} else if (req.url == '/signin') {
 				const user = await query(`SELECT ID FROM users WHERE username = ? AND hash = ?`,
 					[data.username, crypto.createHash('sha256').update(data.password).digest('hex')]);
@@ -411,15 +361,116 @@ http.createServer(async (req, res) => {
 				res.setHeader('Location', data.url);
 				res.statusCode = 303;
 				res.end();
-			} else {
-				res.statusCode = 404;
-				const file = await show_file('404.html');
-				res.end(file);
+			} else try {
+				if (req.url == '/add') {
+					restrict(permission, 1);
+					switch (data.type) {
+						case "location":
+							var result = await query(`INSERT INTO locations (game, name, description) VALUES (?,?,?)`,
+								[data.game, data.name.toLowerCase(), data.description]);
+							var file = await show_file('location.html',
+								data.ID, "",
+								sanitize(data.name.toLowerCase()), "");
+							res.end(file);
+							break;
+						case "object":
+							var result = await query(`INSERT INTO objects (game, name, location) VALUES (?,?,?)`,
+								[data.game, data.name.toLowerCase(), isNaN(parseInt(data.location)) ? null : data.location]);
+							var file = await show_file('object.html', result.insertId, sanitize(data.name.toLowerCase()));
+							res.end(file);
+							break;
+						case "action":
+							var result = await query(`INSERT INTO actions (obj1) VALUES (?)`, [data.item]);
+							var name = await query(`SELECT name FROM objects WHERE ID = ?`, [data.item]);
+							var file = await show_file('action.html',
+								result.insertId, sanitize(name[0].name), await all_objects(data.game));
+							res.end(file);
+							break;
+						case "pick_up_action":
+							var result = await query(`INSERT INTO grab (obj) VALUES (?)`, [data.item]);
+							var name = await query(`SELECT name FROM objects WHERE ID = ?`, [data.item]);
+							var file = await show_file('pick-up-action.html',
+								result.insertId, sanitize(name[0].name), 'checked');
+							res.end(file);
+							break;
+						case "path":
+							var result = await query(`INSERT INTO paths (start, game) VALUES (?, ?)`, [data.item, data.game])
+							var name = await query(`SELECT name FROM locations WHERE ID = ?`, [data.item]);
+							var file = await show_file('path.html', result.insertId, await all_locations(data.game, data.item));
+							res.end(file);
+							break;
+						case "constraint":
+						case "effect":
+							if (data.obj && data.obj !== 'null') await add_constraint_or_effect(
+								data.obj,
+								data.type === 'constraint',
+								data.parenttype,
+								data.item,
+								data.state);
+							var file = await show_file(data.type === 'constraint' ? 'constraint.html' : 'effect.html',
+								data.obj, await all_objects(data.game, data.obj), 0);
+							res.end(file);
+							break;
+						default: await invalid_request(res);
+					}
+				} else if (req.url == '/setstart') {
+					restrict(permission, 1);
+					await query(`UPDATE games SET start = ? WHERE ID = ?`, [data.id, data.game]);
+					res.statusCode = 204;
+					res.end();
+				} else if (req.url == '/rename') {
+					restrict(permission, 1);
+					switch (data.type) {
+						case "location":
+							await query(`UPDATE locations SET name = ? WHERE ID = ?`, [data.name.toLowerCase(), data.id]);
+							break;
+						case "object":
+							await query(`UPDATE objects SET name = ? WHERE ID = ?`, [data.name.toLowerCase(), data.id]);
+							break;
+						default: throw "Not a valid type";
+					}
+					res.statusCode = 204;
+					res.end();
+				} else if (req.url == '/change/description') {
+					restrict(permission, 1);
+					if (data.type === 'location') {
+						await query(`UPDATE locations SET description = ? WHERE ID = ?`, [data.text, data.id]);
+					} else {
+						await query(`UPDATE ?? SET text = ? WHERE ID = ?`, [table_list[data.type], data.text, data.id]);
+					}
+					res.statusCode = 204;
+					res.end();
+				} else if (req.url == '/change/item') {
+					restrict(permission, 1);
+					if (data.type == 'action') {
+						await query(`UPDATE actions SET obj2 = ? WHERE ID = ?`, [data.newitem, data.id]);
+					} else if (data.type == 'path') {
+						await query(`UPDATE paths SET end = ? WHERE ID = ?`, [data.newitem, data.id]);
+					} else if (data.type == 'pick_up_action')
+						await query(`UPDATE grab SET success = ? WHERE ID = ?`, [data.state, data.id]);
+					res.statusCode = 204;
+					res.end();
+				} else {
+					res.statusCode = 404;
+					const file = await show_file('404.html');
+					res.end(file);
+				}
+			} catch (error) {
+				if (error == "Unauthorized action") {
+					res.statusCode = 401;
+					res.end();
+				} else throw error;
 			}
 		} else if (req.method == 'DELETE' && parsed_url.pathname == '/remove') {
+			const permission = await query(`
+				SELECT permission FROM user_to_game
+				WHERE user = ? AND game = ?`,
+				[userid, parsed_url.query.game]);
 			res.statusCode = 204;
+			restrict(permission, 1);
 			switch (parsed_url.query.type) {
 				case "game":
+					restrict(permission, 2);
 					await query(`DELETE FROM games WHERE ID = ?`, [parsed_url.query.game]);
 					res.statusCode = 410;
 					break;
@@ -455,10 +506,19 @@ http.createServer(async (req, res) => {
 			await invalid_request(res);
 		}
 	} catch (error) {
-		await invalid_request(res);
-		console.error(error);
+		if (error == "Unauthorized action") {
+			res.statusCode = 401;
+			if (req.method == "GET") {
+				res.end(await show_file('sign-in.html', req.url, 'hidden', req.url));
+			} else res.end();
+		} else await invalid_request(res);
 	}
 }).listen(port, () => console.log(`Server running at http://localhost:${port}`));
+
+function restrict(permission, level) {
+	if (!permission.length || permission[0].permission < level)
+		throw "Unauthorized action";
+}
 
 function handle_effects(effects, objects, states) {
 	for (const effect of effects) states[objects.findIndex(obj => obj.ID == effect.obj)] = effect.state;
@@ -482,14 +542,13 @@ function satisfy_constraints(states, constraints, objects) {
 }
 
 async function show(data, text) {
-	const result = await query(`SELECT name FROM games WHERE ID = ?`, [data.game]);
 	if (data.inventory.length == 0) {
 		const file = await show_file('play.html',
-			sanitize(result[0].name),
+			sanitize(data.name),
 			sanitize(text),
 			toHexString(data.states),
 			data.location, "", "",
-			encodeURIComponent(result[0].name));
+			encodeURIComponent(data.name));
 		data.res.end(file);
 	} else {
 		const inventory = await query(`SELECT name FROM objects WHERE ID IN (?)`, [data.inventory]);
@@ -498,13 +557,13 @@ async function show(data, text) {
 			objects += ((index == 0 ? "" : ", ") + item.name)
 		);
 		const file = await show_file('play.html',
-			sanitize(result[0].name),
+			sanitize(data[0].name),
 			sanitize(text),
 			toHexString(data.states),
 			data.location,
 			data.inventory.join(' '),
 			`<p>You have: ${sanitize(objects)}</p>`,
-			encodeURIComponent(result[0].name)
+			encodeURIComponent(data.name)
 		);
 		data.res.end(file);
 	}
@@ -603,8 +662,7 @@ function a_an(string) {
 }
 
 const jwtKey = crypto.randomBytes(256);
-const expire_seconds = 900;
-const refresh_expire_seconds = 60*60*24*100;
+const expire_seconds = 60;
 
 function create_token(res, username) {
 	const token = jwt.sign({ username }, jwtKey, {
