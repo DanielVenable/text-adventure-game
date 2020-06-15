@@ -45,7 +45,7 @@ http.createServer(async (req, res) => {
 		try {
 			user = jwt.verify(cookie.parse(req.headers.cookie).token, jwtKey).username;
 			userid = await query('SELECT ID FROM users WHERE username = ?', user);
-			userid = userid[0].ID
+			userid = userid[0].ID;
 		} catch (e) { }
 		res.setHeader('Content-Type', 'text/html');
 		res.statusCode = 200;
@@ -69,7 +69,7 @@ http.createServer(async (req, res) => {
 						[userid, location[0].game]
 					), 0);
 				const show_data = {
-					res, game: game[0].name, states, location: locationID, inventory
+					res, game: game[0].name, states, location: locationID, inventory, description: location[0].description
 				};
 				const objects = await query(`SELECT * FROM objects WHERE game = ? ORDER BY ID`, [location[0].game]);
 				const split_go_to = command.match(go_to);
@@ -77,7 +77,7 @@ http.createServer(async (req, res) => {
 				const split_use = command.match(use);
 				if (split_go_to) {
 					const end_location = await query(`
-							SELECT ID, description FROM locations WHERE name = ? AND game = ?`,
+						SELECT ID, description FROM locations WHERE name = ? AND game = ?`,
 						[split_go_to[1], location[0].game]);
 					if (end_location.length == 1) {
 						const constraints = await query(`
@@ -97,7 +97,8 @@ http.createServer(async (req, res) => {
 								[locationID, end_location[0].ID]);
 							handle_effects(effects, objects, states);
 							show_data.location = end_location[0].ID;
-							await show(show_data, (result.text ? result.text + ' ' : '') + end_location[0].description);
+							show_data.description = end_location[0].description;
+							await show(show_data, result.text);
 						} else {
 							await show(show_data, 'Nothing happens.');
 						}
@@ -189,11 +190,12 @@ http.createServer(async (req, res) => {
 			} else if (parsed_url.pathname == '/start') {
 				const game = parsed_url.query.game;
 				const result = await query(`
-					SELECT locations.ID, locations.description FROM games
+					SELECT locations.ID, locations.description, games.text FROM games
 					JOIN locations ON locations.ID = games.start WHERE games.name = ?`, [game]);
 				const file = await show_file('play.html',
 					sanitize(game),
 					sanitize(result[0].description),
+					sanitize(result[0].text),
 					"", result[0].ID, "", "",
 					encodeURIComponent(game));
 				res.end(file);
@@ -512,6 +514,7 @@ http.createServer(async (req, res) => {
 				res.end(await show_file('sign-in.html', req.url, 'hidden', req.url));
 			} else res.end();
 		} else await invalid_request(res);
+		console.error(error);
 	}
 }).listen(port, () => console.log(`Server running at http://localhost:${port}`));
 
@@ -545,6 +548,7 @@ async function show(data, text) {
 	if (data.inventory.length == 0) {
 		const file = await show_file('play.html',
 			sanitize(data.game),
+			sanitize(data.description),
 			sanitize(text),
 			toHexString(data.states),
 			data.location, "", "",
@@ -557,7 +561,8 @@ async function show(data, text) {
 			objects += ((index == 0 ? "" : ", ") + item.name)
 		);
 		const file = await show_file('play.html',
-			sanitize(data[0].game),
+			sanitize(data.game),
+			sanitize(data.description),
 			sanitize(text),
 			toHexString(data.states),
 			data.location,
@@ -662,7 +667,7 @@ function a_an(string) {
 }
 
 const jwtKey = crypto.randomBytes(256);
-const expire_seconds = 60;
+const expire_seconds = 60*60*12;
 
 function create_token(res, username) {
 	const token = jwt.sign({ username }, jwtKey, {
@@ -672,7 +677,7 @@ function create_token(res, username) {
 	res.setHeader('Set-Cookie', cookie.serialize('token', token, {
 		maxAge: expire_seconds,
 		httpOnly: true,
-		sameSite: true
+		sameSite: 'lax'
 	}));
 	// add secure when https
 }

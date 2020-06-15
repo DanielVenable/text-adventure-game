@@ -20,6 +20,7 @@ sql.query(`
 	CREATE TABLE IF NOT EXISTS games (
 		ID int unsigned NOT NULL AUTO_INCREMENT,
 		name varchar(255) NOT NULL,
+		text varchar(255) NOT NULL DEFAULT "",
 		start int unsigned,
 		public tinyint(1) DEFAULT 0,
 		PRIMARY KEY (ID),
