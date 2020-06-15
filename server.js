@@ -69,7 +69,7 @@ http.createServer(async (req, res) => {
 						[userid, location[0].game]
 					), 0);
 				const show_data = {
-					res, game: location[0].game, states, location: locationID, inventory
+					res, game: game[0].name, states, location: locationID, inventory
 				};
 				const objects = await query(`SELECT * FROM objects WHERE game = ? ORDER BY ID`, [location[0].game]);
 				const split_go_to = command.match(go_to);
@@ -238,11 +238,11 @@ http.createServer(async (req, res) => {
 				res.setHeader('Content-Type', 'text/css');
 				res.end(await show_file('navbar.css'));
 			} else if (parsed_url.pathname == '/expand') {
-				restrict(permission, 1);
 				const permission = await query(`
 					SELECT permission FROM user_to_game
 					WHERE user = ? AND game = ?`,
 					[userid, parsed_url.query.game]);
+				restrict(permission, 1);
 				if (permission.length && permission[0].permission >= 1) {
 					switch (parsed_url.query.type) {
 						case "location":
@@ -544,11 +544,11 @@ function satisfy_constraints(states, constraints, objects) {
 async function show(data, text) {
 	if (data.inventory.length == 0) {
 		const file = await show_file('play.html',
-			sanitize(data.name),
+			sanitize(data.game),
 			sanitize(text),
 			toHexString(data.states),
 			data.location, "", "",
-			encodeURIComponent(data.name));
+			encodeURIComponent(data.game));
 		data.res.end(file);
 	} else {
 		const inventory = await query(`SELECT name FROM objects WHERE ID IN (?)`, [data.inventory]);
@@ -557,13 +557,13 @@ async function show(data, text) {
 			objects += ((index == 0 ? "" : ", ") + item.name)
 		);
 		const file = await show_file('play.html',
-			sanitize(data[0].name),
+			sanitize(data[0].game),
 			sanitize(text),
 			toHexString(data.states),
 			data.location,
 			data.inventory.join(' '),
 			`<p>You have: ${sanitize(objects)}</p>`,
-			encodeURIComponent(data.name)
+			encodeURIComponent(data.game)
 		);
 		data.res.end(file);
 	}
