@@ -37,13 +37,23 @@
 		}
 
 		.textarea {
-			overflow-y: auto;
-			overflow-x: hidden;
-			border: 1px solid black;
-			width: 15em;
-			height: auto;
-			line-height: 100%;
-			resize: both;
+            overflow-y: auto;
+            overflow-x: hidden;
+            border: 1px solid black;
+            width: fit-content;
+            height: auto;
+            line-height: 100%;
+            resize: both;
+            padding: 1em;
+		}
+		
+		textarea {
+    		height: auto;
+    		display: block;
+        }
+
+		.conditional {
+			margin-left: 4em;
 		}
 	</style>
 </head>
@@ -233,7 +243,9 @@
 				"&item=" + element.parentElement.parentElement.classList[0] +
 				"&parenttype=" + element.parentElement.parentElement.parentElement.classList[0], true);
 			xhttp.send();
-			await new Promise(resolve => xhttp.onreadystatechange = function () { if (this.readyState === 4) resolve() });
+			await new Promise(resolve => xhttp.onreadystatechange = function () {
+				if (this.readyState === 4) resolve();
+			});
 		}
 		const xhttp = new XMLHttpRequest();
 		xhttp.open("POST", '/add', true);

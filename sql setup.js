@@ -36,11 +36,24 @@ sql.query(`
 
 	CREATE TABLE IF NOT EXISTS locations (
 		ID int unsigned NOT NULL AUTO_INCREMENT,
-		description varchar(255) DEFAULT NULL,
 		game int unsigned NOT NULL,
 		name varchar(255) NOT NULL,
 		PRIMARY KEY (ID),
 		FOREIGN KEY (game) REFERENCES games (ID) ON DELETE CASCADE);
+
+	CREATE TABLE IF NOT EXISTS descriptions (
+		ID int unsigned NOT NULL AUTO_INCREMENT,
+		location int unsigned NOT NULL,
+		num int unsigned NOT NULL,
+		text varchar(255) NOT NULL,
+		PRIMARY KEY (ID),
+		FOREIGN KEY (location) REFERENCES locations (ID) ON DELETE CASCADE);
+
+	CREATE TABLE IF NOT EXISTS description_to_constraint (
+		description int unsigned NOT NULL,
+		constraint_ int unsigned NOT NULL,
+		FOREIGN KEY (description) REFERENCES descripitons (ID) ON DELETE CASCADE,
+		FOREIGN KEY (constraint_) REFERENCES constraint_and_effect (ID));
 
 	CREATE TABLE IF NOT EXISTS paths (
 		ID int unsigned NOT NULL AUTO_INCREMENT,
