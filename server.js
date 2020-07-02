@@ -300,32 +300,50 @@ http.createServer(async (req, res) => {
 				if (permission.length && permission[0].permission >= 1) {
 					switch (parsed_url.query.type) {
 						case "location": {
-							const description = await query(`
-								SELECT description FROM locations
-								WHERE ID = ?`, [parsed_url.query.id]);
-							res.write(await show_file('textarea.html',
-								description[0].description));
-							const result = await query(`
-								SELECT name, ID FROM objects
-								WHERE location = ?`, [parsed_url.query.id]);
-							res.write(await show_file('list-start.html',
-								'object', 'an object'));
-							for (const obj of result)
-								res.write(await show_file('object.html',
-									obj.ID, sanitize(obj.name)));
-							res.write(`</ul>`);
-							res.write(await show_file('list-start.html',
-								'path', 'a path'));
-							const paths = await query(`
-								SELECT * FROM paths
-								WHERE start = ?`, [parsed_url.query.id]);
-							for (const path of paths)
-								res.write(await show_file('path.html',
-									path.ID, await all_locations(
-										parsed_url.query.game,
-										parsed_url.query.id,
-										path.end)));
-							res.end(`</ul>`);
+							const allowed = await query(`
+								SELECT COUNT(*) AS num FROM locations
+								WHERE game = ? AND ID = ?`,
+								[parsed_url.query.game, parsed_url.query.id]);
+							if (allowed[0].num) {
+								let description = '';
+								for (const item of
+										await get_constraint_array(parsed_url.query.id)) {
+									for (const constraint of item) {
+										description += await show_file(
+											'description_constraint.html',
+											await all_objects(
+												parsed_url.query.game,
+												constraint.obj),
+											constraint.state);
+									}
+									description += await show_file(
+										'descripiton.html',
+										item[0].text);
+								}
+								res.write(await show_file('description-box.html',
+									description));
+								const result = await query(`
+									SELECT name, ID FROM objects
+									WHERE location = ?`, [parsed_url.query.id]);
+								res.write(await show_file('list-start.html',
+									'object', 'an object'));
+								for (const obj of result)
+									res.write(await show_file('object.html',
+										obj.ID, sanitize(obj.name)));
+								res.write(`</ul>`);
+								res.write(await show_file('list-start.html',
+									'path', 'a path'));
+								const paths = await query(`
+									SELECT * FROM paths
+									WHERE start = ?`, [parsed_url.query.id]);
+								for (const path of paths)
+									res.write(await show_file('path.html',
+										path.ID, await all_locations(
+											parsed_url.query.game,
+											parsed_url.query.id,
+											path.end)));
+								res.end(`</ul>`);
+							} else throw "Location does not match game";
 							break;
 						} case "object": {
 							const object = await query(`
@@ -361,7 +379,7 @@ http.createServer(async (req, res) => {
 								WHERE ID = ?`,
 								[table_list[parsed_url.query.type],
 								parsed_url.query.id]);
-							res.write(await show_file('textarea.html', text[0].text));
+							res.write(await show_file('description-box.html', text[0].text));
 							const table_part = {
 								action: "action",
 								path: "path",
@@ -394,10 +412,11 @@ http.createServer(async (req, res) => {
 							res.write(await show_file('list-start.html',
 								'constraint', 'a constraint'));
 							for (const constraint of constraints)
-								res.write(await show_file('constraint.html',
+								res.write(await show_file('constraint_or_effect.html',
 									constraint.obj,
 									await all_objects(
 										parsed_url.query.game, constraint.obj),
+									'must be',
 									constraint.state));
 							res.write('</ul>');
 							res.write(await show_file('list-start.html',
@@ -406,6 +425,7 @@ http.createServer(async (req, res) => {
 								res.write(await show_file('effect.html', effect.obj,
 									await all_objects(
 										parsed_url.query.game, effect.obj),
+									'goes in',
 									effect.state));
 							res.end('</ul>');
 							break;
@@ -546,9 +566,11 @@ http.createServer(async (req, res) => {
 								data.item,
 								data.state);
 						res.end(await show_file(
+							'constraint_or_effect.html',
+							data.obj,
+							await all_objects(data.game, data.obj),
 							data.type === 'constraint' ?
-								'constraint.html' : 'effect.html',
-							data.obj, await all_objects(data.game, data.obj), 0));
+								'must be' : 'goes in', 0));
 						break;
 					} default: await invalid_request(res);
 				}
