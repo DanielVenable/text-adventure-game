@@ -90,7 +90,7 @@ http.createServer(async (req, res) => {
 					split_use = command.match(use);
 				if (split_go_to) {
 					const end_location = await query(`
-						SELECT ID, description FROM locations
+						SELECT ID FROM locations
 						WHERE name = ? AND game = ?`,
 						[split_go_to[1], location[0].game]);
 					if (end_location.length === 1) {
@@ -121,7 +121,6 @@ http.createServer(async (req, res) => {
 								[locationID, end_location[0].ID]);
 							handle_effects(effects, objects, states);
 							show_data.location = end_location[0].ID;
-							show_data.description = end_location[0].description;
 							await show(show_data, result.text);
 						} else await show(show_data, 'Nothing happens.');
 					} else await show(show_data, 'Nothing happens.');
@@ -191,7 +190,7 @@ http.createServer(async (req, res) => {
 							WHERE name = ?`, [second_name]);
 						let valid_items = [];
 						for (const item of item2)
-							if (item.location === locationID ||
+							if (item.location == locationID ||
 								inventory.includes(item.ID))
 								valid_items.push(item);
 						if (valid_items.length === 1) {
@@ -308,16 +307,18 @@ http.createServer(async (req, res) => {
 								let description = '';
 								for (const item of
 										await get_constraint_array(parsed_url.query.id)) {
-									for (const constraint of item) {
-										description += await show_file(
-											'description_constraint.html',
-											await all_objects(
-												parsed_url.query.game,
-												constraint.obj),
-											constraint.state);
+									if (item[0].obj) {
+										for (const constraint of item) {
+											description += await show_file(
+												'description_constraint.html',
+												await all_objects(
+													parsed_url.query.game,
+													constraint.obj),
+												constraint.state);
+										}
 									}
 									description += await show_file(
-										'descripiton.html',
+										'description.html',
 										item[0].text);
 								}
 								res.write(await show_file('description-box.html',
@@ -379,7 +380,8 @@ http.createServer(async (req, res) => {
 								WHERE ID = ?`,
 								[table_list[parsed_url.query.type],
 								parsed_url.query.id]);
-							res.write(await show_file('description-box.html', text[0].text));
+							res.write(await show_file('description-box.html',
+								text[0].text));
 							const table_part = {
 								action: "action",
 								path: "path",
@@ -739,8 +741,7 @@ async function show(data, text) {
 			SELECT name FROM objects WHERE ID IN (?)`, [data.inventory]);
 		let objects = "";
 		inventory.forEach((item, index) =>
-			objects += ((index === 0 ? "" : ", ") + item.name)
-		);
+			objects += (index === 0 ? "" : ", ") + item.name);
 		const file = await show_file('play.html',
 			sanitize(data.game),
 			description,
@@ -759,7 +760,7 @@ async function describe(data) {
 	let description = "";
 	for (const item of await get_constraint_array(data.location)) {
 		description +=
-			satisfy_constraints(data.states, item, data.objects) || "";
+			satisfy_constraints(data.states, item, data.objects).text || "";
 	}
 	return sanitize(description);
 }

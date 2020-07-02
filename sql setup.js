@@ -52,7 +52,7 @@ sql.query(`
 	CREATE TABLE IF NOT EXISTS description_to_constraint (
 		description int unsigned NOT NULL,
 		constraint_ int unsigned NOT NULL,
-		FOREIGN KEY (description) REFERENCES descripitons (ID) ON DELETE CASCADE,
+		FOREIGN KEY (description) REFERENCES descriptions (ID) ON DELETE CASCADE,
 		FOREIGN KEY (constraint_) REFERENCES constraint_and_effect (ID));
 
 	CREATE TABLE IF NOT EXISTS paths (
