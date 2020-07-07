@@ -36,7 +36,7 @@
 			flex-wrap: wrap;
 		}
 
-		.textarea {
+		div.textarea {
             overflow-y: auto;
             overflow-x: hidden;
             border: 1px solid black;
@@ -49,7 +49,6 @@
 		
 		textarea {
     		height: auto;
-    		display: block;
         }
 
 		.description {
@@ -206,8 +205,27 @@
 		element.getElementsByTagName('button')[2].hidden = true;
 	}
 
-	function change_description(event) {
-		console.log(event);
+	function change_description(element) {
+		const xhttp = new XMLHttpRequest();
+		xhttp.open("POST", "/change/description", true);
+		xhttp.send("game=" + game +
+			"&id=" + element.parentElement.classList[0] +
+			"&text=" + encodeURIComponent(element.innerText) +
+			"&type=" + element.parentElement.parentElement.classList[0]);
+	}
+
+	function change_description_part(event) {
+		let item = event.path[2].previousElementSibling;
+		let i = 0;
+		while (item) {
+			item = item.previousElementSibling;
+			if (item instanceof HTMLDivElement) i++;
+		}
+		const xhttp = new XMLHttpRequest();
+		xhttp.open("POST", '/change/description', true);
+		xhttp.send("game=" + game +
+			"&description=" + event.path[0].value +
+			"&type=location&num=" + i);
 	}
 
 	function change_item(element) {

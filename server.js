@@ -380,7 +380,7 @@ http.createServer(async (req, res) => {
 								WHERE ID = ?`,
 								[table_list[parsed_url.query.type],
 								parsed_url.query.id]);
-							res.write(await show_file('description-box.html',
+							res.write(await show_file('textarea.html',
 								text[0].text));
 							const table_part = {
 								action: "action",
@@ -424,7 +424,8 @@ http.createServer(async (req, res) => {
 							res.write(await show_file('list-start.html',
 								'effect', 'an effect'));
 							for (const effect of effects)
-								res.write(await show_file('effect.html', effect.obj,
+								res.write(await show_file('constraint_or_effect.html',
+									effect.obj,
 									await all_objects(
 										parsed_url.query.game, effect.obj),
 									'goes in',
