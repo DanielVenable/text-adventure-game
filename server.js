@@ -574,6 +574,20 @@ http.createServer(async (req, res) => {
 							data.type === 'constraint' ?
 								'must be' : 'goes in', 0));
 						break;
+					} case "description": {
+						const valid = await query(`
+							SELECT COUNT(*) AS valid FROM locations
+							WHERE ID = ? AND game = ?`, [data.item, data.game]);
+						if (!valid[0].valid) throw "location does not match game";
+						await query(`
+							UPDATE descriptions
+							SET num = num + 1
+							WHERE location = ? AND num >= ?`,
+							[data.item, data.num]);
+						await query(`
+							INSERT INTO descriptions (location, num)
+							VALUES (?, ?)`, [data.item, data.num]);
+						res.end(await show_file('description.html', ''));
 					} default: await invalid_request(res);
 				}
 			} else if (req.url === '/setstart') {
@@ -603,9 +617,7 @@ http.createServer(async (req, res) => {
 			} else if (req.url === '/change/description') {
 				restrict(permission, 1);
 				if (data.type === 'location') {
-					await query(`
-						UPDATE locations SET description = ?
-						WHERE ID = ?`, [data.text, data.id]);
+					console.log(data);
 				} else {
 					await query(`
 						UPDATE ?? SET text = ?
@@ -683,6 +695,17 @@ http.createServer(async (req, res) => {
 						parsed_url.query.type === 'constraint',
 						parsed_url.query.parenttype,
 						parsed_url.query.item);
+					break;
+				case "description":
+					await query(`
+						DELETE FROM descriptions
+						WHERE location = ? AND num = ?`,
+						[parsed_url.query.item, parsed_url.query.num]);
+					await query(`
+						UPDATE descriptions
+						SET num = num - 1
+						WHERE location = ? AND num > ?`,
+						[parsed_url.query.item, parsed_url.query.num]);
 					break;
 				default: res.statusCode = 404;
 			}

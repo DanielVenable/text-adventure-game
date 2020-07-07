@@ -45,7 +45,7 @@ sql.query(`
 		ID int unsigned NOT NULL AUTO_INCREMENT,
 		location int unsigned NOT NULL,
 		num int unsigned NOT NULL,
-		text varchar(255) NOT NULL,
+		text varchar(255) NOT NULL DEFAULT "",
 		PRIMARY KEY (ID),
 		FOREIGN KEY (location) REFERENCES locations (ID) ON DELETE CASCADE);
 
