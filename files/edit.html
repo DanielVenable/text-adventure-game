@@ -129,7 +129,7 @@
 				"game=" + game +
 				"&type=" + element.classList[0] +
 				"&item=" + element.parentElement.classList[0] +
-				"&parenttype=" + parents(element, 2).classList[0]);
+				"&parenttype=" + parent_class(element,  2));
 		} else {
 			const name = encodeURIComponent(prompt(`Choose a name for the ${element.classList[0]}.`, ""));
 			if (name == "null" || name == "") return;
@@ -169,8 +169,8 @@
 				"&type=" + element.parentElement.classList[0] +
 				"&id=" + element.classList[0] +
 				(['constraint', 'effect'].includes(element.parentElement.classList[0]) ?
-					"&item=" + parents(element, 2).classList[0] +
-					"&parenttype=" + parents(element, 3).classList[0] : ''), true);
+					"&item=" + parent_class(element,  2) +
+					"&parenttype=" + parent_class(element,  3) : ''), true);
 			xhttp.send();
 		}
 	}
@@ -187,10 +187,10 @@
 		const xhttp = new XMLHttpRequest();
 		xhttp.open("POST", "/rename", true);
 		xhttp.send(
-			"id=" + parents(element, 2).classList[0] +
+			"id=" + parent_class(element,  2) +
 			"&name=" + encodeURIComponent(text) +
 			"&game=" + game +
-			"&type=" + parents(element, 3).classList[0]);
+			"&type=" + parent_class(element,  3));
 		element.outerHTML = text.replace(/</g, '&lt;').replace(/>/g, '&gt;');
 	}
 
@@ -211,28 +211,23 @@
 		xhttp.send("game=" + game +
 			"&id=" + element.parentElement.classList[0] +
 			"&text=" + encodeURIComponent(element.value) +
-			"&type=" + parents(element, 2).classList[0]);
+			"&type=" + parent_class(element,  2));
 	}
 
 	function change_description_part(event) {
-		let item = event.path[2].previousElementSibling;
-		let i = 0;
-		while (item) {
-			item = item.previousElementSibling;
-			if (item instanceof HTMLDivElement) i++;
-		}
 		const xhttp = new XMLHttpRequest();
 		xhttp.open("POST", '/change/description', true);
 		xhttp.send("game=" + game +
 			"&description=" + encodeURIComponent(event.path[0].value) +
-			"&type=location&num=" + i);
+			"&item=" + event.path[4].classList[0] +
+			"&type=location&num=" + description_num(event.path[2]));
 	}
 
 	function change_item(element) {
 		const xhttp = new XMLHttpRequest();
 		xhttp.open("POST", '/change/item', true);
 		xhttp.send("game=" + game +
-			"&type=" + parents(element, 2).classList[0] +
+			"&type=" + parent_class(element,  2) +
 			"&id=" + element.parentElement.classList[0] +
 			"&newitem=" + element.value);
 	}
@@ -241,7 +236,7 @@
 		const xhttp = new XMLHttpRequest();
 		xhttp.open("POST", '/change/item', true);
 		xhttp.send("game=" + game +
-			"&id=" + parents(element, 2).classList[0] +
+			"&id=" + parent_class(element,  2) +
 			"&state=" + element.checked ? 1 : 0 +
 			"&type=pick_up_action");
 	}
@@ -253,8 +248,8 @@
 				"/remove?game=" + game +
 				"&type=" + element.parentElement.classList[0] +
 				"&id=" + element.classList[0] +
-				"&item=" + parents(element, 2).classList[0] +
-				"&parenttype=" + parents(element, 3).classList[0], true);
+				"&item=" + parent_class(element,  2) +
+				"&parenttype=" + parent_class(element,  3), true);
 			xhttp.send();
 			await new Promise(resolve => xhttp.onreadystatechange = function () {
 				if (this.readyState === 4) resolve();
@@ -266,8 +261,8 @@
 			"game=" + game +
 			"&obj=" + element.getElementsByTagName('select')[0].value +
 			"&type=" + element.parentElement.classList[0] +
-			"&item=" + parents(element, 2).classList[0] +
-			"&parenttype=" + parents(element, 3).classList[0] +
+			"&item=" + parent_class(element,  2) +
+			"&parenttype=" + parent_class(element,  3) +
 			"&state=" + element.getElementsByTagName('input')[0].value);
 		element.className = element.getElementsByTagName('select')[0].value;
 		update_selects(element.parentElement);
@@ -279,12 +274,6 @@
 	}
 
 	function add_description_part(element) {
-		let item = element.previousElementSibling;
-		let i = 0;
-		while (item) {
-			item = item.previousElementSibling;
-			if (item instanceof HTMLParagraphElement) i++;
-		}
 		const xhttp = new XMLHttpRequest();
 		xhttp.onreadystatechange = function () {
 			if (this.readyState === 4 && this.status === 200)
@@ -293,17 +282,11 @@
 		xhttp.open('POST', '/add', true);
 		xhttp.send(
 			'game=' + game +
-			'&item=' + parents(element, 2).classList[0] +
-			'&type=description&num=' + i);
+			'&item=' + parent_class(element,  2) +
+			'&type=description&num=' + description_num(element));
 	}
 
 	function remove_description_part(element) {
-		let item = element.previousElementSibling;
-		let i = 0;
-		while (item) {
-			item = item.previousElementSibling;
-			if (item instanceof HTMLDivElement) i++;
-		}
 		const xhttp = new XMLHttpRequest();
 		xhttp.onreadystatechange = function () {
 			if (this.readyState === 4 && this.status === 204) {
@@ -313,15 +296,37 @@
 		}
 		xhttp.open("DELETE",
 			'/remove?game=' + game +
-			'&item=' + parents(element, 2).classList[0] +
-			'&type=description&num=' + i, true);
+			'&item=' + parent_class(element,  2) +
+			'&type=description&num=' + description_num(element), true);
 		xhttp.send();
 	}
 
-	function parents(element, num) {
+	function add_description_constraint(element) {
+		const xhttp = new XMLHttpRequest();
+		xhttp.onreadystatechange = function () {
+			if (this.readyState === 4 && this.status === 200)
+				element.insertAdjacentHTML('beforebegin', this.responseText);
+		}
+		xhttp.open("GET",
+			'/description-constraint.html?game=' + game +
+			'&item=' + parent_class(element, 2), true);
+		xhttp.send();
+	}
+
+	function parent_class(element, num) {
 		if (num) {
-			return parents(element.parentElement, num - 1);
-		} else return element;
+			return parent_class(element.parentElement, num - 1);
+		} else return element.classList[0];
+	}
+
+	function description_num(element) {
+		let item = element.previousElementSibling;
+		let i = 0;
+		while (item) {
+			item = item.previousElementSibling;
+			if (item instanceof HTMLParagraphElement) i++;
+		}
+		return i;
 	}
 </script>
 

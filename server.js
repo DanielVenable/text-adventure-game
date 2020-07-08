@@ -310,7 +310,7 @@ http.createServer(async (req, res) => {
 									if (item[0].obj) {
 										for (const constraint of item) {
 											description += await show_file(
-												'description_constraint.html',
+												'description-constraint.html',
 												await all_objects(
 													parsed_url.query.game,
 													constraint.obj),
@@ -448,6 +448,10 @@ http.createServer(async (req, res) => {
 					SELECT COUNT(*) AS num FROM users
 					WHERE username = ?`, [parsed_url.query.username]);
 				res.end(String(taken[0].num));
+			} else if (parsed_url.pathname === '/description-constraint.html') {
+				await location_match_game(parsed_url.query.item, parsed_url.query.game);
+				res.end(await show_file('description-constraint.html',
+					await all_objects(parsed_url.query.game), 0));
 			} else {
 				res.statusCode = 404;
 				res.end(await show_file('404.html'));
@@ -513,14 +517,7 @@ http.createServer(async (req, res) => {
 						break;
 					} case "object": {
 						const is_anywhere = !isNaN(parseInt(data.location));
-						if (is_anywhere) {
-							const valid = await query(`
-								SELECT COUNT(*) AS valid FROM locations
-								WHERE ID = ? AND game = ?`,
-								[data.location, data.game]);
-							if (!valid[0].valid)
-								throw "location does not match game";
-						}
+						if (is_anywhere) await location_match_game(location, game);
 						const result = await query(`
 							INSERT INTO objects (game, name, location)
 							VALUES (?,?,?)`,
@@ -576,10 +573,7 @@ http.createServer(async (req, res) => {
 								'must be' : 'goes in', 0));
 						break;
 					} case "description": {
-						const valid = await query(`
-							SELECT COUNT(*) AS valid FROM locations
-							WHERE ID = ? AND game = ?`, [data.item, data.game]);
-						if (!valid[0].valid) throw "location does not match game";
+						await location_match_game(data.item, data.game);
 						await query(`
 							UPDATE descriptions
 							SET num = num + 1
@@ -589,6 +583,9 @@ http.createServer(async (req, res) => {
 							INSERT INTO descriptions (location, num)
 							VALUES (?, ?)`, [data.item, data.num]);
 						res.end(await show_file('description.html', ''));
+						break;
+					} case "description_constraint": {
+						
 					} default: await invalid_request(res);
 				}
 			} else if (req.url === '/setstart') {
@@ -618,7 +615,11 @@ http.createServer(async (req, res) => {
 			} else if (req.url === '/change/description') {
 				restrict(permission, 1);
 				if (data.type === 'location') {
-					console.log(data);
+					await location_match_game(data.item, data.game);
+					await query(`
+						UPDATE descriptions SET text = ?
+						WHERE location = ? AND num = ?`,
+						[data.description, data.item, data.num]);
 				} else {
 					await query(`
 						UPDATE ?? SET text = ?
@@ -722,6 +723,13 @@ http.createServer(async (req, res) => {
 		console.error(error);
 	}
 }).listen(port, () => console.log(`Server running at http://localhost:${port}`));
+
+async function location_match_game(location, game) {
+	const valid = await query(`
+		SELECT COUNT(*) AS valid FROM locations
+		WHERE ID = ? AND game = ?`, [location, game]);
+	if (!valid[0].valid) throw "location does not match game";
+}
 
 function restrict(permission, level) {
 	if (!permission.length || permission[0].permission < level)
