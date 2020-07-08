@@ -210,8 +210,8 @@
 		xhttp.open("POST", "/change/description", true);
 		xhttp.send("game=" + game +
 			"&id=" + element.parentElement.classList[0] +
-			"&text=" + encodeURIComponent(element.innerText) +
-			"&type=" + element.parentElement.parentElement.classList[0]);
+			"&text=" + encodeURIComponent(element.value) +
+			"&type=" + parents(element, 2).classList[0]);
 	}
 
 	function change_description_part(event) {
@@ -224,7 +224,7 @@
 		const xhttp = new XMLHttpRequest();
 		xhttp.open("POST", '/change/description', true);
 		xhttp.send("game=" + game +
-			"&description=" + event.path[0].value +
+			"&description=" + encodeURIComponent(event.path[0].value) +
 			"&type=location&num=" + i);
 	}
 
