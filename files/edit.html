@@ -2,7 +2,7 @@
 <html lang='en'>
 
 <head>
-	<title>text adventure game</title>
+	<title>Text adventure game</title>
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<link rel="stylesheet" href="navbar.css">
 	<style>
@@ -83,22 +83,113 @@
 </body>
 
 <script>
-	const game = '%d';
 	let opened = new Set();
 
-	document.getElementById('game').addEventListener('click', event => {
-		const is_class = event.target.classList.contains.bind(event.target.classList);
-		if (event.target instanceof HTMLButtonElement) {
+	document.getElementById('game').addEventListener('click', async ({path}) => {
+		const is_class = path[0].classList.contains.bind(path[0].classList);
+		if (path[0] instanceof HTMLButtonElement) {
 			if (is_class('link')) {
-				expand(event.path);
+				if (opened.has(path[1])) {
+					const lists = path[1].getElementsByTagName('ul');
+					const textarea = path[1].getElementsByClassName('textarea');
+					const show = !lists[0].hidden;
+					if (textarea.length) textarea[0].hidden = show;
+					for (const elem of lists) elem.hidden = show;
+				} else {
+					opened.add(path[1]);
+					const result = await ajax('GET', '/expand', {
+						type: path[2].classList[0],
+						id: path[1].classList[0]
+					});
+					path[1].insertAdjacentHTML('beforeend', result.responseText);
+				}
 			} else if (is_class('delete')) {
-				remove(event.path);
+				const text =
+					"Are you sure you want to delete this " +
+					(path[2].classList[0] || 'game') +
+					"? This operation cannot be undone";
+				if (confirm(text)) {
+					const obj = {
+						type: path[2].classList[0] || 'game',
+						id: path[1].classList[0],
+					};
+					if (['constraint', 'effect'].includes(path[2].classList[0])) {
+						obj.item = path[3].classList[0];
+						obj.parenttype = path[3].classList[0];
+					}
+					ajax('DELETE', '/remove', obj).catch(console.error);
+					if (path[2].classList[0]) {
+						path[1].remove();
+					} else window.location.replace("/");
+				}
 			} else if (is_class('add')) {
-				add(event.path);
-			} else if (is_class('add-description-part')) {
-				add_description_part(event.path);
+				let result;
+				if (["action",
+					"pick_up_action",
+					"path",
+					"constraint",
+					"effect"]
+						.includes(path[2].classList[0])) {
+					result = await ajax('POST', '/add', {
+						type: path[2].classList[0],
+						item: path[3].classList[0],
+						parenttype: path[4].classList[0]
+					});
+				} else {
+					const name = prompt(
+						`Choose a name for the ${path[2].classList[0]}.`, "");
+					if (!name) return;
+					if (path[2].classList[0] === "location") {
+						result = await ajax('POST', '/add', {
+							type: 'location', name
+						});
+					} else if (path[2].classList[0] === "object") {
+						result = await ajax('POST', '/add', {
+							type: 'object',	name,
+							location: path[3].classList[0]
+						});
+					}
+				}
+				path[2].insertAdjacentHTML('beforeend', result.responseText);
+				update_selects(path[2]);
 			} else if (is_class('rename')) {
-				rename(event.path);
+				const list = path[1].getElementsByClassName('link')[0];
+				const element = document.createElement('input');
+				element.value = list.innerText;
+				element.addEventListener('blur', end_rename);
+				element.addEventListener('keypress', e => {
+					if (e.key === 'Enter') e.target.blur()
+				});
+				list.innerHTML = '';
+				list.appendChild(element);
+				element.select();
+			} else if (is_class('add-description-constraint')) {
+				const result = await ajax('GET', 'description-constraint.html', {
+					item: path[3].classList[0]
+				});
+				path[1].insertAdjacentHTML('beforebegin', result.responseText);
+			} else if (is_class('remove-description-part')) {
+				await ajax('DELETE', '/remove', {
+					item: path[3].classList[0],
+					type:'descripiton',
+					num: description_num(path[1])
+				});
+				path[1].nextElementSibling.remove();
+				path[1].remove();
+			} else if (is_class('add-description-part')) {
+				const result = await ajax('POST', '/add', {
+					item: path[3].classList[0],
+					type: 'description',
+					num: description_num(path[1])
+				});
+				path[0].insertAdjacentHTML('afterend', result.responseText);
+			} else if (is_class('make-start')) {
+				await ajax('POST', '/setstart', {id: path[1].classList[0]});
+				const old_start = document.getElementsByClassName('start')[0];
+				old_start.classList.remove('start');
+				old_start.getElementsByClassName("make-start")[0].hidden = false;
+				path[1].classList.add('start');
+				path[0].hidden = true;
 			}
 		}
 	});
@@ -113,156 +204,51 @@
 			if (option.value != 'null' && !option.selected) option.hidden = values.has(option.value);
 	}
 
-	function expand(path) {
-		if (opened.has(path[1])) {
-			const lists = path[1].getElementsByTagName('ul');
-			const textarea = path[1].getElementsByClassName('textarea');
-			const show = !lists[0].hidden;
-			if (textarea.length) textarea[0].hidden = show;
-			for (const elem of lists) elem.hidden = show;
-		} else {
-			opened.add(path[1]);
-			const xhttp = new XMLHttpRequest();
-			xhttp.onreadystatechange = function () {
-				if (this.readyState == 4 && this.status == 200)
-					path[1].insertAdjacentHTML('beforeend', this.responseText);
-			}
-			xhttp.open("GET",
-				"/expand?game=" + encodeURIComponent(game) +
-				"&type=" + path[2].classList[0] +
-				"&id=" + path[1].classList[0], true);
-			xhttp.send();
-		}
-	}
-
-	function add(path) {
-		const xhttp = new XMLHttpRequest();
-		xhttp.onreadystatechange = function () {
-			if (this.readyState == 4 && this.status == 200)
-				path[2].insertAdjacentHTML('beforeend', this.responseText);
-			update_selects(path[2]);
-		}
-		xhttp.open("POST", "/add", true);
-		if (["action", "pick_up_action", "path", "constraint", "effect"].includes(path[2].classList[0])) {
-			xhttp.send(
-				"game=" + game +
-				"&type=" + path[2].classList[0] +
-				"&item=" + path[3].classList[0] +
-				"&parenttype=" + path[4].classList[0]);
-		} else {
-			const name = encodeURIComponent(prompt(`Choose a name for the ${path[2].classList[0]}.`, ""));
-			if (name == "null" || name == "") return;
-			if (path[2].classList[0] == "location") {
-				const description = encodeURIComponent(prompt(`Choose a description for the location.`, ""));
-				if (description == "null" || description == "") return;
-				xhttp.send(
-					"game=" + game +
-					"&type=location&name=" + name +
-					"&description=" + description);
-			} else if (path[2].classList[0] == "object") {
-				xhttp.send(
-					"game=" + game +
-					"&type=object&name=" + name +
-					"&location=" + path[3].classList[0]);
-			}
-		}
-	}
-
-	function remove(path) {
-		const text =
-			"Are you sure you want to delete this " +
-			(path[2].classList[0] || 'game') +
-			"? This operation cannot be undone";
-		if (confirm(text)) {
-			const obj = {
-				game,
-				type: path[2].classList[0] || 'game',
-				id: path[1].classList[0],
-			};
-			if (['constraint', 'effect'].includes(path[2].classList[0])) {
-				obj.item = path[3].classList[0];
-				obj.parenttype = path[3].classList[0];
-			}
-			ajax('DELETE', '/remove', obj).catch(console.error);
-			if (path[2].classList[0]) {
-				path[1].remove();
-			} else window.location.replace("/");
-		}
-	}
-
-	function rename(path) {
-		const list = path[1].getElementsByClassName('link')[0];
-		const element = document.createElement('input');
-		element.value = list.innerText;
-		element.addEventListener('blur', end_rename);
-		element.addEventListener('keypress', e => {if (e.key === 'Enter') e.target.blur()});
-		list.innerHTML = '';
-		list.appendChild(element);
-		element.select();
-	}
-
-	function end_rename(event) {
+	async function end_rename(event) {
 		const text = event.path[0].value;
-		const xhttp = new XMLHttpRequest();
-		xhttp.open("POST", "/rename", true);
-		xhttp.send(
-			"id=" + event.path[2].classList[0] +
-			"&name=" + encodeURIComponent(text) +
-			"&game=" + game +
-			"&type=" + event.path[3].classList[0]);
+		await ajax('POST', '/rename', {
+			id: event.path[2].classList[0],
+			name: text,
+			type: event.path[3].classList[0]
+		});
 		event.path[1].innerText = text;
 	}
 
-	function make_start(element) {
-		const xhttp = new XMLHttpRequest();
-		xhttp.open("POST", `/setstart`, true);
-		xhttp.send(`id=${element.classList[0]}&game=${game}`);
-		const old_start = document.getElementsByClassName('start')[0];
-		old_start.classList.remove('start');
-		old_start.getElementsByTagName("button")[2].hidden = false;
-		element.classList.add('start');
-		element.getElementsByTagName('button')[2].hidden = true;
-	}
-
 	function change_description(element) {
-		const xhttp = new XMLHttpRequest();
-		xhttp.open("POST", "/change/description", true);
-		xhttp.send("game=" + game +
-			"&id=" + element.parentElement.classList[0] +
-			"&text=" + encodeURIComponent(element.value) +
-			"&type=" + parent_class(element,  2));
+		return ajax('POST', '/change/description', {
+			id: element.parentElement.classList[0],
+			text: element.value,
+			type: parent_class(element, 2)
+		});
 	}
 
 	function change_description_part(event) {
-		const xhttp = new XMLHttpRequest();
-		xhttp.open("POST", '/change/description', true);
-		xhttp.send("game=" + game +
-			"&description=" + encodeURIComponent(event.path[0].value) +
-			"&item=" + event.path[4].classList[0] +
-			"&type=location&num=" + description_num(event.path[2]));
+		return ajax('POST', '/change/description', {
+			description: event.path[0].value,
+			item: event.path[4].classList[0],
+			type: 'location',
+			num: description_num(event.path[2])
+		});
 	}
 
 	function change_item(element) {
-		const xhttp = new XMLHttpRequest();
-		xhttp.open("POST", '/change/item', true);
-		xhttp.send("game=" + game +
-			"&type=" + parent_class(element,  2) +
-			"&id=" + element.parentElement.classList[0] +
-			"&newitem=" + element.value);
+		return ajax('POST', '/change/item', {
+			type: parent_class(element, 2),
+			id: element.parentElement.classList[0],
+			newitem: element.value
+		});
 	}
 
 	function change_success(element) {
-		const xhttp = new XMLHttpRequest();
-		xhttp.open("POST", '/change/item', true);
-		xhttp.send("game=" + game +
-			"&id=" + parent_class(element,  2) +
-			"&state=" + element.checked ? 1 : 0 +
-			"&type=pick_up_action");
+		return ajax('POST', '/change/item', {
+			id: parent_class(element,  2),
+			state: element.checked,
+			type: 'pick_up_action'
+		});
 	}
 
 	async function change_constraint_or_effect(element) {
 		let obj = {
-			game,
 			type: element.parentElement.classList[0],
 			id: element.classList[0],
 			item: parent_class(element, 2),
@@ -282,34 +268,6 @@
 		event.target.height =
 			event.target.contentDocument
 				.getElementsByTagName('html')[0].scrollHeight;
-	}
-
-	async function add_description_part(path) {
-		const result = await ajax('POST', '/add', {
-			game,
-			item: path[3].classList[0],
-			type: 'description',
-			num: description_num(path[1])
-		});
-		path[0].insertAdjacentHTML('afterend', result.responseText);
-	}
-
-	async function remove_description_part(element) {
-		await ajax('DELETE', '/remove', {
-			game,
-			item: parent_class(element, 2),
-			type:'descripiton',
-			num: description_num(element)
-		});
-		element.nextElementSibling.remove();
-		element.remove();
-	}
-
-	async function add_description_constraint(element) {
-		const result = await ajax('GET', 'description-constraint.html', {
-			game, item: parent_class(element[2])
-		});
-		element.insertAdjacentHTML('beforebegin', result.responseText);
 	}
 
 	function parent_class(element, num) {
@@ -335,10 +293,9 @@
 				if (this.readyState === 4) 
 					(this.status < 400 ? resolve : reject)(this);
 			}
-			const body = 
-				Object.getOwnPropertyNames(query)
-				.map(i => `${encodeURIComponent(i)}=${encodeURIComponent(query[i])}`)
-				.join('&');
+			let body = 'game=%s';
+			for (const i in query)
+				body += `&${encodeURIComponent(i)}=${encodeURIComponent(query[i])}`
 			xhttp.open(method, url + (method === "POST" ? '' : '?' + body), true);
 			xhttp.send(method === "POST" ? body : undefined);
 		});
