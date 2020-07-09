@@ -63,16 +63,15 @@
 		<a href="/signin" class="right">Sign in/Sign up</a>
 	</div>
 	<div class="container">
-		<div>
+		<div id="game">
 			<h3>Locations</h3>
 			<ul class="location">
-				<li class="nobullet"><button onclick='add(this.parentElement.parentElement)'>Add a location</button>
-				</li>
+				<li class="nobullet"><button class="add">Add a location</button></li>
 				%s
 			</ul>
 			<h3>Objects</h3>
 			<ul class="object">
-				<li class="nobullet"><button onclick='add(this.parentElement.parentElement)'>Add an object</button></li>
+				<li class="nobullet"><button class="add">Add an object</button></li>
 				%s
 			</ul>
 			<button onclick='remove(this)'>Delete this game</button>
@@ -84,81 +83,99 @@
 
 <script>
 	const game = '%d';
-	var opened = new Set();
+	let opened = new Set();
+
+	document.getElementById('game').addEventListener('click', event => {
+		const is_class = event.target.classList.contains.bind(event.target.classList);
+		if (event.target instanceof HTMLButtonElement) {
+			if (is_class('link')) {
+				expand(event.path);
+			} else if (is_class('delete')) {
+				remove(event.path);
+			} else if (is_class('add')) {
+				add(event.path);
+			} else if (is_class('add-description-part')) {
+				add_description_part(event.path);
+			} else if (is_class('rename')) {
+				rename(event.path);
+			}
+		}
+	});
 
 	function update_selects(elem) {
-		var values = new Set();
+		let values = new Set();
 		const selects = elem.getElementsByTagName('select');
 		for (const select of selects) values.add(select.value);
 		for (const select of selects) for (const option of select)
 			if (option.value != 'null' && !option.selected) option.hidden = values.has(option.value);
 	}
 
-	function expand(element) {
-		if (opened.has(element)) {
-			const lists = element.getElementsByTagName('ul');
-			const textarea = element.getElementsByClassName('textarea');
+	function expand(path) {
+		if (opened.has(path[1])) {
+			const lists = path[1].getElementsByTagName('ul');
+			const textarea = path[1].getElementsByClassName('textarea');
 			const show = !lists[0].hidden;
 			if (textarea.length) textarea[0].hidden = show;
 			for (const elem of lists) elem.hidden = show;
 		} else {
-			opened.add(element);
+			opened.add(path[1]);
 			const xhttp = new XMLHttpRequest();
 			xhttp.onreadystatechange = function () {
 				if (this.readyState == 4 && this.status == 200)
-					element.insertAdjacentHTML('beforeend', this.responseText);
+					path[1].insertAdjacentHTML('beforeend', this.responseText);
 			}
 			xhttp.open("GET",
 				"/expand?game=" + encodeURIComponent(game) +
-				"&type=" + element.parentElement.classList[0] +
-				"&id=" + element.classList[0], true);
+				"&type=" + path[2].classList[0] +
+				"&id=" + path[1].classList[0], true);
 			xhttp.send();
 		}
 	}
 
-	function add(element) {
+	function add(path) {
 		const xhttp = new XMLHttpRequest();
 		xhttp.onreadystatechange = function () {
 			if (this.readyState == 4 && this.status == 200)
-				element.insertAdjacentHTML('beforeend', this.responseText);
-			update_selects(element);
+				path[2].insertAdjacentHTML('beforeend', this.responseText);
+			update_selects(path[2]);
 		}
 		xhttp.open("POST", "/add", true);
-		if (["action", "pick_up_action", "path", "constraint", "effect"].includes(element.classList[0])) {
+		if (["action", "pick_up_action", "path", "constraint", "effect"].includes(path[2].classList[0])) {
 			xhttp.send(
 				"game=" + game +
-				"&type=" + element.classList[0] +
-				"&item=" + element.parentElement.classList[0] +
-				"&parenttype=" + parent_class(element,  2));
+				"&type=" + path[2].classList[0] +
+				"&item=" + path[3].classList[0] +
+				"&parenttype=" + path[4].classList[0]);
 		} else {
-			const name = encodeURIComponent(prompt(`Choose a name for the ${element.classList[0]}.`, ""));
+			const name = encodeURIComponent(prompt(`Choose a name for the ${path[2].classList[0]}.`, ""));
 			if (name == "null" || name == "") return;
-			if (element.classList[0] == "location") {
+			if (path[2].classList[0] == "location") {
 				const description = encodeURIComponent(prompt(`Choose a description for the location.`, ""));
 				if (description == "null" || description == "") return;
 				xhttp.send(
 					"game=" + game +
 					"&type=location&name=" + name +
 					"&description=" + description);
-			} else if (element.classList[0] == "object") {
+			} else if (path[2].classList[0] == "object") {
 				xhttp.send(
 					"game=" + game +
 					"&type=object&name=" + name +
-					"&location=" + element.parentElement.classList[0]);
+					"&location=" + path[3].classList[0]);
 			}
 		}
 	}
 
-	function remove(element) {
-		var text =
+	function remove(path) {
+		const text =
 			"Are you sure you want to delete this " +
-			element.parentElement.classList[0] + "? This operation cannot be undone";
+			(path[2].classList[0] || 'game') +
+			"? This operation cannot be undone";
 		if (confirm(text)) {
 			const xhttp = new XMLHttpRequest();
 			xhttp.onreadystatechange = function () {
 				if (this.readyState == 4) {
 					if (this.status == 204) {
-						element.remove();
+						path[1].remove();
 					} else if (this.status == 410) {
 						window.location.replace("/");
 					}
@@ -166,32 +183,36 @@
 			}
 			xhttp.open("DELETE",
 				"/remove?game=" + game +
-				"&type=" + element.parentElement.classList[0] +
-				"&id=" + element.classList[0] +
-				(['constraint', 'effect'].includes(element.parentElement.classList[0]) ?
-					"&item=" + parent_class(element,  2) +
-					"&parenttype=" + parent_class(element,  3) : ''), true);
+				"&type=" + path[2].classList[0] +
+				"&id=" + path[1].classList[0] +
+				(['constraint', 'effect'].includes(path[2].classList[0]) ?
+					"&item=" + path[3].classList[0] +
+					"&parenttype=" + path[3].classList[0] : ''), true);
 			xhttp.send();
 		}
 	}
 
-	function rename(element) {
-		const elem = element.getElementsByTagName('button')[0];
-		const text = elem.innerHTML;
-		elem.innerHTML = `<input value="${elem.innerText.replace(/\"/g, '&quot;')}" onblur="end_rename(this);" onkeypress="if (event.key == 'Enter') end_rename(this);">`;
-		elem.getElementsByTagName('input')[0].select();
+	function rename(path) {
+		const list = path[1].getElementsByClassName('link')[0];
+		const element = document.createElement('input');
+		element.value = list.innerText;
+		element.addEventListener('blur', end_rename);
+		element.addEventListener('keypress', e => {if (e.key === 'Enter') e.target.blur()});
+		list.innerHTML = '';
+		list.appendChild(element);
+		element.select();
 	}
 
-	function end_rename(element) {
-		const text = element.value;
+	function end_rename(event) {
+		const text = event.path[0].value;
 		const xhttp = new XMLHttpRequest();
 		xhttp.open("POST", "/rename", true);
 		xhttp.send(
-			"id=" + parent_class(element,  2) +
+			"id=" + event.path[2].classList[0] +
 			"&name=" + encodeURIComponent(text) +
 			"&game=" + game +
-			"&type=" + parent_class(element,  3));
-		element.outerHTML = text.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+			"&type=" + event.path[3].classList[0]);
+		event.path[1].innerHTML = text;
 	}
 
 	function make_start(element) {
@@ -273,17 +294,17 @@
 		element.height = element.contentDocument.getElementsByTagName('html')[0].scrollHeight;
 	}
 
-	function add_description_part(element) {
+	function add_description_part(path) {
 		const xhttp = new XMLHttpRequest();
 		xhttp.onreadystatechange = function () {
 			if (this.readyState === 4 && this.status === 200)
-				element.insertAdjacentHTML('afterend', this.responseText);
+				path[0].insertAdjacentHTML('afterend', this.responseText);
 		}
 		xhttp.open('POST', '/add', true);
 		xhttp.send(
 			'game=' + game +
-			'&item=' + parent_class(element,  2) +
-			'&type=description&num=' + description_num(element));
+			'&item=' + path[2].classList[0] +
+			'&type=description&num=' + description_num(path[0]));
 	}
 
 	function remove_description_part(element) {
