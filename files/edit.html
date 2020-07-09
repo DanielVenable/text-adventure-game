@@ -37,19 +37,19 @@
 		}
 
 		div.textarea {
-            overflow-y: auto;
-            overflow-x: hidden;
-            border: 1px solid black;
-            width: fit-content;
-            height: auto;
-            line-height: 100%;
-            resize: both;
-            padding: 1em;
+			overflow-y: auto;
+			overflow-x: hidden;
+			border: 1px solid black;
+			width: fit-content;
+			height: auto;
+			line-height: 100%;
+			resize: both;
+			padding: 1em;
 		}
-		
+
 		textarea {
-    		height: auto;
-        }
+			height: auto;
+		}
 
 		.description {
 			margin-left: 4em;
@@ -83,9 +83,11 @@
 </body>
 
 <script>
+	const game_view = document.getElementById('game');
 	let opened = new Set();
 
-	document.getElementById('game').addEventListener('click', async ({path}) => {
+	game_view.addEventListener('click', async event => {
+		const path = event.composedPath();
 		const is_class = path[0].classList.contains.bind(path[0].classList);
 		if (path[0] instanceof HTMLButtonElement) {
 			if (is_class('link')) {
@@ -129,7 +131,7 @@
 					"path",
 					"constraint",
 					"effect"]
-						.includes(path[2].classList[0])) {
+					.includes(path[2].classList[0])) {
 					result = await ajax('POST', '/add', {
 						type: path[2].classList[0],
 						item: path[3].classList[0],
@@ -145,7 +147,7 @@
 						});
 					} else if (path[2].classList[0] === "object") {
 						result = await ajax('POST', '/add', {
-							type: 'object',	name,
+							type: 'object', name,
 							location: path[3].classList[0]
 						});
 					}
@@ -171,7 +173,7 @@
 			} else if (is_class('remove-description-part')) {
 				await ajax('DELETE', '/remove', {
 					item: path[3].classList[0],
-					type:'descripiton',
+					type: 'descripiton',
 					num: description_num(path[1])
 				});
 				path[1].nextElementSibling.remove();
@@ -184,13 +186,20 @@
 				});
 				path[0].insertAdjacentHTML('afterend', result.responseText);
 			} else if (is_class('make-start')) {
-				await ajax('POST', '/setstart', {id: path[1].classList[0]});
+				await ajax('POST', '/setstart', { id: path[1].classList[0] });
 				const old_start = document.getElementsByClassName('start')[0];
 				old_start.classList.remove('start');
 				old_start.getElementsByClassName("make-start")[0].hidden = false;
 				path[1].classList.add('start');
 				path[0].hidden = true;
 			}
+		}
+	});
+
+	game_view.addEventListener('change', async event => {
+		const path = event.composedPath();
+		if (path[0] instanceof HTMLSelectElement) {
+			change_item(path[0]);
 		}
 	});
 
@@ -201,7 +210,8 @@
 		const selects = elem.getElementsByTagName('select');
 		for (const select of selects) values.add(select.value);
 		for (const select of selects) for (const option of select)
-			if (option.value != 'null' && !option.selected) option.hidden = values.has(option.value);
+			if (option.value != 'null' && !option.selected)
+				option.hidden = values.has(option.value);
 	}
 
 	async function end_rename(event) {
@@ -241,7 +251,7 @@
 
 	function change_success(element) {
 		return ajax('POST', '/change/item', {
-			id: parent_class(element,  2),
+			id: parent_class(element, 2),
 			state: element.checked,
 			type: 'pick_up_action'
 		});
@@ -290,7 +300,7 @@
 		return new Promise((resolve, reject) => {
 			const xhttp = new XMLHttpRequest();
 			xhttp.onreadystatechange = function () {
-				if (this.readyState === 4) 
+				if (this.readyState === 4)
 					(this.status < 400 ? resolve : reject)(this);
 			}
 			let body = 'game=%s';
