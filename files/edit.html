@@ -74,10 +74,11 @@
 				<li class="nobullet"><button class="add">Add an object</button></li>
 				%s
 			</ul>
-			<button onclick='remove(this)'>Delete this game</button>
-			<p></p>
+			<button class="delete">Delete this game</button>
 		</div>
-		<iframe onload="resize(this);" src="/start?game=%s" title="Play your game"></iframe>
+		<p>
+			<iframe src="/start?game=%s" title="Play your game"></iframe>
+		</p>
 	</div>
 </body>
 
@@ -101,6 +102,8 @@
 			}
 		}
 	});
+
+	document.getElementsByTagName('iframe')[0].addEventListener('load', resize);
 
 	function update_selects(elem) {
 		let values = new Set();
@@ -171,24 +174,19 @@
 			(path[2].classList[0] || 'game') +
 			"? This operation cannot be undone";
 		if (confirm(text)) {
-			const xhttp = new XMLHttpRequest();
-			xhttp.onreadystatechange = function () {
-				if (this.readyState == 4) {
-					if (this.status == 204) {
-						path[1].remove();
-					} else if (this.status == 410) {
-						window.location.replace("/");
-					}
-				}
+			const obj = {
+				game,
+				type: path[2].classList[0] || 'game',
+				id: path[1].classList[0],
+			};
+			if (['constraint', 'effect'].includes(path[2].classList[0])) {
+				obj.item = path[3].classList[0];
+				obj.parenttype = path[3].classList[0];
 			}
-			xhttp.open("DELETE",
-				"/remove?game=" + game +
-				"&type=" + path[2].classList[0] +
-				"&id=" + path[1].classList[0] +
-				(['constraint', 'effect'].includes(path[2].classList[0]) ?
-					"&item=" + path[3].classList[0] +
-					"&parenttype=" + path[3].classList[0] : ''), true);
-			xhttp.send();
+			ajax('DELETE', '/remove', obj).catch(console.error);
+			if (path[2].classList[0]) {
+				path[1].remove();
+			} else window.location.replace("/");
 		}
 	}
 
@@ -212,7 +210,7 @@
 			"&name=" + encodeURIComponent(text) +
 			"&game=" + game +
 			"&type=" + event.path[3].classList[0]);
-		event.path[1].innerHTML = text;
+		event.path[1].innerText = text;
 	}
 
 	function make_start(element) {
@@ -263,75 +261,55 @@
 	}
 
 	async function change_constraint_or_effect(element) {
-		if (element.classList[0] !== "NaN") {
-			const xhttp = new XMLHttpRequest();
-			xhttp.open("DELETE",
-				"/remove?game=" + game +
-				"&type=" + element.parentElement.classList[0] +
-				"&id=" + element.classList[0] +
-				"&item=" + parent_class(element,  2) +
-				"&parenttype=" + parent_class(element,  3), true);
-			xhttp.send();
-			await new Promise(resolve => xhttp.onreadystatechange = function () {
-				if (this.readyState === 4) resolve();
-			});
+		let obj = {
+			game,
+			type: element.parentElement.classList[0],
+			id: element.classList[0],
+			item: parent_class(element, 2),
+			parenttype: parent_class(element, 3)
 		}
-		const xhttp = new XMLHttpRequest();
-		xhttp.open("POST", '/add', true);
-		xhttp.send(
-			"game=" + game +
-			"&obj=" + element.getElementsByTagName('select')[0].value +
-			"&type=" + element.parentElement.classList[0] +
-			"&item=" + parent_class(element,  2) +
-			"&parenttype=" + parent_class(element,  3) +
-			"&state=" + element.getElementsByTagName('input')[0].value);
+		if (element.classList[0] !== "NaN") await ajax('DELETE', '/remove', obj);
+		obj.obj = element.getElementsByTagName('select')[0].value;
+		obj.state = element.getElementsByTagName('input')[0].value;
+		delete obj.id;
+		await ajax('POST', '/add', obj);
 		element.className = element.getElementsByTagName('select')[0].value;
 		update_selects(element.parentElement);
 	}
 
-	function resize(element) {
-		element.height = 0;
-		element.height = element.contentDocument.getElementsByTagName('html')[0].scrollHeight;
+	function resize(event) {
+		event.target.height = 0;
+		event.target.height =
+			event.target.contentDocument
+				.getElementsByTagName('html')[0].scrollHeight;
 	}
 
-	function add_description_part(path) {
-		const xhttp = new XMLHttpRequest();
-		xhttp.onreadystatechange = function () {
-			if (this.readyState === 4 && this.status === 200)
-				path[0].insertAdjacentHTML('afterend', this.responseText);
-		}
-		xhttp.open('POST', '/add', true);
-		xhttp.send(
-			'game=' + game +
-			'&item=' + path[2].classList[0] +
-			'&type=description&num=' + description_num(path[0]));
+	async function add_description_part(path) {
+		const result = await ajax('POST', '/add', {
+			game,
+			item: path[3].classList[0],
+			type: 'description',
+			num: description_num(path[1])
+		});
+		path[0].insertAdjacentHTML('afterend', result.responseText);
 	}
 
-	function remove_description_part(element) {
-		const xhttp = new XMLHttpRequest();
-		xhttp.onreadystatechange = function () {
-			if (this.readyState === 4 && this.status === 204) {
-				element.nextElementSibling.remove();
-				element.remove();
-			}
-		}
-		xhttp.open("DELETE",
-			'/remove?game=' + game +
-			'&item=' + parent_class(element,  2) +
-			'&type=description&num=' + description_num(element), true);
-		xhttp.send();
+	async function remove_description_part(element) {
+		await ajax('DELETE', '/remove', {
+			game,
+			item: parent_class(element, 2),
+			type:'descripiton',
+			num: description_num(element)
+		});
+		element.nextElementSibling.remove();
+		element.remove();
 	}
 
-	function add_description_constraint(element) {
-		const xhttp = new XMLHttpRequest();
-		xhttp.onreadystatechange = function () {
-			if (this.readyState === 4 && this.status === 200)
-				element.insertAdjacentHTML('beforebegin', this.responseText);
-		}
-		xhttp.open("GET",
-			'/description-constraint.html?game=' + game +
-			'&item=' + parent_class(element, 2), true);
-		xhttp.send();
+	async function add_description_constraint(element) {
+		const result = await ajax('GET', 'description-constraint.html', {
+			game, item: parent_class(element[2])
+		});
+		element.insertAdjacentHTML('beforebegin', result.responseText);
 	}
 
 	function parent_class(element, num) {
@@ -348,6 +326,22 @@
 			if (item instanceof HTMLParagraphElement) i++;
 		}
 		return i;
+	}
+
+	function ajax(method, url, query) {
+		return new Promise((resolve, reject) => {
+			const xhttp = new XMLHttpRequest();
+			xhttp.onreadystatechange = function () {
+				if (this.readyState === 4) 
+					(this.status < 400 ? resolve : reject)(this);
+			}
+			const body = 
+				Object.getOwnPropertyNames(query)
+				.map(i => `${encodeURIComponent(i)}=${encodeURIComponent(query[i])}`)
+				.join('&');
+			xhttp.open(method, url + (method === "POST" ? '' : '?' + body), true);
+			xhttp.send(method === "POST" ? body : undefined);
+		});
 	}
 </script>
 

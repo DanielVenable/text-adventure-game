@@ -661,7 +661,6 @@ http.createServer(async (req, res) => {
 					await query(`
 						DELETE FROM games
 						WHERE ID = ?`, [parsed_url.query.game]);
-					res.statusCode = 410;
 					break;
 				case "location":
 					await query(`
