@@ -246,8 +246,12 @@ http.createServer(async (req, res) => {
 					"", result[0].ID, "", "",
 					encodeURIComponent(game)));
 			} else if (req.url === '/edit') {
+				if (!userid) throw "Unauthorized action";
 				const result = await query(`
-					SELECT name, ID FROM games ORDER BY name`);
+					SELECT games.name, games.ID FROM games
+					JOIN user_to_game ON user_to_game.game = games.ID
+					WHERE user_to_game.user = ?
+					ORDER BY games.name`, [userid]);
 				let game_list = "";
 				for (const game of result)
 					game_list += `<option>${sanitize(game.name)}</option>`;

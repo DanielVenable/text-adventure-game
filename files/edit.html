@@ -173,7 +173,7 @@
 			} else if (is_class('remove-description-part')) {
 				await ajax('DELETE', '/remove', {
 					item: path[3].classList[0],
-					type: 'descripiton',
+					type: 'description',
 					num: description_num(path[1])
 				});
 				path[1].nextElementSibling.remove();
