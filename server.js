@@ -13,7 +13,7 @@ const http = require('http'),
 const sql = mysql.createConnection({
 	host: "localhost",
 	user: "text_adventure_game",
-	password: fs.readFileSync('password.txt').toString(),
+	password: fs.readFileSync(__dirname + '/password.txt').toString(),
 	database: "text_adventure_games"
 });
 sql.connect();
@@ -591,8 +591,6 @@ http.createServer(async (req, res) => {
 						res.end(await show_file('description.html',
 							description.insertId, '', ''));
 						break;
-					} case "description_constraint": {
-						
 					} default: await invalid_request(res);
 				}
 			} else if (req.url === '/setstart') {
@@ -622,11 +620,16 @@ http.createServer(async (req, res) => {
 			} else if (req.url === '/change/description') {
 				restrict(permission, 1);
 				if (data.type === 'location') {
-					await location_match_game(data.item, data.game);
+					const valid = await query(`
+						SELECT COUNT(*) AS valid FROM locations
+						JOIN descriptions ON descriptions.location = locations.ID
+						WHERE locations.game = ? AND descriptions.ID = ?`,
+						[data.game, data.id]);
+					if (!valid[0].valid) throw 'description does not match game';
 					await query(`
 						UPDATE descriptions SET text = ?
-						WHERE location = ? AND num = ?`,
-						[data.description, data.item, data.num]);
+						WHERE ID = ?`,
+						[data.text, data.id]);
 				} else {
 					await query(`
 						UPDATE ?? SET text = ?
@@ -949,5 +952,3 @@ function create_token(res, username) {
 	}));
 	// add secure when https
 }
-
-require('readline').createInterface({input:process.stdin}).on('line', line => {if (line === 'r') for (const i in files) if (i !== 'readFile' && i !== 'get') delete files[i]});

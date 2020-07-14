@@ -228,10 +228,9 @@
 				});
 			} else {
 				await ajax('POST', '/change/description', {
-					description: path[0].value,
-					item: path[5].dataset.id,
+					text: path[0].value,
+					id: path[2].dataset.id,
 					type: 'location',
-					num: description_num(path[3])
 				});
 			}
 		} else if (path[0] instanceof HTMLInputElement) {
@@ -241,6 +240,8 @@
 					state: path[0].checked,
 					type: 'pick_up_action'
 				});
+			} else if (path[1].classList.contains('description-constraint')) {
+				await change_constraint_or_effect(path);
 			}
 		}
 	});
