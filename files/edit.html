@@ -83,6 +83,7 @@
 </body>
 
 <script>
+	"use strict";
 	const game_view = document.getElementById('game');
 	let opened = new Set();
 
@@ -101,7 +102,7 @@
 					opened.add(path[1]);
 					const result = await ajax('GET', '/expand', {
 						type: path[2].classList[0],
-						id: path[1].classList[0]
+						id: path[1].dataset.id
 					});
 					path[1].insertAdjacentHTML('beforeend', result.responseText);
 				}
@@ -113,10 +114,10 @@
 				if (confirm(text)) {
 					const obj = {
 						type: path[2].classList[0] || 'game',
-						id: path[1].classList[0],
+						id: path[1].dataset.id,
 					};
 					if (['constraint', 'effect'].includes(path[2].classList[0])) {
-						obj.item = path[3].classList[0];
+						obj.item = path[3].dataset.id;
 						obj.parenttype = path[3].classList[0];
 					}
 					ajax('DELETE', '/remove', obj).catch(console.error);
@@ -134,7 +135,7 @@
 					.includes(path[2].classList[0])) {
 					result = await ajax('POST', '/add', {
 						type: path[2].classList[0],
-						item: path[3].classList[0],
+						item: path[3].dataset.id,
 						parenttype: path[4].classList[0]
 					});
 				} else {
@@ -148,7 +149,7 @@
 					} else if (path[2].classList[0] === "object") {
 						result = await ajax('POST', '/add', {
 							type: 'object', name,
-							location: path[3].classList[0]
+							location: path[3].dataset.id
 						});
 					}
 				}
@@ -167,12 +168,12 @@
 				element.select();
 			} else if (is_class('add-description-constraint')) {
 				const result = await ajax('GET', 'description-constraint.html', {
-					item: path[3].classList[0]
+					item: path[3].dataset.id
 				});
-				path[1].insertAdjacentHTML('beforebegin', result.responseText);
+				path[1].insertAdjacentHTML('afterbegin', result.responseText);
 			} else if (is_class('remove-description-part')) {
 				await ajax('DELETE', '/remove', {
-					item: path[3].classList[0],
+					item: path[3].dataset.id,
 					type: 'description',
 					num: description_num(path[1])
 				});
@@ -180,13 +181,13 @@
 				path[1].remove();
 			} else if (is_class('add-description-part')) {
 				const result = await ajax('POST', '/add', {
-					item: path[3].classList[0],
+					item: path[3].dataset.id,
 					type: 'description',
 					num: description_num(path[1])
 				});
 				path[0].insertAdjacentHTML('afterend', result.responseText);
 			} else if (is_class('make-start')) {
-				await ajax('POST', '/setstart', { id: path[1].classList[0] });
+				await ajax('POST', '/setstart', { id: path[1].dataset.id });
 				const old_start = document.getElementsByClassName('start')[0];
 				old_start.classList.remove('start');
 				old_start.getElementsByClassName("make-start")[0].hidden = false;
@@ -198,8 +199,39 @@
 
 	game_view.addEventListener('change', async event => {
 		const path = event.composedPath();
+		const is_class = path[0].classList.contains.bind(path[0].classList);
 		if (path[0] instanceof HTMLSelectElement) {
-			change_item(path[0]);
+			if (is_class('description-constraint')) {
+				await ajax('POST', '/change/item', {
+					type: 'location',
+					newitem: path[0].value,
+					item: path[3].dataset.id,
+					num: description_num(path[1])
+				});
+			} else await change_constraint_or_effect(path);
+		} else if (path[0] instanceof HTMLTextAreaElement) {
+			if (is_class('action-description')) {
+				await ajax('POST', '/change/description', {
+					text: path[0].value,
+					id: path[1].dataset.id,
+					type: path[2].classList[0]
+				});
+			} else {
+				await ajax('POST', '/change/description', {
+					description: path[0].value,
+					item: path[5].dataset.id,
+					type: 'location',
+					num: description_num(path[3])
+				});
+			}
+		} else if (path[0] instanceof HTMLInputElement) {
+			if (is_class('success-checkbox')) {
+				await ajax('POST', '/change/item', {
+					id: path[2].dataset.id,
+					state: path[0].checked,
+					type: 'pick_up_action'
+				});
+			}
 		}
 	});
 
@@ -217,54 +249,26 @@
 	async function end_rename(event) {
 		const text = event.path[0].value;
 		await ajax('POST', '/rename', {
-			id: event.path[2].classList[0],
+			id: event.path[2].dataset.id,
 			name: text,
 			type: event.path[3].classList[0]
 		});
 		event.path[1].innerText = text;
 	}
 
-	function change_description(element) {
-		return ajax('POST', '/change/description', {
-			id: element.parentElement.classList[0],
-			text: element.value,
-			type: parent_class(element, 2)
-		});
-	}
-
-	function change_description_part(event) {
-		return ajax('POST', '/change/description', {
-			description: event.path[0].value,
-			item: event.path[4].classList[0],
-			type: 'location',
-			num: description_num(event.path[2])
-		});
-	}
-
-	function change_item(element) {
-		return ajax('POST', '/change/item', {
-			type: parent_class(element, 2),
-			id: element.parentElement.classList[0],
-			newitem: element.value
-		});
-	}
-
-	function change_success(element) {
-		return ajax('POST', '/change/item', {
-			id: parent_class(element, 2),
-			state: element.checked,
-			type: 'pick_up_action'
-		});
-	}
-
-	async function change_constraint_or_effect(element) {
+	async function change_constraint_or_effect(path) {
+		let element = path[1];
 		let obj = {
-			type: element.parentElement.classList[0],
-			id: element.classList[0],
-			item: parent_class(element, 2),
-			parenttype: parent_class(element, 3)
+			item: path[2].dataset.id
 		}
-		if (element.classList[0] !== "NaN") await ajax('DELETE', '/remove', obj);
+		if (path[2].classList[0] === 'description') {
+			obj.type = 'constraint';
+			obj.parenttype = 'description';
+		} else {
+			obj.type = path[2].classList[0];
+			obj.parenttype = path[4].classList[0];
+		}
+		if (element.classList[0]) await ajax('DELETE', '/remove', obj);
 		obj.obj = element.getElementsByTagName('select')[0].value;
 		obj.state = element.getElementsByTagName('input')[0].value;
 		delete obj.id;
@@ -290,8 +294,8 @@
 		let item = element.previousElementSibling;
 		let i = 0;
 		while (item) {
+			if (item instanceof HTMLDivElement) i++;
 			item = item.previousElementSibling;
-			if (item instanceof HTMLParagraphElement) i++;
 		}
 		return i;
 	}

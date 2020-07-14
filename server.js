@@ -10,20 +10,20 @@ const http = require('http'),
 	cookie = require('cookie'),
 	port = process.argv[2] || 80;
 
-process.chdir(__dirname + '/files');
-
 const sql = mysql.createConnection({
 	host: "localhost",
 	user: "text_adventure_game",
-	password: "D8T3tcHE~td03;[)jftvi <+3",
+	password: fs.readFileSync('password.txt').toString(),
 	database: "text_adventure_games"
 });
 sql.connect();
 
+process.chdir(__dirname + '/files');
+
 const query = util.promisify(sql.query).bind(sql),
 	files = {
 		readFile: util.promisify(fs.readFile),
-		get: async function (path) {
+		async get(path) {
 			if (!this[path]) files[path] = (await this.readFile(path)).toString();
 			return this[path];
 		}
@@ -34,11 +34,13 @@ const query = util.promisify(sql.query).bind(sql),
 	}, start_table_list = {
 		action: 'action_to_',
 		pick_up_action: 'grab_to_',
-		path: 'path_to_'
+		path: 'path_to_',
+		description: 'description_to_'
 	}, column_list = {
 		action: 'action',
 		pick_up_action: 'grab',
-		path: 'path'
+		path: 'path',
+		description: 'description'
 	}, go_to = /^go (?:to )?(.+)$/,
 	use = /^use (?:(.+) on )?(.+)$/,
 	pick_up = /^(?:pick up|grab|get) (.+)$/;
@@ -303,52 +305,51 @@ http.createServer(async (req, res) => {
 				if (permission.length && permission[0].permission >= 1) {
 					switch (parsed_url.query.type) {
 						case "location": {
-							const allowed = await query(`
-								SELECT COUNT(*) AS num FROM locations
-								WHERE game = ? AND ID = ?`,
-								[parsed_url.query.game, parsed_url.query.id]);
-							if (allowed[0].num) {
-								let description = '';
-								for (const item of
-										await get_constraint_array(parsed_url.query.id)) {
-									if (item[0].obj) {
-										for (const constraint of item) {
-											description += await show_file(
-												'description-constraint.html',
-												await all_objects(
-													parsed_url.query.game,
-													constraint.obj),
-												constraint.state);
-										}
+							await location_match_game(
+								parsed_url.query.id, parsed_url.query.game);
+							let description = '';
+							for (const item of
+									await get_constraint_array(parsed_url.query.id)) {
+								let constraints = '';
+								if (item[0].obj) {
+									for (const constraint of item) {
+										constraints += await show_file(
+											'description-constraint.html',
+											await all_objects(
+												parsed_url.query.game,
+												constraint.obj),
+											constraint.state);
 									}
-									description += await show_file(
-										'description.html',
-										item[0].text);
 								}
-								res.write(await show_file('description-box.html',
-									description));
-								const result = await query(`
-									SELECT name, ID FROM objects
-									WHERE location = ?`, [parsed_url.query.id]);
-								res.write(await show_file('list-start.html',
-									'object', 'an object'));
-								for (const obj of result)
-									res.write(await show_file('object.html',
-										obj.ID, sanitize(obj.name)));
-								res.write(`</ul>`);
-								res.write(await show_file('list-start.html',
-									'path', 'a path'));
-								const paths = await query(`
-									SELECT * FROM paths
-									WHERE start = ?`, [parsed_url.query.id]);
-								for (const path of paths)
-									res.write(await show_file('path.html',
-										path.ID, await all_locations(
-											parsed_url.query.game,
-											parsed_url.query.id,
-											path.end)));
-								res.end(`</ul>`);
-							} else throw "Location does not match game";
+								description += await show_file(
+									'description.html',
+									item[0].ID,
+									constraints,
+									item[0].text);
+							}
+							res.write(await show_file('description-box.html',
+								description));
+							const result = await query(`
+								SELECT name, ID FROM objects
+								WHERE location = ?`, [parsed_url.query.id]);
+							res.write(await show_file('list-start.html',
+								'object', 'an object'));
+							for (const obj of result)
+								res.write(await show_file('object.html',
+									obj.ID, sanitize(obj.name)));
+							res.write(`</ul>`);
+							res.write(await show_file('list-start.html',
+								'path', 'a path'));
+							const paths = await query(`
+								SELECT * FROM paths
+								WHERE start = ?`, [parsed_url.query.id]);
+							for (const path of paths)
+								res.write(await show_file('path.html',
+									path.ID, await all_locations(
+										parsed_url.query.game,
+										parsed_url.query.id,
+										path.end)));
+							res.end(`</ul>`);
 							break;
 						} case "object": {
 							const object = await query(`
@@ -418,7 +419,7 @@ http.createServer(async (req, res) => {
 							res.write(await show_file('list-start.html',
 								'constraint', 'a constraint'));
 							for (const constraint of constraints)
-								res.write(await show_file('constraint_or_effect.html',
+								res.write(await show_file('constraint-or-effect.html',
 									constraint.obj,
 									await all_objects(
 										parsed_url.query.game, constraint.obj),
@@ -428,7 +429,7 @@ http.createServer(async (req, res) => {
 							res.write(await show_file('list-start.html',
 								'effect', 'an effect'));
 							for (const effect of effects)
-								res.write(await show_file('constraint_or_effect.html',
+								res.write(await show_file('constraint-or-effect.html',
 									effect.obj,
 									await all_objects(
 										parsed_url.query.game, effect.obj),
@@ -570,7 +571,7 @@ http.createServer(async (req, res) => {
 								data.item,
 								data.state);
 						res.end(await show_file(
-							'constraint_or_effect.html',
+							'constraint-or-effect.html',
 							data.obj,
 							await all_objects(data.game, data.obj),
 							data.type === 'constraint' ?
@@ -583,10 +584,11 @@ http.createServer(async (req, res) => {
 							SET num = num + 1
 							WHERE location = ? AND num >= ?`,
 							[data.item, data.num]);
-						await query(`
+						const description = await query(`
 							INSERT INTO descriptions (location, num)
 							VALUES (?, ?)`, [data.item, data.num]);
-						res.end(await show_file('description.html', ''));
+						res.end(await show_file('description.html',
+							description.insertId, '', ''));
 						break;
 					} case "description_constraint": {
 						
@@ -802,7 +804,11 @@ async function describe(data) {
 
 async function get_constraint_array(location) {
 	const chunks = await query(`
-		SELECT * FROM descriptions
+		SELECT constraint_and_effect.obj,
+			constraint_and_effect.state,
+			descriptions.ID,
+			descriptions.num,
+			descriptions.text FROM descriptions
 		LEFT JOIN description_to_constraint
 			ON descriptions.ID = description_to_constraint.description
 		LEFT JOIN constraint_and_effect
@@ -813,6 +819,7 @@ async function get_constraint_array(location) {
 	let last_num;
 	for (const chunk of chunks) {
 		if (last_num === chunk.num) {
+			console.log(constraint_array);
 			constraint_array[constraint_array.length - 1].push(chunk);
 		} else {
 			constraint_array.push([chunk]);
@@ -862,49 +869,47 @@ async function all_locations(game, no, id) {
  * @param {number} obj the ID of an object
  * @param {boolean} is_constraint
  * @param {'action' | 'pick_up_action' | 'path'} type
- * @param {number} item the ID of an action, grab, or path
+ * @param {number} item the ID of an action, grab, path, or description
  * @param {number} state an integer from 0 to 15
  */
 async function add_constraint_or_effect(obj, is_constraint, type, item, state = 0) {
 	const exists = await query(`
 		SELECT ID FROM constraint_and_effect
 		WHERE obj = ? AND state = ?`, [obj, state]);
-	const id = exists.length ? exists[0].id : (await query(`
+	const id = exists.length ? exists[0].ID : (await query(`
 		INSERT INTO constraint_and_effect (obj, state)
 		VALUES (?, ?)`, [obj, state])).insertId;
 	if (is_constraint) {
 		await query(`
-			INSERT INTO ${start_table_list[type]}constraint
-				(${column_list[type]}, constraint_)
-			VALUES (?, ?)`, [item, id]);
-	} else {
-		await query(`
-			INSERT INTO ${start_table_list[type]}effect
-				(${column_list[type]}, effect)
-			VALUES (?, ?)`, [item, id]);
-	}
+			INSERT INTO ?? (??, constraint_) VALUES (?, ?)`,
+			[start_table_list[type] + 'constraint', column_list[type], item, id]);
+	} else await query(`
+		INSERT INTO ?? (??, effect) VALUES (?, ?)`,
+		[start_table_list[type] + 'effect', column_list[type], item, id]);
 }
 /**
  * @param {number} obj the ID of an object
  * @param {boolean} is_constraint
- * @param {'action' | 'pick_up_action' | 'path'} type
+ * @param {'action' | 'pick_up_action' | 'path' | 'location'} type
  * @param {number} item the ID of an action, grab, or path
  */
 async function remove_constraint_or_effect(obj, is_constraint, type, item) {
 	if (is_constraint) {
 		const table = start_table_list[type] + 'constraint';
 		await query(`
-			DELETE ${table} FROM constraint_and_effect
-			JOIN ${table} ON ${table}.constraint_ = constraint_and_effect.ID
-			WHERE ${table}.${column_list[type]} = ?
-			AND constraint_and_effect.obj = ?`, [item, obj]);
+			DELETE ?? FROM constraint_and_effect
+			JOIN ?? ON ??.constraint_ = constraint_and_effect.ID
+			WHERE ??.?? = ?
+			AND constraint_and_effect.obj = ?`,
+			Array(4).fill(table).concat(column_list[type], item, obj));
 	} else {
 		const table = start_table_list[type] + 'effect';
 		await query(`
-			DELETE ${table} FROM constraint_and_effect
-			JOIN ${table} ON ${table}.effect = constraint_and_effect.ID
-			WHERE ${table}.${column_list[type]} = ?
-			AND constraint_and_effect.obj = ?`, [item, obj]);
+			DELETE ?? FROM constraint_and_effect
+			JOIN ?? ON ??.effect = constraint_and_effect.ID
+			WHERE ??.?? = ?
+			AND constraint_and_effect.obj = ?`,
+			Array(4).fill(table).concat(column_list[type], item, obj));
 	}
 }
 
@@ -944,3 +949,5 @@ function create_token(res, username) {
 	}));
 	// add secure when https
 }
+
+require('readline').createInterface({input:process.stdin}).on('line', line => {if (line === 'r') for (const i in files) if (i !== 'readFile' && i !== 'get') delete files[i]});
