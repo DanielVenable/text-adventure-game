@@ -315,6 +315,7 @@ http.createServer(async (req, res) => {
 									for (const constraint of item) {
 										constraints += await show_file(
 											'description-constraint.html',
+											constraint.obj,
 											await all_objects(
 												parsed_url.query.game,
 												constraint.obj),
@@ -455,7 +456,7 @@ http.createServer(async (req, res) => {
 				res.end(String(taken[0].num));
 			} else if (parsed_url.pathname === '/description-constraint.html') {
 				await location_match_game(parsed_url.query.item, parsed_url.query.game);
-				res.end(await show_file('description-constraint.html',
+				res.end(await show_file('description-constraint.html', 0,
 					await all_objects(parsed_url.query.game), 0));
 			} else {
 				res.statusCode = 404;
@@ -698,7 +699,7 @@ http.createServer(async (req, res) => {
 				case "constraint":
 				case "effect":
 					await remove_constraint_or_effect(
-						parsed_url.query.id,
+						parsed_url.query.obj,
 						parsed_url.query.type === 'constraint',
 						parsed_url.query.parenttype,
 						parsed_url.query.item);
@@ -819,7 +820,6 @@ async function get_constraint_array(location) {
 	let last_num;
 	for (const chunk of chunks) {
 		if (last_num === chunk.num) {
-			console.log(constraint_array);
 			constraint_array[constraint_array.length - 1].push(chunk);
 		} else {
 			constraint_array.push([chunk]);

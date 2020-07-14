@@ -1,7 +1,7 @@
-<li data-id="%d">
-	<select	onchange="change_constraint_or_effect(this.parentElement)">%s</select>
+<li data-obj="%d">
+	<select	class="constraint-or-effect">%s</select>
 	%s in state
 	<input type="number" min="0" max="15" value="%d"
-		onchange="change_constraint_or_effect(this.parentElement)">&emsp;
+		class="constraint-or-effect">&emsp;
 	<button class="delete">delete</button>
 </li>

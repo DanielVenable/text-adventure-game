@@ -125,6 +125,14 @@
 						path[1].remove();
 					} else window.location.replace("/");
 				}
+			} else if (is_class('remove-description-constraint')) {
+				const obj = path[1].dataset.obj;
+				if (obj) await ajax('DELETE', '/remove', {
+					item: path[2].dataset.id, obj,
+					type: 'constraint',
+					parenttype: 'description'
+				});
+				path[1].remove();
 			} else if (is_class('add')) {
 				let result;
 				if (["action",
@@ -208,7 +216,9 @@
 					item: path[3].dataset.id,
 					num: description_num(path[1])
 				});
-			} else await change_constraint_or_effect(path);
+			} else if (path[1].classList.contains('description-constraint')) {
+				await change_constraint_or_effect(path);
+			}
 		} else if (path[0] instanceof HTMLTextAreaElement) {
 			if (is_class('action-description')) {
 				await ajax('POST', '/change/description', {
@@ -259,7 +269,8 @@
 	async function change_constraint_or_effect(path) {
 		let element = path[1];
 		let obj = {
-			item: path[2].dataset.id
+			item: path[2].dataset.id,
+			obj: path[1].dataset.obj
 		}
 		if (path[2].classList[0] === 'description') {
 			obj.type = 'constraint';
@@ -268,13 +279,14 @@
 			obj.type = path[2].classList[0];
 			obj.parenttype = path[4].classList[0];
 		}
-		if (element.classList[0]) await ajax('DELETE', '/remove', obj);
-		obj.obj = element.getElementsByTagName('select')[0].value;
+		if (path[1].classList[0]) await ajax('DELETE', '/remove', obj);
+		const new_obj = path[1].getElementsByTagName('select')[0].value;
+		path[1].dataset.obj = new_obj;
+		obj.obj = new_obj;
 		obj.state = element.getElementsByTagName('input')[0].value;
-		delete obj.id;
 		await ajax('POST', '/add', obj);
-		element.className = element.getElementsByTagName('select')[0].value;
-		update_selects(element.parentElement);
+		path[1].className = path[1].getElementsByTagName('select')[0].value;
+		update_selects(path[2]);
 	}
 
 	function resize(event) {
