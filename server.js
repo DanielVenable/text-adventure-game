@@ -62,13 +62,9 @@ http.createServer(async (req, res) => {
 		const parsed_url = url.parse(req.url, true);
 		if (req.method === 'GET') {
 			if (parsed_url.pathname === "/play") {
-				const command = parsed_url.query.cmd.toLowerCase(),
-					states = toHalfByteArray(parsed_url.query.a),
-					locationID = parsed_url.query.b,
-					inventory = parsed_url.query.c
-						.split(' ')
-						.map(x => parseInt(x))
-						.filter(elem => !isNaN(elem)),
+				const {a: states, b: locationID, c: inventory} =
+						jwt.verify(parsed_url.query.gameState, jwtKey),
+					command = parsed_url.query.cmd.toLowerCase(),
 					location = await query(`
 						SELECT * FROM locations
 						WHERE ID = ?`, [locationID]),
@@ -245,7 +241,7 @@ http.createServer(async (req, res) => {
 					sanitize(game),
 					sanitize(result[0].text),
 					await describe({location: result[0].ID, states: [], objects: []}),
-					"", result[0].ID, "", "",
+					jwt.sign({a: [], b: result[0].ID, c: []}, jwtKey), "",
 					encodeURIComponent(game)));
 			} else if (req.url === '/edit') {
 				if (!userid) throw "Unauthorized action";
@@ -254,10 +250,16 @@ http.createServer(async (req, res) => {
 					JOIN user_to_game ON user_to_game.game = games.ID
 					WHERE user_to_game.user = ?
 					ORDER BY games.name`, [userid]);
-				let game_list = "";
-				for (const game of result)
-					game_list += `<option>${sanitize(game.name)}</option>`;
-				res.end(await show_file('choose-edit.html', game_list));
+				if (result.length) {
+					let game_list = "";
+					for (const game of result)
+						game_list += `<option>${sanitize(game.name)}</option>`;
+					res.end(await show_file('choose-edit.html', game_list));
+				} else {
+					res.setHeader('Location', '/new');
+					res.statusCode = 307;
+					res.end();
+				}
 			} else if (parsed_url.pathname === '/edit' && parsed_url.query.game) {
 				const game = await query(`
 					SELECT * FROM games
@@ -768,13 +770,16 @@ function satisfy_constraints(states, constraints, objects) {
 
 async function show(data, text) {
 	let description = await describe(data);
+	const token = jwt.sign({
+		a: data.states,
+		b: parseInt(data.location),
+		c: data.inventory}, jwtKey);
 	if (data.inventory.length === 0) {
 		const file = await show_file('play.html',
 			sanitize(data.game),
 			sanitize(description),
 			sanitize(text),
-			toHexString(data.states),
-			data.location, "", "",
+			token, "",
 			encodeURIComponent(data.game));
 		data.res.end(file);
 	} else {
@@ -787,9 +792,7 @@ async function show(data, text) {
 			sanitize(data.game),
 			description,
 			sanitize(text),
-			toHexString(data.states),
-			data.location,
-			data.inventory.join(' '),
+			token,
 			`<p>You have: ${sanitize(objects)}</p>`,
 			encodeURIComponent(data.game)
 		);
@@ -948,7 +951,7 @@ function create_token(res, username) {
 	res.setHeader('Set-Cookie', cookie.serialize('token', token, {
 		maxAge: expire_seconds,
 		httpOnly: true,
-		sameSite: 'lax'
+		sameSite: 'lax'/*,
+		secure: true*/
 	}));
-	// add secure when https
 }
