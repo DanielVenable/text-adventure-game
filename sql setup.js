@@ -2,7 +2,7 @@ const sql = require('mysql').createConnection({
 	multipleStatements: true,
 	host: "localhost",
 	user: "text_adventure_game",
-	password: "D8T3tcHE~td03;[)jftvi <+3",
+	password: require('fs').readFileSync(__dirname + '/password.txt').toString(),
 	database: "text_adventure_games"
 });
 
@@ -30,7 +30,7 @@ sql.query(`
 	CREATE TABLE IF NOT EXISTS user_to_game (
 		user int unsigned NOT NULL,
 		game int unsigned NOT NULL,
-		permission tinyint unsigned NOT NULL,
+		permission tinyint unsigned NOT NULL DEFAULT 0,
 		FOREIGN KEY (user) REFERENCES users (ID) ON DELETE CASCADE,
 		FOREIGN KEY (game) REFERENCES games (ID) ON DELETE CASCADE);
 

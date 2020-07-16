@@ -62,8 +62,8 @@ http.createServer(async (req, res) => {
 		const parsed_url = url.parse(req.url, true);
 		if (req.method === 'GET') {
 			if (parsed_url.pathname === "/play") {
-				const {a: states, b: locationID, c: inventory, moves} =
-						jwt.verify(parsed_url.query.gameState, jwtKey),
+				const { a: states, b: locationID, c: inventory, moves } =
+					jwt.verify(parsed_url.query.gameState, jwtKey),
 					command = parsed_url.query.cmd.toLowerCase(),
 					location = await query(`
 						SELECT * FROM locations
@@ -73,7 +73,7 @@ http.createServer(async (req, res) => {
 						WHERE ID = ?`, [location[0].game]);
 				if (!game[0].public)
 					restrict(await query(`
-						SELECT * FROM user_to_game
+						SELECT permission FROM user_to_game
 						WHERE user = ? AND game = ?`,
 						[userid, location[0].game]
 					), 0);
@@ -240,8 +240,8 @@ http.createServer(async (req, res) => {
 				res.end(await show_file('play.html',
 					sanitize(game),
 					sanitize(result[0].text),
-					await describe({location: result[0].ID, states: [], objects: []}),
-					jwt.sign({a: [], b: result[0].ID, c: [], moves: 0}, jwtKey),
+					await describe({ location: result[0].ID, states: [], objects: [] }),
+					jwt.sign({ a: [], b: result[0].ID, c: [], moves: 0 }, jwtKey),
 					"", encodeURIComponent(game)));
 			} else if (req.url === '/edit') {
 				if (!userid) throw "Unauthorized action";
@@ -460,6 +460,29 @@ http.createServer(async (req, res) => {
 				await location_match_game(parsed_url.query.item, parsed_url.query.game);
 				res.end(await show_file('description-constraint.html', 0,
 					await all_objects(parsed_url.query.game), 0));
+			} else if (parsed_url.pathname === '/join-link') {
+				restrict(await query(`
+					SELECT permission FROM user_to_game
+					WHERE user = ? AND game = ?`,
+					[userid, parsed_url.query.game]), 2);
+				res.setHeader('Content-Type', 'text/uri-list');
+				res.end(`http://localhost:${port}/join?token=${jwt.sign({
+					id: parsed_url.query.game
+				}, jwtKey, {
+					expiresIn: '5 days'
+				})}`);
+			} else if (parsed_url.pathname === '/join') {
+				if (!userid) throw "Unauthorized action";
+				const game = jwt.verify(parsed_url.query.token, jwtKey).id;
+				const valid = await query(`
+					SELECT COUNT(*) AS valid FROM user_to_game
+					WHERE user = ? AND game = ?`, [userid, game]);
+				if (!valid[0].valid) await query(`
+					INSERT INTO user_to_game (user, game)
+					VALUES (?, ?)`, [userid, game]);
+				res.statusCode = 307;
+				res.setHeader('Location', '/');
+				res.end();
 			} else {
 				res.statusCode = 404;
 				res.end(await show_file('404.html'));
@@ -775,7 +798,7 @@ async function show(data, text) {
 		b: parseInt(data.location),
 		c: data.inventory,
 		moves: data.moves + 1
-		}, jwtKey);
+	}, jwtKey);
 	if (data.inventory.length === 0) {
 		const file = await show_file('play.html',
 			sanitize(data.game),
