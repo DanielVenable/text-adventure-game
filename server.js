@@ -62,7 +62,7 @@ http.createServer(async (req, res) => {
 		const parsed_url = url.parse(req.url, true);
 		if (req.method === 'GET') {
 			if (parsed_url.pathname === "/play") {
-				const {a: states, b: locationID, c: inventory} =
+				const {a: states, b: locationID, c: inventory, moves} =
 						jwt.verify(parsed_url.query.gameState, jwtKey),
 					command = parsed_url.query.cmd.toLowerCase(),
 					location = await query(`
@@ -81,7 +81,7 @@ http.createServer(async (req, res) => {
 						SELECT * FROM objects
 						WHERE game = ? ORDER BY ID`, [location[0].game]),
 					show_data = {
-						res, game: game[0].name, states,
+						res, game: game[0].name, states, moves,
 						location: locationID, inventory, objects
 					}, split_go_to = command.match(go_to),
 					split_pick_up = command.match(pick_up),
@@ -241,8 +241,8 @@ http.createServer(async (req, res) => {
 					sanitize(game),
 					sanitize(result[0].text),
 					await describe({location: result[0].ID, states: [], objects: []}),
-					jwt.sign({a: [], b: result[0].ID, c: []}, jwtKey), "",
-					encodeURIComponent(game)));
+					jwt.sign({a: [], b: result[0].ID, c: [], moves: 0}, jwtKey),
+					"", encodeURIComponent(game)));
 			} else if (req.url === '/edit') {
 				if (!userid) throw "Unauthorized action";
 				const result = await query(`
@@ -773,7 +773,9 @@ async function show(data, text) {
 	const token = jwt.sign({
 		a: data.states,
 		b: parseInt(data.location),
-		c: data.inventory}, jwtKey);
+		c: data.inventory,
+		moves: data.moves + 1
+		}, jwtKey);
 	if (data.inventory.length === 0) {
 		const file = await show_file('play.html',
 			sanitize(data.game),
@@ -919,29 +921,12 @@ async function remove_constraint_or_effect(obj, is_constraint, type, item) {
 	}
 }
 
-function toHexString(halfByteArray) {
-	for (let i = 0; i < halfByteArray.length; i++)
-		if (halfByteArray[i] === undefined) halfByteArray[i] = 0;
-	return halfByteArray.map(byte =>
-		('0' + (byte & 0xF).toString(16)).slice(-1)
-	).join('');
-}
-function toHalfByteArray(hexString) {
-	if (typeof hexString === 'string') {
-		let result = [];
-		const length = hexString.length;
-		for (let i = 0; i < length; i += 1)
-			result.push(parseInt(hexString.substr(i, 1), 16));
-		return result;
-	}
-}
-
 function a_an(string) {
 	return /^[aeiou]/i.test(string) ? `an ${string}` : `a ${string}`;
 }
 
-const jwtKey = crypto.randomBytes(256);
-const expire_seconds = 60 * 60 * 12;
+const jwtKey = fs.readFileSync('../secret-key.txt');
+const expire_seconds = 60 * 60 * 12
 
 function create_token(res, username) {
 	const token = jwt.sign({ username }, jwtKey, {
