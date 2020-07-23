@@ -134,6 +134,92 @@ sql.query(`
 		FOREIGN KEY (action) REFERENCES actions (ID) ON DELETE CASCADE,
 		FOREIGN KEY (effect) REFERENCES constraint_and_effect (ID) ON DELETE CASCADE);
 
+	CREATE TABLE IF NOT EXISTS location_constraint_and_effect (
+		ID int unsigned NOT NULL AUTO_INCREMENT,
+		obj int unsigned NOT NULL,
+		location int unsigned,
+		PRIMARY KEY (ID),
+		FOREIGN KEY (obj) REFERENCES objects (ID) ON DELETE CASCADE,
+		FOREIGN KEY (location) REFERENCES locations (ID) ON DELETE CASCADE);
+
+	CREATE TABLE IF NOT EXISTS grab_to_location_constraint (
+		grab int unsigned NOT NULL,
+		constraint_ int unsigned NOT NULL,
+		FOREIGN KEY (grab) REFERENCES grab (ID) ON DELETE CASCADE,
+		FOREIGN KEY (constraint_) REFERENCES location_constraint_and_effect (ID) ON DELETE CASCADE);
+
+	CREATE TABLE IF NOT EXISTS grab_to_location_effect (
+		grab int unsigned NOT NULL,
+		effect int unsigned NOT NULL,
+		FOREIGN KEY (grab) REFERENCES grab(ID) ON DELETE CASCADE,
+		FOREIGN KEY (effect) REFERENCES location_constraint_and_effect (ID) ON DELETE CASCADE);
+
+	CREATE TABLE IF NOT EXISTS path_to_location_constraint (
+		path int unsigned NOT NULL,
+		constraint_ int unsigned NOT NULL,
+		FOREIGN KEY (path) REFERENCES paths(ID) ON DELETE CASCADE,
+		FOREIGN KEY (constraint_) REFERENCES location_constraint_and_effect (ID) ON DELETE CASCADE);
+
+	CREATE TABLE IF NOT EXISTS path_to_location_effect (
+		path int unsigned NOT NULL,
+		effect int unsigned NOT NULL,
+		FOREIGN KEY (path) REFERENCES paths(ID) ON DELETE CASCADE,
+		FOREIGN KEY (effect) REFERENCES location_constraint_and_effect (ID) ON DELETE CASCADE);
+
+	CREATE TABLE IF NOT EXISTS action_to_location_constraint (
+		action int unsigned NOT NULL,
+		constraint_ int unsigned NOT NULL,
+		FOREIGN KEY (action) REFERENCES actions (ID) ON DELETE CASCADE,
+		FOREIGN KEY (constraint_) REFERENCES location_constraint_and_effect (ID) ON DELETE CASCADE);
+
+	CREATE TABLE IF NOT EXISTS action_to_location_effect (
+		action int unsigned NOT NULL,
+		effect int unsigned NOT NULL,
+		FOREIGN KEY (action) REFERENCES actions (ID) ON DELETE CASCADE,
+		FOREIGN KEY (effect) REFERENCES location_constraint_and_effect (ID) ON DELETE CASCADE);
+
+	CREATE TABLE IF NOT EXISTS grab_to_inventory_constraint (
+		grab int unsigned NOT NULL,
+		obj int unsigned NOT NULL,
+		have_it tinyint(1) unsigned NOT NULL,
+		FOREIGN KEY (grab) REFERENCES grab (ID) ON DELETE CASCADE,
+		FOREIGN KEY (obj) REFERENCES objects (ID) ON DELETE CASCADE);
+
+	CREATE TABLE IF NOT EXISTS grab_to_inventory_effect (
+		grab int unsigned NOT NULL,
+		obj int unsigned NOT NULL,
+		have_it tinyint(1) unsigned NOT NULL,
+		FOREIGN KEY (grab) REFERENCES grab (ID) ON DELETE CASCADE,
+		FOREIGN KEY (obj) REFERENCES objects (ID) ON DELETE CASCADE);
+
+	CREATE TABLE IF NOT EXISTS path_to_inventory_constraint (
+		path int unsigned NOT NULL,
+		obj int unsigned NOT NULL,
+		have_it tinyint(1) unsigned NOT NULL,
+		FOREIGN KEY (path) REFERENCES paths(ID) ON DELETE CASCADE,
+		FOREIGN KEY (obj) REFERENCES objects (ID) ON DELETE CASCADE);
+
+	CREATE TABLE IF NOT EXISTS path_to_inventory_effect (
+		path int unsigned NOT NULL,
+		obj int unsigned NOT NULL,
+		have_it tinyint(1) unsigned NOT NULL,
+		FOREIGN KEY (path) REFERENCES paths(ID) ON DELETE CASCADE,
+		FOREIGN KEY (obj) REFERENCES objects (ID) ON DELETE CASCADE);
+
+	CREATE TABLE IF NOT EXISTS action_to_inventory_constraint (
+		action int unsigned NOT NULL,
+		obj int unsigned NOT NULL,
+		have_it tinyint(1) unsigned NOT NULL,
+		FOREIGN KEY (action) REFERENCES actions (ID) ON DELETE CASCADE,
+		FOREIGN KEY (obj) REFERENCES objects (ID) ON DELETE CASCADE);
+
+	CREATE TABLE IF NOT EXISTS action_to_inventory_effect (
+		action int unsigned NOT NULL,
+		obj int unsigned NOT NULL,
+		have_it tinyint(1) unsigned NOT NULL,
+		FOREIGN KEY (action) REFERENCES actions (ID) ON DELETE CASCADE,
+		FOREIGN KEY (obj) REFERENCES objects (ID) ON DELETE CASCADE);
+
 	SET FOREIGN_KEY_CHECKS = 1;
 `, err => {
 	if (err) throw err;
