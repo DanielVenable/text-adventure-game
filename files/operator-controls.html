@@ -1,0 +1,21 @@
+<div>
+	<button class="get-join-link">Get and copy join link</button>
+	<input id="join-link" readonly>
+	<p>
+		Anyone signed in who clicks on a join link will be allowed to play this game.<br>
+		Join links expire after five days.
+	</p>
+	<h3>Users who have access to this game:</h3>
+	<ul>
+		%s
+	</ul>
+</div>
+<script>
+	document.getElementsByClassName('get-join-link')[0]
+		.addEventListener('click', async () => {
+			const join_link = document.getElementById('join-link');
+			join_link.value = (await ajax('GET', '/join-link')).responseText;
+			join_link.select();
+			document.execCommand('copy');
+		});
+</script>

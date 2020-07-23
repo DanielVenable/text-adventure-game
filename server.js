@@ -248,7 +248,7 @@ http.createServer(async (req, res) => {
 				const result = await query(`
 					SELECT games.name, games.ID FROM games
 					JOIN user_to_game ON user_to_game.game = games.ID
-					WHERE user_to_game.user = ?
+					WHERE user_to_game.user = ? AND user_to_game.permission >= 1
 					ORDER BY games.name`, [userid]);
 				if (result.length) {
 					let game_list = "";
@@ -263,10 +263,11 @@ http.createServer(async (req, res) => {
 			} else if (parsed_url.pathname === '/edit' && parsed_url.query.game) {
 				const game = await query(`
 					SELECT * FROM games
-					WHERE name = ?`, [parsed_url.query.game]);
-				restrict(await query(`
+					WHERE name = ?`, [parsed_url.query.game]),
+					permission = await query(`
 					SELECT permission FROM user_to_game
-					WHERE user = ? AND game = ?`, [userid, game[0].ID]), 1);
+					WHERE user = ? AND game = ?`, [userid, game[0].ID]);
+				restrict(permission, 1);
 				const locations = await query(`
 					SELECT * FROM locations WHERE game = ?`, [game[0].ID]);
 				let location_list = "";
@@ -286,11 +287,27 @@ http.createServer(async (req, res) => {
 				let obj_list = "";
 				for (const obj of objects)
 					obj_list += await show_file('object.html', obj.ID, obj.name);
+				let operator_controls = '';
+				if (permission[0].permission >= 2) {
+					const users = await query(`
+						SELECT users.username, user_to_game.permission
+						FROM user_to_game JOIN users
+						ON user_to_game.user = users.ID
+						WHERE user_to_game.game = ?`, [game[0].ID]);
+					let list = '';
+					for (const user of users) {
+						let opts = ['', '', ''];
+						opts[permission[0].permission] = 'selected';
+						list += await show_file('user.html',
+							sanitize(user.username), ...opts);
+					}
+					operator_controls = await show_file('operator-controls.html', list);
+				}
 				res.end(await show_file('edit.html',
 					location_list,
 					obj_list,
 					encodeURIComponent(game[0].name),
-					game[0].ID));
+					operator_controls, game[0].ID));
 			} else if (req.url === '/new') {
 				res.end(await show_file('new-game.html'));
 			} else if (req.url === '/signin') {

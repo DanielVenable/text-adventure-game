@@ -58,6 +58,10 @@
 		#join-link {
 			text-decoration: underline;
 		}
+
+		.container > * {
+			margin: 10px;
+		}
 	</style>
 </head>
 
@@ -80,17 +84,8 @@
 			</ul>
 			<button class="delete">Delete this game</button>
 		</div>
-		<p>
-			<iframe src="/start?game=%s" title="Play your game"></iframe>
-		</p>
-		<p>
-			<button class="get-join-link">Get and copy join link</button>
-			<input id="join-link" readonly>
-			<p>
-				Anyone signed in who clicks on a join link will be allowed to play this game.<br>
-				Join links expire after five days.
-			</p>
-		</p>
+		<iframe src="/start?game=%s" title="Play your game"></iframe>
+		%s
 	</div>
 </body>
 
@@ -257,14 +252,6 @@
 			}
 		}
 	});
-
-	document.getElementsByClassName('get-join-link')[0]
-	.addEventListener('click', async () => {
-		const join_link = document.getElementById('join-link');
-		join_link.value = (await ajax('GET', '/join-link')).responseText;
-		join_link.select();
-		document.execCommand('copy');
-	})
 
 	document.getElementsByTagName('iframe')[0].addEventListener('load', resize);
 
