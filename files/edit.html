@@ -216,16 +216,20 @@
 		const path = event.composedPath();
 		const is_class = path[0].classList.contains.bind(path[0].classList);
 		if (path[0] instanceof HTMLSelectElement) {
-			if (is_class('description-constraint')) {
+			if (is_class('description-constraint'))
 				await ajax('POST', '/change/item', {
 					type: 'location',
 					newitem: path[0].value,
 					item: path[3].dataset.id,
 					num: description_num(path[1])
 				});
-			} else if (path[1].classList.contains('description-constraint')) {
+			else if (path[1].classList.contains('description-constraint'))
 				await change_constraint_or_effect(path);
-			}
+			else await ajax('POST', '/change/item', {
+				type: path[2].classList[0],
+				newitem: path[0].value,
+				id: path[1].dataset.id
+			});
 		} else if (path[0] instanceof HTMLTextAreaElement) {
 			if (is_class('action-description')) {
 				await ajax('POST', '/change/description', {
