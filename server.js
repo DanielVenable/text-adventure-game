@@ -62,7 +62,10 @@ http.createServer(async (req, res) => {
 		const parsed_url = url.parse(req.url, true);
 		if (req.method === 'GET') {
 			if (parsed_url.pathname === "/play") {
-				const { a: states, b: locationID, c: inventory, moves } =
+				const { data: [
+					object_list, state_list,
+					locationID, inventory_list,
+					moved_object_list, location_list], moves } =
 					jwt.verify(parsed_url.query.gameState, jwtKey),
 					command = parsed_url.query.cmd.toLowerCase(),
 					location = await query(`
@@ -70,7 +73,14 @@ http.createServer(async (req, res) => {
 						WHERE ID = ?`, [locationID]),
 					game = await query(`
 						SELECT public, name FROM games
-						WHERE ID = ?`, [location[0].game]);
+						WHERE ID = ?`, [location[0].game]),
+					states = new Map(),
+					moved_objects = new Map(),
+					inventory = new Set(inventory_list);
+				for (const i in object_list)
+					states.set(object_list[i], state_list[i]);
+				for (const i in moved_object_list)
+					moved_objects.set(moved_object_list[i], location_list[i]);
 				if (!game[0].public)
 					restrict(await query(`
 						SELECT permission FROM user_to_game
@@ -81,12 +91,13 @@ http.createServer(async (req, res) => {
 						SELECT * FROM objects
 						WHERE game = ? ORDER BY ID`, [location[0].game]),
 					show_data = {
-						res, game: game[0].name, states, moves,
-						location: locationID, inventory, objects
-					}, split_go_to = command.match(go_to),
-					split_pick_up = command.match(pick_up),
-					split_use = command.match(use);
-				if (split_go_to) {
+						res, game: game[0].name, states, moved_objects,
+						location: locationID, inventory, moves, objects
+					};
+				let split_go_to,
+					split_pick_up,
+					split_use;
+				if (split_go_to = command.match(go_to)) {
 					const end_location = await query(`
 						SELECT ID FROM locations
 						WHERE name = ? AND game = ?`,
@@ -95,92 +106,135 @@ http.createServer(async (req, res) => {
 						const constraints = await query(`
 							SELECT paths.ID, paths.text,
 								constraint_and_effect.obj,
-								constraint_and_effect.state FROM paths
+								constraint_and_effect.state,
+								location_constraint_and_effect.obj AS loc_obj,
+								location_constraint_and_effect.location,
+								path_to_inventory_constraint.obj AS inv_obj,
+								path_to_inventory_constraint.have_it FROM paths
 							LEFT JOIN path_to_constraint
 								ON paths.ID = path_to_constraint.path
 							LEFT JOIN constraint_and_effect
 								ON constraint_and_effect.ID =
 									path_to_constraint.constraint_
+							LEFT JOIN path_to_location_constraint
+								ON paths.ID = path_to_location_constraint.path
+							LEFT JOIN location_constraint_and_effect
+								ON location_constraint_and_effect.ID =
+									path_to_location_constraint.constraint_
+							LEFT JOIN path_to_inventory_constraint
+								ON paths.ID = path_to_inventory_constraint.path
 							WHERE paths.start = ? AND paths.end = ?
 							ORDER BY paths.ID;`,
 							[locationID, end_location[0].ID]);
 						const result = satisfy_constraints(
-							states, constraints, objects);
+							states, moved_objects, inventory, constraints, objects);
 						if (result) {
 							const effects = await query(`
 								SELECT constraint_and_effect.obj,
-									constraint_and_effect.state FROM paths
-								JOIN path_to_effect
+									constraint_and_effect.state,
+									location_constraint_and_effect.obj AS loc_obj,
+									location_constraint_and_effect.location,
+									path_to_inventory_effect.obj AS inv_obj,
+									path_to_inventory_effect.have_it FROM paths
+								LEFT JOIN path_to_effect
 									ON paths.ID = path_to_effect.path
-								JOIN constraint_and_effect
+								LEFT JOIN constraint_and_effect
 									ON constraint_and_effect.ID =
 										path_to_effect.effect
+								LEFT JOIN path_to_location_effect
+									ON paths.ID = path_to_location_effect.path
+								LEFT JOIN location_constraint_and_effect
+									ON location_constraint_and_effect.ID =
+										path_to_location_effect.effect
+								LEFT JOIN path_to_inventory_effect
+									ON paths.ID = path_to_inventory_effect.path
 								WHERE paths.start = ? AND paths.end = ?`,
 								[locationID, end_location[0].ID]);
-							handle_effects(effects, objects, states);
+							handle_effects(
+								effects, objects, states, moved_objects, inventory);
 							show_data.location = end_location[0].ID;
 							await show(show_data, result.text);
 						} else await show(show_data, 'Nothing happens.');
 					} else await show(show_data, 'Nothing happens.');
-				} else if (split_pick_up) {
+				} else if (split_pick_up = command.match(pick_up)) {
 					const obj = await query(`
 						SELECT ID FROM objects
 						WHERE name = ? AND game = ? AND location = ?;`,
 						[split_pick_up[1], location[0].game, locationID]);
 					if (obj.length === 1) {
-						if (inventory.includes(obj[0].ID)) {
+						if (inventory.has(obj_index(objects, obj[0].ID))) {
 							await show(show_data, "You already have it.");
 						} else {
 							const constraints = await query(`
 								SELECT grab.ID, grab.text, grab.success,
 									constraint_and_effect.obj,
-									constraint_and_effect.state FROM grab
+									constraint_and_effect.state,
+									location_constraint_and_effect.obj AS loc_obj,
+									location_constraint_and_effect.location,
+									grab_to_inventory_constraint.obj AS inv_obj,
+									grab_to_inventory_constraint.have_it FROM grab
 								LEFT JOIN grab_to_constraint
 									ON grab.ID = grab_to_constraint.grab
 								LEFT JOIN constraint_and_effect
 									ON constraint_and_effect.ID =
 										grab_to_constraint.constraint_
+								LEFT JOIN grab_to_location_constraint
+									ON grab.ID = grab_to_location_constraint.grab
+								LEFT JOIN location_constraint_and_effect
+									ON location_constraint_and_effect.ID =
+										grab_to_location_constraint.constraint_
+								LEFT JOIN grab_to_inventory_constraint
+									ON grab.ID = grab_to_inventory_constraint.grab
 								WHERE grab.obj = ?
 								ORDER BY grab.ID`, [obj[0].ID]);
 							const result = satisfy_constraints(
-								states, constraints, objects);
+								states, moved_objects, inventory, constraints, objects);
 							if (result) {
 								const effects = await query(`
 									SELECT constraint_and_effect.obj,
-										constraint_and_effect.state FROM grab
-									JOIN grab_to_effect
+										constraint_and_effect.state,
+										location_constraint_and_effect.obj AS loc_obj,
+										location_constraint_and_effect.location,
+										grab_to_inventory_effect.obj AS inv_obj,
+										grab_to_inventory_effect.have_it FROM grab
+									LEFT JOIN grab_to_effect
 										ON grab.ID = grab_to_effect.grab
-									JOIN constraint_and_effect
+									LEFT JOIN constraint_and_effect
 										ON constraint_and_effect.ID =
 											grab_to_effect.effect
+									LEFT JOIN grab_to_location_effect
+										ON grab.ID = grab_to_location_effect.grab
+									LEFT JOIN location_constraint_and_effect
+										ON location_constraint_and_effect.ID =
+											grab_to_location_effect.effect
+									LEFT JOIN grab_to_inventory_effect
+										ON grab.ID = grab_to_inventory_effect.grab
 									WHERE grab.ID = ?`, [result.ID]);
-								handle_effects(effects, objects, states);
+								handle_effects(
+									effects, objects, states, moved_objects, inventory);
 								if (result.success) {
-									inventory.push(obj[0].ID);
+									inventory.add(objects.findIndex(
+										object => object.ID === obj[0].ID));
 									await show(show_data,
 										result.text ? result.text + ' ' : '' +
 											`You have ${a_an(split_pick_up[1])}.`);
-								} else {
-									await show(show_data,
-										result.text ?
-											result.text : "Nothing happens.");
-								}
+								} else await show(show_data,
+									result.text || "Nothing happens.");
 							} else await show(show_data, "Nothing happens.");
 						}
 					} else await show(show_data, "Nothing happens.");
-				} else if (split_use) {
+				} else if (split_use = command.match(use)) {
 					if (split_use[1] === undefined) {
 						await use_on(null, split_use[2]);
 					} else {
 						const item1 = await query(`
 							SELECT ID FROM objects
 							WHERE name = ?`, [split_use[1]]);
-						if (item1.length === 1 && inventory.includes(item1[0].ID)) {
+						if (item1.length === 1 && inventory.has(
+							obj_index(objects, item1[0].ID)))
 							await use_on(item1[0].ID, split_use[2]);
-						} else {
-							await show(show_data,
-								`You don't have ${a_an(split_use[1])}`);
-						}
+						else await show(show_data,
+							`You don't have ${a_an(split_use[1])}`);
 					}
 					async function use_on(first_ID, second_name) {
 						const item2 = await query(`
@@ -189,33 +243,56 @@ http.createServer(async (req, res) => {
 						let valid_items = [];
 						for (const item of item2)
 							if (item.location == locationID ||
-								inventory.includes(item.ID))
+								inventory.has(item.ID))
 								valid_items.push(item);
 						if (valid_items.length === 1) {
 							const constraints = await query(`
 								SELECT actions.ID, actions.text,
 									constraint_and_effect.obj,
-									constraint_and_effect.state FROM actions
+									constraint_and_effect.state,
+									location_constraint_and_effect.obj AS loc_obj,
+									location_constraint_and_effect.location,
+									action_to_inventory_constraint.obj AS inv_obj,
+									action_to_inventory_constraint.have_it FROM actions
 								LEFT JOIN action_to_constraint
 									ON actions.ID = action_to_constraint.action
 								LEFT JOIN constraint_and_effect
 									ON constraint_and_effect.ID =
 										action_to_constraint.constraint_
+								LEFT JOIN action_to_location_constraint
+									ON actions.ID = action_to_location_constraint.action
+								LEFT JOIN location_constraint_and_effect
+									ON location_constraint_and_effect.ID =
+										action_to_location_constraint.constraint_
+								LEFT JOIN action_to_inventory_constraint
+									ON actions.ID = action_to_inventory_constraint.action
 								WHERE actions.obj1 = ? AND actions.obj2 = ?
 								ORDER BY actions.ID;`, [first_ID, item2[0].ID]);
 							const result = satisfy_constraints(
-								states, constraints, objects);
+								states, moved_objects, inventory, constraints, objects);
 							if (result) {
 								const effects = await query(`
 									SELECT constraint_and_effect.obj,
-										constraint_and_effect.state FROM actions
-									JOIN action_to_effect
+										constraint_and_effect.state,
+										location_constraint_and_effect.obj AS loc_obj,
+										location_constraint_and_effect.location,
+										action_to_inventory_effect.obj AS inv_obj,
+										action_to_inventory_effect.have_it FROM actions
+									LEFT JOIN action_to_effect
 										ON actions.ID = action_to_effect.action
-									JOIN constraint_and_effect
+									LEFT JOIN constraint_and_effect
 										ON constraint_and_effect.ID =
 											action_to_effect.effect
+									LEFT JOIN action_to_location_effect
+										ON actions.ID = action_to_location_effect.action
+									LEFT JOIN location_constraint_and_effect
+										ON location_constraint_and_effect.ID =
+											action_to_location_effect.effect
+									LEFT JOIN action_to_inventory_effect
+										ON actions.ID = action_to_inventory_effect.action
 									WHERE actions.ID = ?;`, [result.ID]);
-								handle_effects(effects, objects, states);
+								handle_effects(
+									effects, objects, states, moved_objects, inventory);
 								await show(show_data,
 									result.text ? result.text : "Nothing happens.");
 							} else await show(show_data, "Nothing happens.");
@@ -237,11 +314,18 @@ http.createServer(async (req, res) => {
 					SELECT locations.ID, games.text FROM games
 					JOIN locations ON locations.ID = games.start
 					WHERE games.name = ?`, [game]);
+				const data = Array(5).fill([]);
+				data[2] = result[0].ID;
 				res.end(await show_file('play.html',
 					sanitize(game),
 					sanitize(result[0].text),
-					await describe({ location: result[0].ID, states: [], objects: [] }),
-					jwt.sign({ a: [], b: result[0].ID, c: [], moves: 0 }, jwtKey),
+					await describe({
+						location: result[0].ID,
+						states: new Map(),
+						moved_objects: new Map(),
+						inventory: new Set(),
+						objects: [] }),
+					jwt.sign({ data, moves: 0 }, jwtKey),
 					"", encodeURIComponent(game)));
 			} else if (req.url === '/edit') {
 				if (!userid) throw "Unauthorized action";
@@ -328,7 +412,7 @@ http.createServer(async (req, res) => {
 								parsed_url.query.id, parsed_url.query.game);
 							let description = '';
 							for (const item of
-									await get_constraint_array(parsed_url.query.id)) {
+								await get_constraint_array(parsed_url.query.id)) {
 								let constraints = '';
 								if (item[0].obj) {
 									for (const constraint of item) {
@@ -775,6 +859,10 @@ http.createServer(async (req, res) => {
 	}
 }).listen(port, () => console.log(`Server running at http://localhost:${port}`));
 
+function obj_index(objects, ID) {
+	return objects.findIndex(obj => obj.ID === ID);
+} 
+
 async function location_match_game(location, game) {
 	const valid = await query(`
 		SELECT COUNT(*) AS valid FROM locations
@@ -787,66 +875,71 @@ function restrict(permission, level) {
 		throw "Unauthorized action";
 }
 
-function handle_effects(effects, objects, states) {
-	for (const effect of effects)
-		states[objects.findIndex(obj => obj.ID === effect.obj)] = effect.state;
+function handle_effects(effects, objects, states, moved_objects, inventory) {
+	for (const effect of effects) {
+		if (effect.obj)	states.set(obj_index(objects, effect.obj), effect.state);
+		if (effect.loc_obj)
+			moved_objects.set(obj_index(objects, effect.loc_obj), effect.location);
+		if (effect.inv_obj) {
+			const index = obj_index(objects, effect.inv_obj);
+			if (effect.have_it)	inventory.add(index);
+			else inventory.delete(index);
+		}
+	}
 }
 
-function satisfy_constraints(states, constraints, objects) {
+function satisfy_constraints(states, moved_objects, inventory, constraints, objects) {
 	let current_ID,
 		valid = false;
 	for (const constraint of constraints) {
-		if (constraint.obj === null) return constraint;
-		if (constraint.ID != current_ID) {
+		if (constraint.ID !== current_ID) {
 			if (valid) return valid;
 			valid = constraint;
 			current_ID = constraint.ID;
 		}
-		const state = states[objects.findIndex(obj => obj.ID === constraint.obj)] || 0;
-		if (state !== constraint.state) valid = false;
+		if (valid && (
+			(constraint.obj && (states.get(
+				obj_index(objects, constraint.obj)
+			) || 0) !== constraint.state) ||
+			(constraint.loc_obj && (moved_objects.get(
+				obj_index(objects, constraint.loc_obj)
+			) || 0) !== constraint.location) ||
+			(constraint.inv_obj && constraint.have_it == inventory.has(
+				obj_index(objects, constraint.inv_obj)))
+		)) valid = false;
 	}
 	return valid;
 }
 
 async function show(data, text) {
-	let description = await describe(data);
 	const token = jwt.sign({
-		a: data.states,
-		b: parseInt(data.location),
-		c: data.inventory,
+		data: [
+			Array.from(data.states.keys()),
+			Array.from(data.states.values()),
+			parseInt(data.location),
+			Array.from(data.inventory),
+			Array.from(data.moved_objects.keys()),
+			Array.from(data.moved_objects.values())
+		],
 		moves: data.moves + 1
 	}, jwtKey);
-	if (data.inventory.length === 0) {
-		const file = await show_file('play.html',
-			sanitize(data.game),
-			sanitize(description),
-			sanitize(text),
-			token, "",
-			encodeURIComponent(data.game));
-		data.res.end(file);
-	} else {
-		const inventory = await query(`
-			SELECT name FROM objects WHERE ID IN (?)`, [data.inventory]);
-		let objects = "";
-		inventory.forEach((item, index) =>
-			objects += (index === 0 ? "" : ", ") + item.name);
-		const file = await show_file('play.html',
-			sanitize(data.game),
-			description,
-			sanitize(text),
-			token,
-			`<p>You have: ${sanitize(objects)}</p>`,
-			encodeURIComponent(data.game)
-		);
-		data.res.end(file);
-	}
+	data.res.end(await show_file('play.html',
+		sanitize(data.game),
+		await describe(data),
+		sanitize(text),
+		token, data.inventory.size ? 
+		`<p>You have: ${
+			sanitize(Array.from(data.inventory, i => data.objects[i].name).join(', '))
+		}</p>` : "",
+		encodeURIComponent(data.game)));
 }
 
 async function describe(data) {
 	let description = "";
 	for (const item of await get_constraint_array(data.location)) {
-		description +=
-			satisfy_constraints(data.states, item, data.objects).text || "";
+		description += satisfy_constraints(
+			data.states, data.moved_objects, data.inventory,
+			item, data.objects).text || "";
 	}
 	return sanitize(description);
 }
