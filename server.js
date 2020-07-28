@@ -358,7 +358,7 @@ http.createServer(async (req, res) => {
 				for (const location of locations)
 					if (game[0].start === location.ID) {
 						location_list += await show_file('location.html',
-							location.ID, "start",
+							location.ID, ' data-type="start"',
 							sanitize(location.name), "hidden");
 					} else {
 						location_list += await show_file('location.html',

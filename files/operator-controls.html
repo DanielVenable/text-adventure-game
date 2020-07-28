@@ -1,5 +1,5 @@
 <div>
-	<button class="get-join-link">Get and copy join link</button>
+	<button id="get-join-link">Get and copy join link</button>
 	<input id="join-link" readonly>
 	<p>
 		Anyone signed in who clicks on a join link will be allowed to play this game.<br>
@@ -11,7 +11,7 @@
 	</ul>
 </div>
 <script>
-	document.getElementsByClassName('get-join-link')[0]
+	document.getElementById('get-join-link')
 		.addEventListener('click', async () => {
 			const join_link = document.getElementById('join-link');
 			join_link.value = (await ajax('GET', '/join-link')).responseText;
