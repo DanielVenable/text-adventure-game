@@ -188,7 +188,6 @@ sql.query(`
 	CREATE TABLE IF NOT EXISTS grab_to_inventory_effect (
 		grab int unsigned NOT NULL,
 		obj int unsigned NOT NULL,
-		have_it tinyint(1) unsigned NOT NULL,
 		FOREIGN KEY (grab) REFERENCES grab (ID) ON DELETE CASCADE,
 		FOREIGN KEY (obj) REFERENCES objects (ID) ON DELETE CASCADE);
 
@@ -202,7 +201,6 @@ sql.query(`
 	CREATE TABLE IF NOT EXISTS path_to_inventory_effect (
 		path int unsigned NOT NULL,
 		obj int unsigned NOT NULL,
-		have_it tinyint(1) unsigned NOT NULL,
 		FOREIGN KEY (path) REFERENCES paths(ID) ON DELETE CASCADE,
 		FOREIGN KEY (obj) REFERENCES objects (ID) ON DELETE CASCADE);
 
@@ -216,7 +214,6 @@ sql.query(`
 	CREATE TABLE IF NOT EXISTS action_to_inventory_effect (
 		action int unsigned NOT NULL,
 		obj int unsigned NOT NULL,
-		have_it tinyint(1) unsigned NOT NULL,
 		FOREIGN KEY (action) REFERENCES actions (ID) ON DELETE CASCADE,
 		FOREIGN KEY (obj) REFERENCES objects (ID) ON DELETE CASCADE);
 

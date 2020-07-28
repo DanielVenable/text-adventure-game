@@ -137,8 +137,7 @@ http.createServer(async (req, res) => {
 									constraint_and_effect.state,
 									location_constraint_and_effect.obj AS loc_obj,
 									location_constraint_and_effect.location,
-									path_to_inventory_effect.obj AS inv_obj,
-									path_to_inventory_effect.have_it FROM paths
+									path_to_inventory_effect.obj AS inv_obj FROM paths
 								LEFT JOIN path_to_effect
 									ON paths.ID = path_to_effect.path
 								LEFT JOIN constraint_and_effect
@@ -198,8 +197,7 @@ http.createServer(async (req, res) => {
 										constraint_and_effect.state,
 										location_constraint_and_effect.obj AS loc_obj,
 										location_constraint_and_effect.location,
-										grab_to_inventory_effect.obj AS inv_obj,
-										grab_to_inventory_effect.have_it FROM grab
+										grab_to_inventory_effect.obj AS inv_obj FROM grab
 									LEFT JOIN grab_to_effect
 										ON grab.ID = grab_to_effect.grab
 									LEFT JOIN constraint_and_effect
@@ -283,8 +281,7 @@ http.createServer(async (req, res) => {
 										constraint_and_effect.state,
 										location_constraint_and_effect.obj AS loc_obj,
 										location_constraint_and_effect.location,
-										action_to_inventory_effect.obj AS inv_obj,
-										action_to_inventory_effect.have_it FROM actions
+										action_to_inventory_effect.obj AS inv_obj FROM actions
 									LEFT JOIN action_to_effect
 										ON actions.ID = action_to_effect.action
 									LEFT JOIN constraint_and_effect
@@ -887,12 +884,14 @@ function handle_effects(effects, objects, states, moved_objects, inventory) {
 			states.set(obj_index(objects, effect.obj), effect.state);
 		}
 		if (effect.loc_obj) {
-			moved_objects.set(obj_index(objects, effect.loc_obj), effect.location);
+			const index = obj_index(objects, effect.inv_obj);
+			moved_objects.set(index, effect.location);
+			inventory.delete(index);
 		}
 		if (effect.inv_obj) {
 			const index = obj_index(objects, effect.inv_obj);
-			if (effect.have_it)	inventory.add(index);
-			else inventory.delete(index);
+			inventory.add(index);
+			moved_objects.delete(index);
 		}
 	}
 }
@@ -1037,9 +1036,11 @@ async function add_constraint_or_effect(obj, is_constraint, type, item, state = 
 		await query(`
 			INSERT INTO ?? (??, constraint_) VALUES (?, ?)`,
 			[start_table_list[type] + 'constraint', column_list[type], item, id]);
-	} else await query(`
-		INSERT INTO ?? (??, effect) VALUES (?, ?)`,
-		[start_table_list[type] + 'effect', column_list[type], item, id]);
+	} else {
+		await query(`
+			INSERT INTO ?? (??, effect) VALUES (?, ?)`,
+			[start_table_list[type] + 'effect', column_list[type], item, id]);
+	}
 }
 /**
  * @param {number} obj the ID of an object
