@@ -47,15 +47,11 @@ const query = util.promisify(sql.query).bind(sql),
 
 http.createServer(async (req, res) => {
 	try {
-		let user, userid;
+		let userid;
 		try {
-			user = jwt.verify(
+			userid = jwt.verify(
 				cookie.parse(req.headers.cookie).token,
-				jwtKey).username;
-			userid = await query(`
-				SELECT ID FROM users
-				WHERE username = ?`, user);
-			userid = userid[0].ID;
+				jwtKey).id;
 		} catch (e) { }
 		res.setHeader('Content-Type', 'text/html');
 		res.statusCode = 200;
@@ -381,16 +377,17 @@ http.createServer(async (req, res) => {
 				let operator_controls = '';
 				if (permission[0].permission >= 2) {
 					const users = await query(`
-						SELECT users.username, user_to_game.permission
+						SELECT users.username, user_to_game.permission, users.ID
 						FROM user_to_game JOIN users
 						ON user_to_game.user = users.ID
-						WHERE user_to_game.game = ?`, [game[0].ID]);
+						WHERE user_to_game.game = ?
+						AND users.ID != ?`, [game[0].ID, userid]);
 					let list = '';
 					for (const user of users) {
 						let opts = ['', '', ''];
-						opts[permission[0].permission] = 'selected';
+						opts[user.permission] = 'selected';
 						list += await show_file('user.html',
-							sanitize(user.username), ...opts);
+							user.ID, sanitize(user.username), ...opts);
 					}
 					operator_controls = await show_file('operator-controls.html', list);
 				}
@@ -618,7 +615,7 @@ http.createServer(async (req, res) => {
 					[data.username, crypto.createHash('sha256')
 						.update(data.password).digest('hex')]);
 				if (user.length) {
-					create_token(res, data.username);
+					create_token(res, user[0].ID);
 					res.setHeader('Location', data.url);
 					res.statusCode = 303;
 					res.end();
@@ -776,12 +773,27 @@ http.createServer(async (req, res) => {
 					await query(`
 						UPDATE paths SET end = ?
 						WHERE ID = ?`, [data.newitem, data.id]);
-				} else if (data.type === 'pick_up_action')
+				} else if (data.type === 'pick_up_action') {
 					await query(`
 						UPDATE grab SET success = ?
 						WHERE ID = ?`, [data.state, data.id]);
+				}
 				res.statusCode = 204;
 				res.end();
+			} else if (req.url === '/change/permission') {
+				restrict(permission, 2);
+				if (data.permission === '-1') {
+					await query(`
+						DELETE FROM user_to_game
+						WHERE user = ? AND game = ?`,
+						[data.user, data.game]);
+				} else if (['0','1','2'].includes(data.permission)) {
+					await query(`
+						UPDATE user_to_game
+						SET permission = ?
+						WHERE user = ? AND game = ?`,
+						[data.permission, data.user, data.game]);
+				}
 			} else {
 				res.statusCode = 404;
 				res.end(await show_file('404.html'));
@@ -1075,8 +1087,8 @@ function a_an(string) {
 const jwtKey = fs.readFileSync('../secret-key.txt');
 const expire_seconds = 60 * 60 * 12;
 
-function create_token(res, username) {
-	const token = jwt.sign({ username }, jwtKey, {
+function create_token(res, id) {
+	const token = jwt.sign({ id }, jwtKey, {
 		algorithm: "HS256",
 		expiresIn: expire_seconds,
 	});

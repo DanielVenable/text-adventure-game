@@ -6,7 +6,7 @@
 		Join links expire after five days.
 	</p>
 	<h3>Users who have access to this game:</h3>
-	<ul>
+	<ul id='user_permissions'>
 		%s
 	</ul>
 </div>
@@ -18,4 +18,22 @@
 			join_link.select();
 			document.execCommand('copy');
 		});
+
+	const user_permissions = document.getElementById('user_permissions');
+
+	user_permissions.addEventListener('change', ({ target }) =>
+		ajax('POST', '/change/permission', {
+			user: target.parentElement.dataset.id,
+			permission: target.value
+		})
+	);
+	user_permissions.addEventListener('click', async ({ target }) => {
+		if (target instanceof HTMLButtonElement) {
+			await ajax('POST', '/change/permission', {
+				user: target.parentElement.dataset.id,
+				permission: -1
+			});
+		}
+		target.parentElement.remove();
+	});
 </script>
