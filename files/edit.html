@@ -38,13 +38,12 @@
 
 		div.textarea {
 			overflow-y: auto;
-			overflow-x: hidden;
 			border: 1px solid black;
 			width: fit-content;
-			height: auto;
+			height: 5em;
 			line-height: 100%;
 			resize: both;
-			padding: 1em;
+			padding: 0.5em;
 		}
 
 		textarea {
@@ -100,7 +99,7 @@
 			if (path[0].classList.contains('link')) {
 				if (opened.has(path[1])) {
 					const lists = path[1].getElementsByTagName('ul');
-					const textarea = path[1].getElementsByClassName('textarea');
+					const textarea = path[1].querySelector('textarea, .textarea');
 					const show = !lists[0].hidden;
 					if (textarea.length) textarea[0].hidden = show;
 					for (const elem of lists) elem.hidden = show;

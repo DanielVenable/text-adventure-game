@@ -50,8 +50,7 @@ http.createServer(async (req, res) => {
 		let userid;
 		try {
 			userid = jwt.verify(
-				cookie.parse(req.headers.cookie).token,
-				jwtKey).id;
+				cookie.parse(req.headers.cookie).token, jwtKey).id;
 		} catch (e) { }
 		res.setHeader('Content-Type', 'text/html');
 		res.statusCode = 200;
@@ -325,7 +324,8 @@ http.createServer(async (req, res) => {
 						states: new Map(),
 						moved_objects: new Map(),
 						inventory: new Set(),
-						objects: [] }),
+						objects: []
+					}),
 					jwt.sign({ data, moves: 0 }, jwtKey),
 					"", encodeURIComponent(game)));
 			} else if (req.url === '/edit') {
@@ -487,63 +487,107 @@ http.createServer(async (req, res) => {
 					} case "action":
 					case "pick_up_action":
 					case "path": {
-						const text = await query(`
-							SELECT text FROM ??
-							WHERE ID = ?`,
-							[table_list[parsed_url.query.type],
-							parsed_url.query.id]);
-						res.write(await show_file('textarea.html',
-							text[0].text));
 						const table_part = {
 							action: "action",
 							path: "path",
 							pick_up_action: "grab"
-						};
-						let combined_table =
-							table_part[parsed_url.query.type] + "_to_constraint";
-						const constraints = await query(`
-							SELECT constraint_and_effect.obj,
-								constraint_and_effect.state
-								FROM constraint_and_effect
-							JOIN ${combined_table}
-								ON constraint_and_effect.ID =
-									${combined_table}.constraint_
-							WHERE ${combined_table}.
-								${table_part[parsed_url.query.type]} = ?`,
-							[parsed_url.query.id]);
-						combined_table = table_part[parsed_url.query.type] +
-							"_to_effect";
-						const effects = await query(`
-							SELECT constraint_and_effect.obj,
-								constraint_and_effect.state
-							FROM constraint_and_effect
-							JOIN ${combined_table}
-								ON constraint_and_effect.ID =
-									${combined_table}.effect
-							WHERE ${combined_table}.
-								${table_part[parsed_url.query.type]} = ?`,
-							[parsed_url.query.id]);
+						}[parsed_url.query.type],
+							sql = `
+								SELECT constraint_and_effect.obj,
+									constraint_and_effect.state
+									FROM constraint_and_effect
+								JOIN ?? ON constraint_and_effect.ID = ??.??
+								WHERE ??.?? = ?`,
+							location_sql = `
+								SELECT location_constraint_and_effect.obj,
+									location_constraint_and_effect.location
+									FROM location_constraint_and_effect
+								JOIN ?? ON location_constraint_and_effect.ID = ??.??
+								WHERE ??.?? = ?`,
+							params = type => {
+								const table = table_part + '_to_' + type;
+								return [
+									table, table,
+									/effect/.test(type) ? 'effect' : 'constraint_',
+									table, table_part, parsed_url.query.id];
+							},
+							[constraints,
+							effects,
+							location_constraints, 
+							location_effects,
+							inventory_constraints,
+							inventory_effects,
+							text] = await Promise.all([
+								query(sql, params('constraint')),
+								query(sql, params('effect')),
+								query(location_sql,	params('location_constraint')),
+								query(location_sql, params('location_effect')),
+								query(`SELECT obj, have_it FROM ?? WHERE ?? = ?`,
+									[table_part + '_to_inventory_constraint',
+									table_part, parsed_url.query.id]),
+								query(`SELECT obj FROM ?? WHERE ?? = ?`,
+									[table_part + '_to_inventory_effect',
+									table_part, parsed_url.query.id]),
+								query(`SELECT text FROM ?? WHERE ID = ?`,
+									[table_list[parsed_url.query.type],
+									parsed_url.query.id])
+							]);
+
+						res.write(await show_file('textarea.html', text[0].text));
+
+						await write_constraint_effect(constraints, 'constraint')
+						await write_constraint_effect(effects, 'effect');
+						await write_location_constraint_effect(
+							location_constraints, 'constraint');
+						await write_location_constraint_effect(
+							location_effects, 'effect');
 						res.write(await show_file('list-start.html',
-							'constraint', 'a constraint'));
-						for (const constraint of constraints)
-							res.write(await show_file('constraint-or-effect.html',
-								constraint.obj,
-								await all_objects(
-									parsed_url.query.game, constraint.obj),
-								'must be',
-								constraint.state));
+							'constraint', 'an inventory constraint'));
+						for (const item of inventory_constraints) {
+							res.write(await show_file('inventory-constraint.html',
+								item.obj, item.have_it ? "" : ' selected',
+								await all_objects(parsed_url.query.game, item.obj)));
+						}
 						res.write('</ul>');
 						res.write(await show_file('list-start.html',
-							'effect', 'an effect'));
-						for (const effect of effects)
-							res.write(await show_file('constraint-or-effect.html',
-								effect.obj,
-								await all_objects(
-									parsed_url.query.game, effect.obj),
-								'goes in',
-								effect.state));
-						res.end('</ul>');
+							'effect', 'an inventory effect'));
+						for (const item of inventory_effects) {
+							res.write(await show_file('inventory-effect.html',
+								item.obj,
+								await all_objects(parsed_url.query.game, item.obj)));
+						}
 						break;
+
+						async function write_constraint_effect(items, type) {
+							res.write(await show_file('list-start.html',
+								type, a_an(type)));
+							for (const item of items) {
+								res.write(await show_file('constraint-or-effect.html',
+									item.obj,
+									await all_objects(
+										parsed_url.query.game, item.obj),
+									type === 'constraint' ? 'must be' : 'goes',
+									item.state));
+							}
+							res.write('</ul>');
+						}
+
+						async function write_location_constraint_effect(items, type) {
+							res.write(await show_file('list-start.html',
+								type, 'a location ' + type));
+							for (const item of items) {
+								res.write(await show_file(
+									'location-constraint-or-effect.html',
+									item.obj,
+									await all_objects(
+										parsed_url.query.game, item.obj),
+									type === 'constraint' ? 'must be' : 'goes',
+									await all_locations(
+										parsed_url.query.game,
+										undefined, item.location)));
+							}
+							res.write('</ul>');
+						}
 					} default: await invalid_request(res);
 				}
 			} else if (parsed_url.pathname === '/check/game') {
@@ -787,7 +831,7 @@ http.createServer(async (req, res) => {
 						DELETE FROM user_to_game
 						WHERE user = ? AND game = ?`,
 						[data.user, data.game]);
-				} else if (['0','1','2'].includes(data.permission)) {
+				} else if (['0', '1', '2'].includes(data.permission)) {
 					await query(`
 						UPDATE user_to_game
 						SET permission = ?
@@ -875,7 +919,7 @@ http.createServer(async (req, res) => {
 
 function obj_index(objects, ID) {
 	return objects.findIndex(obj => obj.ID === ID);
-} 
+}
 
 async function location_match_game(location, game) {
 	const valid = await query(`
@@ -892,7 +936,7 @@ function restrict(permission, level) {
 
 function handle_effects(effects, objects, states, moved_objects, inventory) {
 	for (const effect of effects) {
-		if (effect.obj)	{
+		if (effect.obj) {
 			states.set(obj_index(objects, effect.obj), effect.state);
 		}
 		if (effect.loc_obj) {
@@ -928,7 +972,7 @@ function satisfy_constraints(states, moved_objects, inventory, constraints, obje
 			) ||
 			(constraint.inv_obj &&
 				constraint.have_it == inventory.has(
-				obj_index(objects, constraint.inv_obj))
+					obj_index(objects, constraint.inv_obj))
 			)
 		)) valid = false;
 	}
@@ -951,10 +995,10 @@ async function show(data, text) {
 		sanitize(data.game),
 		await describe(data),
 		sanitize(text),
-		token, data.inventory.size ? 
-		`<p>You have: ${
-			sanitize(Array.from(data.inventory, i => data.objects[i].name).join(', '))
-		}</p>` : "",
+		token, data.inventory.size ?
+		`You have: ${
+		sanitize(Array.from(data.inventory, i => data.objects[i].name).join(', '))
+		}` : "",
 		encodeURIComponent(data.game)));
 }
 
@@ -1009,7 +1053,9 @@ function sanitize(str) {
 		.replace(/&/g, '&amp;')
 		.replace(/</g, '&lt;')
 		.replace(/>/g, '&gt;')
-		.replace(/"/g, '&quot;');
+		.replace(/"/g, '&quot;')
+		.replace(/'/g, '&#x27')
+		.replace(/\\/g, '&#x2F');
 }
 
 async function all_objects(game, id) {

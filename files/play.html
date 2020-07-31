@@ -17,23 +17,34 @@
 		<p>%s</p>
 		<p>%s</p>
 		<form method="get" action="/play" autocomplete="off">
-			<input name="cmd" autofocus
-				onkeypress="if (event.key == 'Enter') this.parentElement.submit();">
+			<input id="command" name="cmd" autofocus>
 			<input hidden value="%s" name="gameState">
-			<input type="submit">
-		</form>%s
-		<p></p>
+			<input type="submit" id="submit" disabled>
+		</form>
+		<p>%s</p>
 		<a href="/start?game=%s"><button>Restart this game</button></a>
 	</div>
 </body>
 
 <script>
-	const element = document.getElementById('navbar');
+	const navbar = document.getElementById('navbar'),
+		input = document.getElementById('command'),
+		submit_button = document.getElementById('submit'),
+		valid_cmd = /^(?:go|use|get|grab|pick up) ./;
+
 	try {
-		if (window.self !== window.top) element.hidden = true;
+		if (window.self !== window.top) navbar.hidden = true;
 	} catch (e) {
-		element.hidden = true;
+		navbar.hidden = true;
 	}
+
+	input.addEventListener('keypress', ({ key }) => {
+		if (key === 'Enter') input.parentElement.submit();
+	});
+
+	input.addEventListener('input', () => {
+		submit_button.disabled = !valid_cmd.test(input.value);
+	});
 </script>
 
 </html>
