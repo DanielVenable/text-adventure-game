@@ -635,7 +635,7 @@ http.createServer(async (req, res) => {
 				restrict(permission, 2);
 				res.setHeader('Content-Type', 'text/uri-list');
 				res.end(`http://localhost:${port}/join?token=${jwt.sign({
-					id: parsed_url.query.game
+					id: Number(parsed_url.query.game)
 				}, jwtKey, {
 					expiresIn: '5 days'
 				})}`);

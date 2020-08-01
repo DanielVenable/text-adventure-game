@@ -130,7 +130,7 @@
 					else window.location.replace("/");
 				}
 			} else if (path[0].dataset.type === 'remove-description-constraint') {
-				const obj = path[1].dataset.obj;
+				const obj = path[1].dataset.id;
 				if (obj) await ajax('DELETE', '/remove', {
 					item: path[2].dataset.id, obj,
 					type: 'constraint',
@@ -214,15 +214,8 @@
 	game_view.addEventListener('change', async event => {
 		const path = event.composedPath();
 		if (path[0] instanceof HTMLSelectElement) {
-			if (path[0].dataset.type === 'description-constraint') {
-				await ajax('POST', '/change/item', {
-					type: 'location',
-					newitem: path[0].value,
-					item: path[3].dataset.id,
-					num: description_num(path[1])
-				});
-				update_selects(path[2]);
-			} else if (path[1].dataset.type === 'description-constraint') {
+			if (path[1].dataset.type === 'description-constraint' ||
+				/constraint|effect/.test(path[2].dataset.type)) {
 				await change_constraint_or_effect(path);
 			} else if (path[1].dataset.id) await ajax('POST', '/change/item', {
 				type: path[2].dataset.type,
@@ -260,7 +253,7 @@
 		const selects = elem.getElementsByTagName('select');
 		for (const select of selects) values.add(select.value);
 		for (const select of selects) for (const option of select)
-			if (option.value != 'null' && !option.selected)
+			if (option.value && !option.selected)
 				option.hidden = values.has(option.value);
 	}
 
@@ -275,26 +268,35 @@
 	}
 
 	async function change_constraint_or_effect(path) {
-		let element = path[1];
 		let obj = {
 			item: path[2].dataset.id,
-			obj: path[1].dataset.obj
+			obj: path[1].dataset.id
 		}
-		if (path[2].classList.includes('description')) {
+		if (path[2].classList.contains('description')) {
 			obj.type = 'constraint';
 			obj.parenttype = 'description';
 		} else {
 			obj.type = path[2].dataset.type;
 			obj.parenttype = path[4].dataset.type;
 		}
-		if (path[1].dataset.type) await ajax('DELETE', '/remove', obj);
-		const new_obj = path[1].getElementsByTagName('select')[0].value;
-		path[1].dataset.obj = new_obj;
-		obj.obj = new_obj;
-		obj.state = element.getElementsByTagName('input')[0].value;
-		await ajax('POST', '/add', obj);
-		path[1].className = path[1].getElementsByTagName('select')[0].value;
+		if (path[1].dataset.type || path[1].dataset.id > 0) {
+			await ajax('DELETE', '/remove', obj);
+		}
+
+		const inputs = path[1].querySelectorAll('select, input');
+		if (path[2].dataset.type === 'inventory-constraint') {
+			path[1].dataset.id = inputs[1].value;
+			obj.obj = inputs[1].value;
+			obj.value = inputs[0].value;
+		} else {
+			path[1].dataset.id = inputs[0].value;
+			obj.obj = inputs[0].value;
+			try {
+				obj.value = inputs[1].value;
+			} finally { }
+		}
 		update_selects(path[2]);
+		await ajax('POST', '/add', obj);
 	}
 
 	function resize(event) {
