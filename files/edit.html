@@ -269,12 +269,12 @@
 
 	async function change_constraint_or_effect(path) {
 		let obj = {
-			item: path[2].dataset.id,
 			obj: path[1].dataset.id
 		}
 		if (path[2].classList.contains('description')) {
 			obj.type = 'constraint';
 			obj.parenttype = 'description';
+			obj.item = path[2].dataset.id;
 		} else {
 			obj.type = path[2].dataset.type;
 			obj.parenttype = path[4].dataset.type;
@@ -283,19 +283,23 @@
 			await ajax('DELETE', '/remove', obj);
 		}
 
+		update_selects(path[2]);
 		const inputs = path[1].querySelectorAll('select, input');
 		if (path[2].dataset.type === 'inventory-constraint') {
+			if (!inputs[1].value) return;
 			path[1].dataset.id = inputs[1].value;
 			obj.obj = inputs[1].value;
 			obj.value = inputs[0].value;
 		} else {
+			try {
+				if (!inputs[0].value || !inputs[1].value) {
+					return;
+				}
+			} catch (e) { }
 			path[1].dataset.id = inputs[0].value;
 			obj.obj = inputs[0].value;
-			try {
-				obj.value = inputs[1].value;
-			} finally { }
+			if (inputs[1]) obj.value = inputs[1].value;
 		}
-		update_selects(path[2]);
 		await ajax('POST', '/add', obj);
 	}
 
