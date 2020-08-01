@@ -56,6 +56,13 @@ http.createServer(async (req, res) => {
 		res.statusCode = 200;
 		const parsed_url = url.parse(req.url, true);
 		if (req.method === 'GET') {
+			let permission;
+			if (parsed_url.query.game) {
+				permission = await query(`
+					SELECT permission FROM user_to_game
+					WHERE user = ? AND game = ?`,
+					[userid, parsed_url.query.game]);
+			}
 			if (parsed_url.pathname === "/play") {
 				const { data: [
 					object_list, state_list,
@@ -404,10 +411,6 @@ http.createServer(async (req, res) => {
 				res.setHeader('Content-Type', 'text/css');
 				res.end(await show_file('navbar.css'));
 			} else if (parsed_url.pathname === '/expand') {
-				const permission = await query(`
-					SELECT permission FROM user_to_game
-					WHERE user = ? AND game = ?`,
-					[userid, parsed_url.query.game]);
 				restrict(permission, 1);
 				switch (parsed_url.query.type) {
 					case "location": {
@@ -542,7 +545,7 @@ http.createServer(async (req, res) => {
 						await write_location_constraint_effect(
 							location_effects, 'effect');
 						res.write(await show_file('list-start.html',
-							'constraint', 'an inventory constraint'));
+							'inventory-constraint', 'an inventory constraint'));
 						for (const item of inventory_constraints) {
 							res.write(await show_file('inventory-constraint.html',
 								item.obj, item.have_it ? "" : ' selected',
@@ -550,7 +553,7 @@ http.createServer(async (req, res) => {
 						}
 						res.write('</ul>');
 						res.write(await show_file('list-start.html',
-							'effect', 'an inventory effect'));
+							'inventory-effect', 'an inventory effect'));
 						for (const item of inventory_effects) {
 							res.write(await show_file('inventory-effect.html',
 								item.obj,
@@ -574,7 +577,7 @@ http.createServer(async (req, res) => {
 
 						async function write_location_constraint_effect(items, type) {
 							res.write(await show_file('list-start.html',
-								type, 'a location ' + type));
+								'location-' + type, 'a location ' + type));
 							for (const item of items) {
 								res.write(await show_file(
 									'location-constraint-or-effect.html',
@@ -601,14 +604,35 @@ http.createServer(async (req, res) => {
 					WHERE username = ?`, [parsed_url.query.username]);
 				res.end(String(taken[0].num));
 			} else if (parsed_url.pathname === '/description-constraint.html') {
+				restrict(permission, 1);
 				await location_match_game(parsed_url.query.item, parsed_url.query.game);
 				res.end(await show_file('description-constraint.html', 0,
 					await all_objects(parsed_url.query.game), 0));
+			} else if (parsed_url.pathname === '/constraint-or-effect') {
+				restrict(permission, 1);
+				if (/^location-/.test(parsed_url.query.type)) {
+					res.end(await show_file('location-constraint-or-effect.html',
+						0, await all_objects(
+							parsed_url.query.game, parsed_url.query.obj),
+						parsed_url.query.type === 'location-constraint' ?
+							'must be' : 'goes',
+						await all_locations(parsed_url.query.game)));
+				} else if (parsed_url.query.type === 'inventory-constraint') {
+					res.end(await show_file('inventory-constraint.html',
+						0, "", await all_objects(parsed_url.query.game)));
+				} else if (parsed_url.query.type === 'inventory-effect') {
+					res.end(await show_file('inventory-effect.html',
+						0, all_objects(parsed_url.query.game)));
+				} else {
+					res.end(await show_file('constraint-or-effect.html',
+						0, await all_objects(
+							parsed_url.query.game, parsed_url.query.obj),
+						parsed_url.query.type === 'constraint' ?
+							'must be' : 'goes',
+						0));
+				}
 			} else if (parsed_url.pathname === '/join-link') {
-				restrict(await query(`
-					SELECT permission FROM user_to_game
-					WHERE user = ? AND game = ?`,
-					[userid, parsed_url.query.game]), 2);
+				restrict(permission, 2);
 				res.setHeader('Content-Type', 'text/uri-list');
 				res.end(`http://localhost:${port}/join?token=${jwt.sign({
 					id: parsed_url.query.game
@@ -733,19 +757,12 @@ http.createServer(async (req, res) => {
 						break;
 					} case "constraint":
 					case "effect": {
-						if (data.obj && data.obj !== 'null')
-							await add_constraint_or_effect(
-								data.obj,
-								data.type === 'constraint',
-								data.parenttype,
-								data.item,
-								data.state);
-						res.end(await show_file(
-							'constraint-or-effect.html',
+						await add_constraint_or_effect(
 							data.obj,
-							await all_objects(data.game, data.obj),
-							data.type === 'constraint' ?
-								'must be' : 'goes in', 0));
+							data.type === 'constraint',
+							data.parenttype,
+							data.item,
+							data.state);
 						break;
 					} case "description": {
 						await location_match_game(data.item, data.game);

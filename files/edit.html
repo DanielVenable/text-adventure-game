@@ -101,7 +101,7 @@
 					const lists = path[1].getElementsByTagName('ul');
 					const textarea = path[1].querySelector('textarea, .textarea');
 					const show = !lists[0].hidden;
-					if (textarea.length) textarea[0].hidden = show;
+					if (textarea) textarea.hidden = show;
 					for (const elem of lists) elem.hidden = show;
 				} else {
 					opened.add(path[1]);
@@ -139,13 +139,14 @@
 				path[1].remove();
 			} else if (path[0].dataset.type === 'add') {
 				let result;
-				if (["action",
-					"pick_up_action",
-					"path",
-					"constraint",
-					"effect"]
-					.includes(path[2].dataset.type)) {
+				if (/^(?:action|path|pick_up_action)$/.test(path[2].dataset.type)) {
 					result = await ajax('POST', '/add', {
+						type: path[2].dataset.type,
+						item: path[3].dataset.id,
+						parenttype: path[4].dataset.type
+					});
+				} else if (/constraint|effect/.test(path[2].dataset.type)) {
+					result = await ajax('GET', '/constraint-or-effect', {
 						type: path[2].dataset.type,
 						item: path[3].dataset.id,
 						parenttype: path[4].dataset.type
@@ -221,9 +222,9 @@
 					num: description_num(path[1])
 				});
 				update_selects(path[2]);
-			} else if (path[1].dataset.type === 'description-constraint')
+			} else if (path[1].dataset.type === 'description-constraint') {
 				await change_constraint_or_effect(path);
-			else await ajax('POST', '/change/item', {
+			} else if (path[1].dataset.id) await ajax('POST', '/change/item', {
 				type: path[2].dataset.type,
 				newitem: path[0].value,
 				id: path[1].dataset.id
