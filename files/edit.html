@@ -278,6 +278,7 @@
 		} else {
 			obj.type = path[2].dataset.type;
 			obj.parenttype = path[4].dataset.type;
+			obj.item = path[3].dataset.id;
 		}
 		if (path[1].dataset.type || path[1].dataset.id > 0) {
 			await ajax('DELETE', '/remove', obj);
@@ -292,9 +293,7 @@
 			obj.value = inputs[0].value;
 		} else {
 			try {
-				if (!inputs[0].value || !inputs[1].value) {
-					return;
-				}
+				if (!inputs[0].value || !inputs[1].value) return;
 			} catch (e) { }
 			path[1].dataset.id = inputs[0].value;
 			obj.obj = inputs[0].value;

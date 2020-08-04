@@ -350,8 +350,7 @@ http.createServer(async (req, res) => {
 					res.end(await show_file('choose-edit.html', game_list));
 				} else {
 					res.setHeader('Location', '/new');
-					res.statusCode = 307;
-					res.end();
+					res.statusCode = 307;;
 				}
 			} else if (parsed_url.pathname === '/edit' && parsed_url.query.game) {
 				const game = await query(`
@@ -649,8 +648,7 @@ http.createServer(async (req, res) => {
 					INSERT INTO user_to_game (user, game)
 					VALUES (?, ?)`, [userid, game]);
 				res.statusCode = 307;
-				res.setHeader('Location', '/');
-				res.end();
+				res.setHeader('Location', '/');;
 			} else {
 				res.statusCode = 404;
 				res.end(await show_file('404.html'));
@@ -674,8 +672,6 @@ http.createServer(async (req, res) => {
 					res.statusCode = 201;
 				} catch (e) {
 					res.statusCode = 409;
-				} finally {
-					res.end();
 				}
 			} else if (req.url === '/signin') {
 				const user = await query(`
@@ -685,8 +681,7 @@ http.createServer(async (req, res) => {
 				if (user.length) {
 					create_token(res, user[0].ID);
 					res.setHeader('Location', data.url);
-					res.statusCode = 303;
-					res.end();
+					res.statusCode = 303;;
 				} else {
 					res.statusCode = 401;
 					res.end(await show_file('sign-in.html', data.url, '', data.url));
@@ -700,8 +695,7 @@ http.createServer(async (req, res) => {
 					[data.username, hash]);
 				create_token(res, data.username);
 				res.setHeader('Location', data.url);
-				res.statusCode = 303;
-				res.end();
+				res.statusCode = 303;;
 			} else if (req.url === '/add') {
 				restrict(permission, 1);
 				switch (data.type) {
@@ -755,15 +749,6 @@ http.createServer(async (req, res) => {
 						res.end(await show_file('path.html', result.insertId,
 							await all_locations(data.game, data.item)));
 						break;
-					} case "constraint":
-					case "effect": {
-						await add_constraint_or_effect(
-							data.obj,
-							data.type === 'constraint',
-							data.parenttype,
-							data.item,
-							data.state);
-						break;
 					} case "description": {
 						await location_match_game(data.item, data.game);
 						await query(`
@@ -777,15 +762,59 @@ http.createServer(async (req, res) => {
 						res.end(await show_file('description.html',
 							description.insertId, '', ''));
 						break;
-					} default: await invalid_request(res);
+					} default: {
+						const [,type1,type2] = data.type.match(
+							/^(location-|inventory-)?(constraint|effect)$/);
+						const select_params = [data.obj, data.value];
+						let id, table;
+						if (!type1) {
+							const exists = await query(`
+								SELECT ID FROM constraint_and_effect
+								WHERE obj = ? AND state = ?`, select_params);
+							id = exists.length ? exists[0].ID : (await query(`
+								INSERT INTO constraint_and_effect (obj, state)
+								VALUES (?, ?)`, select_params)).insertId;
+						} else if (type1 === 'location-') {
+							await location_match_game(data.value, data.game);
+							const exists = await query(`
+								SELECT ID FROM location_constraint_and_effect
+								WHERE obj = ? AND location = ?`, select_params);
+							id = exists.length ? exists[0].ID : (await query(`
+								INSERT INTO location_constraint_and_effect
+									(obj, location)
+								VALUES (?, ?)`, select_params)).insertId;
+						} else if (type1 === 'inventory-') {
+							const table = start_table_list[data.parenttype] +
+								'inventory_' + type2;
+							if (type2 === 'constraint') {
+								await query(`
+									INSERT INTO ?? (?, obj, have_it)
+									VALUES (?, ?, ?)`,
+									[table, column_list[data.parenttype],
+									data.item, data.obj,
+									Number(value) ? 1 : 0]);
+							} else {
+								await query(`
+									INSERT INTO ?? (?, obj)	VALUES (?, ?)`,
+									[table, column_list[data.parenttype],
+									data.item, data.obj]);
+							}
+							break;
+						}
+						await query(`
+							INSERT INTO ?? (??, ??) VALUES (?, ?)`,
+							[table,
+							column_list[parenttype],
+							type2 === 'constraint' ? 'constraint_' : 'effect',
+							data.item, id]);
+					}
 				}
 			} else if (req.url === '/setstart') {
 				restrict(permission, 1);
 				await query(`
 					UPDATE games SET start = ?
 					WHERE ID = ?`, [data.id, data.game]);
-				res.statusCode = 204;
-				res.end();
+				res.statusCode = 204;;
 			} else if (req.url === '/rename') {
 				restrict(permission, 1);
 				switch (data.type) {
@@ -801,8 +830,7 @@ http.createServer(async (req, res) => {
 						break;
 					default: throw "Not a valid type";
 				}
-				res.statusCode = 204;
-				res.end();
+				res.statusCode = 204;;
 			} else if (req.url === '/change/description') {
 				restrict(permission, 1);
 				if (data.type === 'location') {
@@ -822,8 +850,7 @@ http.createServer(async (req, res) => {
 						WHERE ID = ?`,
 						[table_list[data.type], data.text, data.id]);
 				}
-				res.statusCode = 204;
-				res.end();
+				res.statusCode = 204;;
 			} else if (req.url === '/change/item') {
 				restrict(permission, 1);
 				if (data.type === 'action') {
@@ -839,8 +866,7 @@ http.createServer(async (req, res) => {
 						UPDATE grab SET success = ?
 						WHERE ID = ?`, [data.state, data.id]);
 				}
-				res.statusCode = 204;
-				res.end();
+				res.statusCode = 204;;
 			} else if (req.url === '/change/permission') {
 				restrict(permission, 2);
 				if (data.permission === '-1') {
@@ -900,14 +926,6 @@ http.createServer(async (req, res) => {
 						DELETE FROM paths
 						WHERE ID = ?`, [parsed_url.query.id]);
 					break;
-				case "constraint":
-				case "effect":
-					await remove_constraint_or_effect(
-						parsed_url.query.obj,
-						parsed_url.query.type === 'constraint',
-						parsed_url.query.parenttype,
-						parsed_url.query.item);
-					break;
 				case "description":
 					await query(`
 						DELETE FROM descriptions
@@ -919,10 +937,37 @@ http.createServer(async (req, res) => {
 						WHERE location = ? AND num > ?`,
 						[parsed_url.query.item, parsed_url.query.num]);
 					break;
-				default: res.statusCode = 404;
+				default: {
+					const [, type1, type2] = data.type.match(
+						/^(location-|inventory-)?(constraint|effect)$/);
+					let table1, table2;
+					if (type1 === 'inventory-') {
+						await query(`
+							DELETE FROM ?? WHERE obj = ? AND ?? = ?`,
+							[start_table_list[data.type] + 'inventory_' + type2,
+							data.obj, column_list[data.type], data.item]);
+						break;
+					} else if (type1 === 'location-') {
+						table1 = start_table_list[data.type] + 'location_' + type2;
+						table2 = 'location_constraint_and_effect';	
+					} else {
+						table1 = start_table_list[data.type] + type2;
+						table2 = 'constraint_and_effect';
+					}
+
+					await query(`
+						DELETE ?? FROM ??
+						JOIN ?? ON ??.?? = ??.ID
+						WHERE ??.?? = ?
+						AND ??.obj = ?`,
+						[table1, table2, table1, table1,
+						type2 === 'constraint' ? 'constraint_' : 'effect',
+						table2,	table1, column_list[data.type],
+						data.item, table2, data.obj]);
+				}
 			}
 		} else res.statusCode = 405;
-		res.end();
+		if (!res.writableEnded) res.end();
 	} catch (error) {
 		if (error === "Unauthorized action") {
 			res.statusCode = 401;
@@ -943,6 +988,13 @@ async function location_match_game(location, game) {
 		SELECT COUNT(*) AS valid FROM locations
 		WHERE ID = ? AND game = ?`, [location, game]);
 	if (!valid[0].valid) throw "location does not match game";
+}
+
+async function object_match_game(object, game) {
+	const valid = await query(`
+		SELECT COUNT(*) AS valid FROM objects
+		WHERE ID = ? AND game = ?`, [object, game]);
+	if (!valid[0].valid) throw "object does not match game";
 }
 
 function restrict(permission, level) {
@@ -1091,56 +1143,6 @@ async function all_locations(game, no, id) {
 		`<option value="${elem.ID}" ${id === elem.ID ? 'selected' : ''}>` +
 		elem.name + `</option>`);
 	return `<option></option>` + options.join('');
-}
-
-/**
- * @param {number} obj the ID of an object
- * @param {boolean} is_constraint
- * @param {'action' | 'pick_up_action' | 'path'} type
- * @param {number} item the ID of an action, grab, path, or description
- * @param {number} state an integer from 0 to 15
- */
-async function add_constraint_or_effect(obj, is_constraint, type, item, state = 0) {
-	const exists = await query(`
-		SELECT ID FROM constraint_and_effect
-		WHERE obj = ? AND state = ?`, [obj, state]);
-	const id = exists.length ? exists[0].ID : (await query(`
-		INSERT INTO constraint_and_effect (obj, state)
-		VALUES (?, ?)`, [obj, state])).insertId;
-	if (is_constraint) {
-		await query(`
-			INSERT INTO ?? (??, constraint_) VALUES (?, ?)`,
-			[start_table_list[type] + 'constraint', column_list[type], item, id]);
-	} else {
-		await query(`
-			INSERT INTO ?? (??, effect) VALUES (?, ?)`,
-			[start_table_list[type] + 'effect', column_list[type], item, id]);
-	}
-}
-/**
- * @param {number} obj the ID of an object
- * @param {boolean} is_constraint
- * @param {'action' | 'pick_up_action' | 'path' | 'location'} type
- * @param {number} item the ID of an action, grab, or path
- */
-async function remove_constraint_or_effect(obj, is_constraint, type, item) {
-	if (is_constraint) {
-		const table = start_table_list[type] + 'constraint';
-		await query(`
-			DELETE ?? FROM constraint_and_effect
-			JOIN ?? ON ??.constraint_ = constraint_and_effect.ID
-			WHERE ??.?? = ?
-			AND constraint_and_effect.obj = ?`,
-			Array(4).fill(table).concat(column_list[type], item, obj));
-	} else {
-		const table = start_table_list[type] + 'effect';
-		await query(`
-			DELETE ?? FROM constraint_and_effect
-			JOIN ?? ON ??.effect = constraint_and_effect.ID
-			WHERE ??.?? = ?
-			AND constraint_and_effect.obj = ?`,
-			Array(4).fill(table).concat(column_list[type], item, obj));
-	}
 }
 
 function a_an(string) {
