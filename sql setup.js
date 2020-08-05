@@ -55,6 +55,19 @@ sql.query(`
 		FOREIGN KEY (description) REFERENCES descriptions (ID) ON DELETE CASCADE,
 		FOREIGN KEY (constraint_) REFERENCES constraint_and_effect (ID));
 
+	CREATE TABLE IF NOT EXISTS description_to_location_constraint (
+		description int unsigned NOT NULL,
+		constraint_ int unsigned NOT NULL,
+		FOREIGN KEY (description) REFERENCES descriptions (ID) ON DELETE CASCADE,
+		FOREIGN KEY (constraint_) REFERENCES location_constraint_and_effect (ID));
+
+	CREATE TABLE IF NOT EXISTS description_to_inventory_constraint (
+		description int unsigned NOT NULL,
+		obj int unsigned NOT NULL,
+		have_it int unsigned NOT NULL,
+		FOREIGN KEY (description) REFERENCES descriptions (ID) ON DELETE CASCADE,
+		FOREIGN KEY (obj) REFERENCES objects (ID) ON DELETE CASCADE);
+
 	CREATE TABLE IF NOT EXISTS paths (
 		ID int unsigned NOT NULL AUTO_INCREMENT,
 		start int unsigned NOT NULL,

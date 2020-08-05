@@ -148,8 +148,6 @@
 				} else if (/constraint|effect/.test(path[2].dataset.type)) {
 					result = await ajax('GET', '/constraint-or-effect', {
 						type: path[2].dataset.type,
-						item: path[3].dataset.id,
-						parenttype: path[4].dataset.type
 					});
 				} else {
 					const name = prompt(
@@ -180,8 +178,8 @@
 				list.appendChild(element);
 				element.select();
 			} else if (path[0].dataset.type === 'add-description-constraint') {
-				const result = await ajax('GET', 'description-constraint.html', {
-					item: path[3].dataset.id
+				const result = await ajax('GET', 'description-constraint', {
+					
 				});
 				path[1].insertAdjacentHTML('afterbegin', result.responseText);
 				update_selects(path[2]);
@@ -235,14 +233,15 @@
 				type: 'location',
 			});
 		} else if (path[0] instanceof HTMLInputElement) {
-			if (path[0].dataset.type === 'success-checkbox')
+			if (path[0].dataset.type === 'success-checkbox') {
 				await ajax('POST', '/change/item', {
 					id: path[2].dataset.id,
 					state: path[0].checked,
 					type: 'pick_up_action'
 				});
-			else if (path[1].classList.contains('description-constraint'))
+			} else if (path[1].classList.contains('description-constraint')) {
 				await change_constraint_or_effect(path);
+			}
 		}
 	});
 
@@ -252,9 +251,11 @@
 		let values = new Set();
 		const selects = elem.getElementsByTagName('select');
 		for (const select of selects) values.add(select.value);
-		for (const select of selects) for (const option of select)
-			if (option.value && !option.selected)
+		for (const select of selects) for (const option of select) {
+			if (option.value && !option.selected) {
 				option.hidden = values.has(option.value);
+			}
+		}
 	}
 
 	async function end_rename(event) {

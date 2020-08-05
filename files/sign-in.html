@@ -54,18 +54,18 @@
 		</div>
 		<div id="sign-up" hidden>
 			<h3>Sign up:</h3>
-			<form action="/signup" method="POST">
-				<label>Username:<br><input name="username"></label><br>
-				<label>Password:<br><input type="password" name="password"></label><br>
-				<label>Comfirm password:<br><input type="password"></label><br>
-				<label>Email:<br><input type="email" name="email"></label><br>
+			<form action="/signup" method="POST" onsubmit="return check_passwords()">
+				<label>Username:<br>
+					<input name="username"></label><br>
+				<label>Password:<br>
+					<input type="password" name="password" class="pass"></label><br>
+				<label>Comfirm password:<br>
+					<input type="password" class="pass"></label><br>
 				<input name="url" value="%s" hidden>
 				<input type="submit" value="Sign up">
 			</form>
 			<p>Have an account? <span class="link" onclick="signin()">Sign in!</span></p>
-			<p><small>By signing up you agree to the use of cookies.<br>
-			We will not send you any emails except to reset your password.<br>
-			We will not share your email with anyone.</small></p>
+			<p><small>By signing up you agree to the use of cookies.</small></p>
 		</div>
 	</div>
 </body>
@@ -73,6 +73,7 @@
 <script>
 	const signinbox = document.getElementById('sign-in');
 	const signupbox = document.getElementById('sign-up');
+	const [sign_up_pass, sign_up_confirm] = document.getElementsByClassName('pass');
 
 	function signin() {
 		signinbox.hidden = false;
@@ -82,6 +83,12 @@
 	function signup() {
 		signinbox.hidden = true;
 		signupbox.hidden = false;
+	}
+
+	function check_passwords() {
+		if (sign_up_pass.value === sign_up_confirm.value) return true;
+		alert('Passwords do not match.');
+		return false;
 	}
 </script>
 
