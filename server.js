@@ -562,11 +562,7 @@ http.createServer(async (req, res) => {
 						const objs = {
 							get all() {
 								delete objs.all;
-								return objs.all =
-									query(`
-										SELECT ID, name FROM objects
-										WHERE game = ? ORDER BY location`,
-										[parsed_url.query.game]);
+								return objs.all = get_objs(parsed_url.query.game);
 							}
 						};
 
@@ -627,11 +623,26 @@ http.createServer(async (req, res) => {
 					SELECT COUNT(*) AS num FROM users
 					WHERE username = ?`, [parsed_url.query.username]);
 				res.end(String(taken[0].num));
-			} else if (parsed_url.pathname === '/description-constraint.html') {
+			} else if (parsed_url.pathname === '/description-constraint') {
 				restrict(permission, 1);
-				await location_match_game(parsed_url.query.item, parsed_url.query.game);
-				res.end(await show_file('description-constraint.html', 0,
-					await all_objects(get_objs(parsed_url.query.game)), 0));
+				switch (parsed_url.query.type) {
+					case 'constraint':
+						res.end(await show_file('constraint-or-effect.html',
+							0, await all_objects(await get_objs(parsed_url.query.game)),
+							'must be', 0));
+						break;
+					case 'location-constraint':
+						res.end(await show_file('location-constraint-or-effect.html',
+						0, await all_objects(await get_objs(parsed_url.query.game)),
+						'must be', await all_locations(parsed_url.query.game)));
+						break;
+					case 'inventory-constraint':
+						res.end(await show_file('inventory-constraint.html',
+							0, '',
+							await all_objects(await get_objs(parsed_url.query.game))));
+						break;
+					default: res.statusCode = 404;
+				}
 			} else if (parsed_url.pathname === '/constraint-or-effect') {
 				restrict(permission, 1);
 				if (/^location-/.test(parsed_url.query.type)) {
@@ -653,9 +664,7 @@ http.createServer(async (req, res) => {
 							'must be' : 'goes',
 						0));
 				}
-			} else if (parsed_url.pathname === '/description-constraint') {
-
-			} else if (parsed_url.pathname === '/join-link') {
+			}else if (parsed_url.pathname === '/join-link') {
 				restrict(permission, 2);
 				res.setHeader('Content-Type', 'text/uri-list');
 				res.end(`http://localhost:${port}/join?token=${jwt.sign({
