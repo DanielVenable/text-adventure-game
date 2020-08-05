@@ -800,6 +800,7 @@ http.createServer(async (req, res) => {
 						const [,type1,type2] = data.type.match(
 							/^(location-|inventory-)?(constraint|effect)$/);
 						const select_params = [data.obj, data.value];
+						if (!start_table_list[data.parenttype]) throw 'Invalid type';
 						let id, table;
 						if (!type1) {
 							const exists = await query(`
@@ -808,6 +809,7 @@ http.createServer(async (req, res) => {
 							id = exists.length ? exists[0].ID : (await query(`
 								INSERT INTO constraint_and_effect (obj, state)
 								VALUES (?, ?)`, select_params)).insertId;
+							table = start_table_list[data.parenttype] + type2;
 						} else if (type1 === 'location-') {
 							await location_match_game(data.value, data.game);
 							const exists = await query(`
@@ -817,6 +819,8 @@ http.createServer(async (req, res) => {
 								INSERT INTO location_constraint_and_effect
 									(obj, location)
 								VALUES (?, ?)`, select_params)).insertId;
+							table = start_table_list[data.type] +
+								'location' + type2;
 						} else if (type1 === 'inventory-') {
 							const table = start_table_list[data.parenttype] +
 								'inventory_' + type2;
@@ -838,7 +842,7 @@ http.createServer(async (req, res) => {
 						await query(`
 							INSERT INTO ?? (??, ??) VALUES (?, ?)`,
 							[table,
-							column_list[parenttype],
+							column_list[data.parenttype],
 							type2 === 'constraint' ? 'constraint_' : 'effect',
 							data.item, id]);
 					}
@@ -975,6 +979,7 @@ http.createServer(async (req, res) => {
 					const [, type1, type2] = parsed_url.query.type.match(
 						/^(location-|inventory-)?(constraint|effect)$/);
 					let table1, table2;
+					if (!start_table_list[parsed_url.query.type]) throw 'Invalid type';
 					if (type1 === 'inventory-') {
 						await query(`
 							DELETE FROM ?? WHERE obj = ? AND ?? = ?`,

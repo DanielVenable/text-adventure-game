@@ -272,16 +272,15 @@
 
 	async function change_constraint_or_effect(path) {
 		let obj = {
-			obj: path[1].dataset.id
+			obj: path[1].dataset.id,
+			item: path[3].dataset.id
 		}
-		if (path[2].classList.contains('description')) {
+		if (path[3].classList.contains('description')) {
 			obj.type = 'constraint';
 			obj.parenttype = 'description';
-			obj.item = path[2].dataset.id;
 		} else {
 			obj.type = path[2].dataset.type;
 			obj.parenttype = path[4].dataset.type;
-			obj.item = path[3].dataset.id;
 		}
 		if (path[1].dataset.type || path[1].dataset.id > 0) {
 			await ajax('DELETE', '/remove', obj);
@@ -310,12 +309,6 @@
 		event.target.height =
 			event.target.contentDocument
 				.getElementsByTagName('html')[0].scrollHeight;
-	}
-
-	function parent_class(element, num) {
-		if (num) {
-			return parent_class(element.parentElement, num - 1);
-		} else return element.dataset.type;
 	}
 
 	function description_num(element) {
