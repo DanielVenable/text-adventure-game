@@ -559,63 +559,61 @@ http.createServer(async (req, res) => {
 									parsed_url.query.id])
 							]);
 
-						const objs = await query(`
-							SELECT ID, name FROM objects
-							WHERE game = ? ORDER BY location`,
-							[parsed_url.query.game]);
+						const objs = {
+							get all() {
+								delete objs.all;
+								return objs.all =
+									query(`
+										SELECT ID, name FROM objects
+										WHERE game = ? ORDER BY location`,
+										[parsed_url.query.game]);
+							}
+						};
 
-						res.write(await show_file('textarea.html', text[0].text));
-
-						await write_constraint_effect(constraints, 'constraint');
-						await write_constraint_effect(effects, 'effect');
-						await write_location_constraint_effect(
-							location_constraints, 'constraint');
-						await write_location_constraint_effect(
-							location_effects, 'effect');
-						res.write(await show_file('list-start.html',
-							'inventory-constraint', 'an inventory constraint'));
-						for (const item of inventory_constraints) {
-							res.write(await show_file('inventory-constraint.html',
-								item.obj, item.have_it ? "" : ' selected',
-								await all_objects(objs, item.obj)));
-						}
-						res.write('</ul>');
-						res.write(await show_file('list-start.html',
-							'inventory-effect', 'an inventory effect'));
-						for (const item of inventory_effects) {
-							res.write(await show_file('inventory-effect.html',
-								item.obj,
-								await all_objects(objs, item.obj)));
-						}
+						res.end(await show_file('expanded-action.html',
+							sanitize(text[0].text),
+							...await Promise.all([
+								show_constraint_effect(constraints, true),
+								show_constraint_effect(effects, false),
+								show_location_constraint_effect(
+									location_constraints, true),
+								show_location_constraint_effect(
+									location_effects, false),
+								inventory_constraints.reduce(async (acc, item) =>
+									await acc + await show_file(
+										'inventory-constraint.html',
+										item.obj, item.have_it ? '' : ' selected',
+										await all_objects(await objs.all, item.obj)),
+								''),
+								inventory_effects.reduce(async (acc, item) =>
+									await acc + await show_file(
+										'inventory-effect.html',
+										item.obj,
+										await all_objects(await objs.all, item.obj)),
+								'')
+							])));
 						break;
 
-						async function write_constraint_effect(items, type) {
-							res.write(await show_file('list-start.html',
-								type, a_an(type)));
-							for (const item of items) {
-								res.write(await show_file('constraint-or-effect.html',
+						function show_constraint_effect(items, is_constraint) {
+							return items.reduce(async (acc, item) =>
+								await acc + await show_file('constraint-or-effect.html',
 									item.obj,
-									await all_objects(objs, item.obj),
-									type === 'constraint' ? 'must be' : 'goes',
-									item.state));
-							}
-							res.write('</ul>');
+									await all_objects(await objs.all, item.obj),
+									is_constraint ? 'must be' : 'goes',
+									item.state), '');
 						}
 
-						async function write_location_constraint_effect(items, type) {
-							res.write(await show_file('list-start.html',
-								'location-' + type, 'a location ' + type));
-							for (const item of items) {
-								res.write(await show_file(
+						function show_location_constraint_effect(items, is_constraint) {
+							return items.reduce(async (acc, item) =>
+								await acc + await show_file(
 									'location-constraint-or-effect.html',
 									item.obj,
-									await all_objects(objs, item.obj),
-									type === 'constraint' ? 'must be' : 'goes',
+									await all_objects(await objs.all, item.obj),
+									is_constraint ? 'must be' : 'goes',
 									await all_locations(
 										parsed_url.query.game,
-										undefined, item.location)));
-							}
-							res.write('</ul>');
+										null, item.location
+									)), '');
 						}
 					} default: await invalid_request(res);
 				}
