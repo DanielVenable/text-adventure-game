@@ -38,10 +38,6 @@
 		navbar.hidden = true;
 	}
 
-	input.addEventListener('keypress', ({ key }) => {
-		if (key === 'Enter') input.parentElement.submit();
-	});
-
 	input.addEventListener('input', () => {
 		submit_button.disabled = !valid_cmd.test(input.value);
 	});

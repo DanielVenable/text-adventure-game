@@ -664,7 +664,7 @@ http.createServer(async (req, res) => {
 							'must be' : 'goes',
 						0));
 				}
-			}else if (parsed_url.pathname === '/join-link') {
+			} else if (parsed_url.pathname === '/join-link') {
 				restrict(permission, 2);
 				res.setHeader('Content-Type', 'text/uri-list');
 				res.end(`http://localhost:${port}/join?token=${jwt.sign({
@@ -826,11 +826,11 @@ http.createServer(async (req, res) => {
 								'inventory_' + type2;
 							if (type2 === 'constraint') {
 								await query(`
-									INSERT INTO ?? (?, obj, have_it)
+									INSERT INTO ?? (??, obj, have_it)
 									VALUES (?, ?, ?)`,
 									[table, column_list[data.parenttype],
 									data.item, data.obj,
-									Number(value) ? 1 : 0]);
+									Number(data.value) ? 1 : 0]);
 							} else {
 								await query(`
 									INSERT INTO ?? (?, obj)	VALUES (?, ?)`,
@@ -979,22 +979,24 @@ http.createServer(async (req, res) => {
 					const [, type1, type2] = parsed_url.query.type.match(
 						/^(location-|inventory-)?(constraint|effect)$/);
 					let table1, table2;
-					if (!start_table_list[parsed_url.query.type]) throw 'Invalid type';
+					if (!start_table_list[parsed_url.query.parenttype]) {
+						throw 'Invalid type';
+					}
 					if (type1 === 'inventory-') {
 						await query(`
 							DELETE FROM ?? WHERE obj = ? AND ?? = ?`,
-							[start_table_list[parsed_url.query.type] +
+							[start_table_list[parsed_url.query.parenttype] +
 								'inventory_' + type2,
 							parsed_url.query.obj,
-							column_list[parsed_url.query.type],
+							column_list[parsed_url.query.parenttype],
 							parsed_url.query.item]);
 						break;
 					} else if (type1 === 'location-') {
-						table1 = start_table_list[parsed_url.query.type] +
+						table1 = start_table_list[parsed_url.query.parenttype] +
 							'location_' + type2;
 						table2 = 'location_constraint_and_effect';	
 					} else {
-						table1 = start_table_list[parsed_url.query.type] + type2;
+						table1 = start_table_list[parsed_url.query.parenttype] + type2;
 						table2 = 'constraint_and_effect';
 					}
 
@@ -1005,7 +1007,7 @@ http.createServer(async (req, res) => {
 						AND ??.obj = ?`,
 						[table1, table2, table1, table1,
 						type2 === 'constraint' ? 'constraint_' : 'effect',
-						table2,	table1, column_list[parsed_url.query.type],
+						table2,	table1, column_list[parsed_url.query.parenttype],
 						parsed_url.query.item, table2, parsed_url.query.obj]);
 				}
 			}
@@ -1083,7 +1085,7 @@ function satisfy_constraints(states, moved_objects, inventory, constraints, obje
 				!== constraint.location
 			) ||
 			(constraint.inv_obj &&
-				constraint.have_it == inventory.has(
+				constraint.have_it != inventory.has(
 					obj_index(objects, constraint.inv_obj))
 			)
 		)) valid = false;

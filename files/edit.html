@@ -4,6 +4,7 @@
 <head>
 	<title>Text adventure game</title>
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<meta http-equiv="Content-Type" content="text/html;charset=UTF-8">
 	<link rel="stylesheet" href="navbar.css">
 	<style>
 		button {
@@ -114,31 +115,26 @@
 					path[1].insertAdjacentHTML('beforeend', result.responseText);
 				}
 			} else if (path[0].dataset.type === 'delete') {
-				const text =
-					"Are you sure you want to delete this " +
-					(path[2].dataset.type || 'game') +
-					"? This operation cannot be undone";
-				if (confirm(text)) {
+				const is_constraint_or_effect =
+					/constraint|effect/.test(path[2].dataset.type);
+				if (is_constraint_or_effect ||
+					confirm(
+						"Are you sure you want to delete this " +
+						(path[2].dataset.type || 'game') +
+						"? This operation cannot be undone")) {
 					const obj = {
 						type: path[2].dataset.type || 'game',
 						id: path[1].dataset.id,
 					};
-					if (['constraint', 'effect'].includes(path[2].dataset.type)) {
+					if (is_constraint_or_effect) {
 						obj.item = path[3].dataset.id;
-						obj.parenttype = path[3].dataset.type;
+						obj.parenttype = path[3].classList.contains('description') ?
+							'description' : path[4].dataset.type;
 					}
 					ajax('DELETE', '/remove', obj).catch(console.error);
 					if (path[2].dataset.type) path[1].remove();
 					else window.location.replace("/");
 				}
-			} else if (path[0].dataset.type === 'remove-description-constraint') {
-				const obj = path[1].dataset.id;
-				if (obj) await ajax('DELETE', '/remove', {
-					item: path[2].dataset.id, obj,
-					type: 'constraint',
-					parenttype: 'description'
-				});
-				path[1].remove();
 			} else if (path[0].dataset.type === 'add') {
 				let result;
 				if (/^(?:action|path|pick_up_action)$/.test(path[2].dataset.type)) {
@@ -214,8 +210,7 @@
 	game_view.addEventListener('change', async event => {
 		const path = event.composedPath();
 		if (path[0] instanceof HTMLSelectElement) {
-			if (path[1].dataset.type === 'description-constraint' ||
-				/constraint|effect/.test(path[2].dataset.type)) {
+			if (/constraint|effect/.test(path[2].dataset.type)) {
 				await change_constraint_or_effect(path);
 			} else if (path[1].dataset.id) await ajax('POST', '/change/item', {
 				type: path[2].dataset.type,
@@ -241,7 +236,8 @@
 					state: path[0].checked,
 					type: 'pick_up_action'
 				});
-			} else if (path[1].classList.contains('description-constraint')) {
+			} else if (path[1].dataset.type === 'description-constraint' ||
+				/constraint|effect/.test(path[2].dataset.type)) {
 				await change_constraint_or_effect(path);
 			}
 		}
@@ -251,7 +247,7 @@
 
 	function update_selects(elem) {
 		let values = new Set();
-		const selects = elem.getElementsByTagName('select');
+		const selects = elem.querySelectorAll('select:not(.noupdate)');
 		for (const select of selects) values.add(select.value);
 		for (const select of selects) for (const option of select) {
 			if (option.value && !option.selected) {
@@ -271,16 +267,12 @@
 	}
 
 	async function change_constraint_or_effect(path) {
-		let obj = {
+		const obj = {
 			obj: path[1].dataset.id,
-			item: path[3].dataset.id
-		}
-		if (path[3].classList.contains('description')) {
-			obj.type = 'constraint';
-			obj.parenttype = 'description';
-		} else {
-			obj.type = path[2].dataset.type;
-			obj.parenttype = path[4].dataset.type;
+			item: path[3].dataset.id,
+			type: path[2].dataset.type,
+			parenttype: path[3].classList.contains('description') ?
+				'description' : path[4].dataset.type
 		}
 		if (path[1].dataset.type || path[1].dataset.id > 0) {
 			await ajax('DELETE', '/remove', obj);
