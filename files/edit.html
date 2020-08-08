@@ -124,7 +124,7 @@
 						"? This operation cannot be undone")) {
 					const obj = {
 						type: path[2].dataset.type || 'game',
-						id: path[1].dataset.id,
+						obj: path[1].dataset.id,
 					};
 					if (is_constraint_or_effect) {
 						obj.item = path[3].dataset.id;
@@ -317,12 +317,14 @@
 		return new Promise((resolve, reject) => {
 			const xhttp = new XMLHttpRequest();
 			xhttp.onreadystatechange = function () {
-				if (this.readyState === 4)
+				if (this.readyState === 4) {
 					(this.status < 400 ? resolve : reject)(this);
+				}
 			}
 			let body = 'game=%s';
-			for (const i in query)
+			for (const i in query) {
 				body += `&${encodeURIComponent(i)}=${encodeURIComponent(query[i])}`
+			}
 			xhttp.open(method, url + (method === "POST" ? '' : '?' + body), true);
 			xhttp.send(method === "POST" ? body : undefined);
 		});

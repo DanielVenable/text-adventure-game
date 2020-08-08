@@ -22,26 +22,27 @@ process.chdir(__dirname + '/files');
 
 const query = util.promisify(sql.query).bind(sql),
 	files = {
-		readFile: util.promisify(fs.readFile),
 		async get(path) {
-			if (!this[path]) files[path] = (await this.readFile(path)).toString();
-			return this[path];
+			if (!files[path]) {
+				files[path] = String(await fs.promises.readFile(path));
+			}
+			return files[path];
 		}
-	}, table_list = {
-		action: 'actions',
-		pick_up_action: 'grab',
-		path: 'paths'
-	}, start_table_list = {
-		action: 'action_to_',
-		pick_up_action: 'grab_to_',
-		path: 'path_to_',
-		description: 'description_to_'
-	}, column_list = {
-		action: 'action',
-		pick_up_action: 'grab',
-		path: 'path',
-		description: 'description'
-	}, go_to = /^go (?:to )?(.+)$/,
+	}, table_list = new Map([
+		['action', 'actions'],
+		['pick_up_action', 'grab'],
+		['path', 'paths']]
+	), start_table_list = new Map([
+		['action', 'action_to_'],
+		['pick_up_action', 'grab_to_'],
+		['path', 'path_to_'],
+		['description', 'description_to_']
+	]), column_list = new Map([
+		['action', 'action'],
+		['pick_up_action', 'grab'],
+		['path', 'path'],
+		['description', 'description']
+	]), go_to = /^go (?:to )?(.+)$/,
 	use = /^use (?:(.+) on )?(.+)$/,
 	pick_up = /^(?:pick up|grab|get) (.+)$/;
 
@@ -67,34 +68,34 @@ http.createServer(async (req, res) => {
 				const { data: [
 					object_list, state_list,
 					locationID, inventory_list,
-					moved_object_list, location_list], moves } =
-					jwt.verify(parsed_url.query.gameState, jwtKey),
+					moved_object_list, location_list], moves
+				} =	jwt.verify(parsed_url.query.gameState, jwtKey),
 					command = parsed_url.query.cmd.toLowerCase(),
-					location = await query(`
-						SELECT * FROM locations
+					[{game: gameid}] = await query(`
+						SELECT game FROM locations
 						WHERE ID = ?`, [locationID]),
 					game = await query(`
 						SELECT public, name FROM games
-						WHERE ID = ?`, [location[0].game]),
+						WHERE ID = ?`, [gameid]),
 					states = new Map(),
 					moved_objects = new Map(),
 					inventory = new Set(inventory_list);
-				for (const i in object_list) {
+				for (let i = 0, len = object_list.length; i < len; i++) {
 					states.set(object_list[i], state_list[i]);
 				}
-				for (const i in moved_object_list) {
+				for (let i = 0, len = moved_object_list.length; i < len; i++) {
 					moved_objects.set(moved_object_list[i], location_list[i]);
 				}
 				if (!game[0].public) {
 					restrict(await query(`
 						SELECT permission FROM user_to_game
 						WHERE user = ? AND game = ?`,
-						[userid, location[0].game]
+						[userid, gameid]
 					), 0);
 				}
 				const objects = await query(`
 						SELECT * FROM objects
-						WHERE game = ? ORDER BY ID`, [location[0].game]),
+						WHERE game = ? ORDER BY ID`, [gameid]),
 					show_data = {
 						res, game: game[0].name, states, moved_objects,
 						location: locationID, inventory, moves, objects
@@ -106,7 +107,7 @@ http.createServer(async (req, res) => {
 					const end_location = await query(`
 						SELECT ID FROM locations
 						WHERE name = ? AND game = ?`,
-						[split_go_to[1], location[0].game]);
+						[split_go_to[1], gameid]);
 					if (end_location.length === 1) {
 						const constraints = await query(`
 							SELECT paths.ID, paths.text,
@@ -164,7 +165,7 @@ http.createServer(async (req, res) => {
 					const obj = await query(`
 						SELECT ID FROM objects
 						WHERE name = ? AND game = ? AND location = ?;`,
-						[split_pick_up[1], location[0].game, locationID]);
+						[split_pick_up[1], gameid, locationID]);
 					if (obj.length === 1) {
 						if (inventory.has(obj_index(objects, obj[0].ID))) {
 							await show(show_data, "You already have it.");
@@ -308,7 +309,8 @@ http.createServer(async (req, res) => {
 			} else if (req.url === '/') {
 				const result = await query(`
 					SELECT name FROM games
-					WHERE start IS NOT NULL ORDER BY name`);
+					WHERE start IS NOT NULL AND public = 1
+					ORDER BY name`);
 				let game_list = "";
 				for (const game of result) {
 					game_list += await show_file('start-game-link.html',
@@ -318,9 +320,10 @@ http.createServer(async (req, res) => {
 			} else if (parsed_url.pathname === '/start') {
 				const game = parsed_url.query.game;
 				const result = await query(`
-					SELECT locations.ID, games.text FROM games
+					SELECT locations.ID, games.text, games.public FROM games
 					JOIN locations ON locations.ID = games.start
 					WHERE games.name = ?`, [game]);
+				if (!result[0].public) restrict(permission, 0);
 				const data = Array(5).fill([]);
 				data[2] = result[0].ID;
 				res.end(await show_file('play.html',
@@ -350,18 +353,18 @@ http.createServer(async (req, res) => {
 					res.end(await show_file('choose-edit.html', game_list));
 				} else {
 					res.setHeader('Location', '/new');
-					res.statusCode = 307;;
+					res.statusCode = 307;
 				}
 			} else if (parsed_url.pathname === '/edit' && parsed_url.query.game) {
 				const game = await query(`
-					SELECT * FROM games
+					SELECT ID, start FROM games
 					WHERE name = ?`, [parsed_url.query.game]),
 					permission = await query(`
 					SELECT permission FROM user_to_game
 					WHERE user = ? AND game = ?`, [userid, game[0].ID]);
 				restrict(permission, 1);
 				const locations = await query(`
-					SELECT * FROM locations WHERE game = ?`, [game[0].ID]);
+					SELECT ID, name FROM locations WHERE game = ?`, [game[0].ID]);
 				let location_list = "";
 				for (const location of locations) {
 					if (game[0].start === location.ID) {
@@ -377,9 +380,11 @@ http.createServer(async (req, res) => {
 				const objects = await query(`
 					SELECT * FROM objects
 					WHERE location IS NULL AND game = ?`, [game[0].ID]);
-				let obj_list = "";
-				for (const obj of objects)
-					obj_list += await show_file('object.html', obj.ID, obj.name);
+				let obj_list = '';
+				for (const obj of objects) {
+					obj_list += await show_file('object.html',
+						obj.ID, sanitize(obj.name));
+				}
 				let operator_controls = '';
 				if (permission[0].permission >= 2) {
 					const users = await query(`
@@ -400,7 +405,7 @@ http.createServer(async (req, res) => {
 				res.end(await show_file('edit.html',
 					location_list,
 					obj_list,
-					encodeURIComponent(game[0].name),
+					encodeURIComponent(parsed_url.query.game),
 					operator_controls, game[0].ID));
 			} else if (req.url === '/new') {
 				res.end(await show_file('new-game.html'));
@@ -455,7 +460,7 @@ http.createServer(async (req, res) => {
 								constraints,
 								location_constraints,
 								inventory_constraints,
-								item[0].text);
+								sanitize(item[0].text));
 						}
 
 						const objects = await (await query(`
@@ -485,7 +490,8 @@ http.createServer(async (req, res) => {
 					} case "object": {
 						const object = await query(`
 							SELECT name FROM objects
-							WHERE ID = ?`, [parsed_url.query.id]);
+							WHERE ID = ? AND game = ?`,
+							[parsed_url.query.id, parsed_url.query.game]);
 						const actions = await query(`
 							SELECT actions.ID, actions.obj2 FROM actions
 							WHERE actions.obj1 = ?`, [parsed_url.query.id]);
@@ -500,25 +506,25 @@ http.createServer(async (req, res) => {
 						}
 						res.write(`</ul>`);
 						const grabs = await query(`
-							SELECT * FROM grab
+							SELECT ID, success FROM grab
 							WHERE grab.obj = ?`, [parsed_url.query.id]);
 						res.write(await show_file('list-start.html',
 							'pick_up_action', 'a pick up action'));
-						for (const grab of grabs)
+						for (const grab of grabs) {
 							res.write(await show_file('pick-up-action.html',
-								grab.ID, object[0].name,
+								grab.ID, sanitize(object[0].name),
 								grab.success ? 'checked' : ''));
+						}
 						res.end('</ul>');
 						break;
 					} case "action":
 					case "pick_up_action":
 					case "path": {
-						const table_part = {
-							action: "action",
-							path: "path",
-							pick_up_action: "grab"
-						}[parsed_url.query.type],
-							sql = `
+						await action_match_game(parsed_url.query.type,
+							parsed_url.query.id, parsed_url.query.game);
+						const table_part = start_table_list.get(parsed_url.query.type),
+							column = column_list.get(parsed_url.query.type);
+						const sql = `
 								SELECT constraint_and_effect.obj,
 									constraint_and_effect.state
 									FROM constraint_and_effect
@@ -531,11 +537,11 @@ http.createServer(async (req, res) => {
 								JOIN ?? ON location_constraint_and_effect.ID = ??.??
 								WHERE ??.?? = ?`,
 							params = type => {
-								const table = table_part + '_to_' + type;
+								const table = table_part + type;
 								return [
 									table, table,
 									/effect/.test(type) ? 'effect' : 'constraint_',
-									table, table_part, parsed_url.query.id];
+									table, column, parsed_url.query.id];
 							},
 							[constraints,
 							effects,
@@ -549,13 +555,13 @@ http.createServer(async (req, res) => {
 								query(location_sql,	params('location_constraint')),
 								query(location_sql, params('location_effect')),
 								query(`SELECT obj, have_it FROM ?? WHERE ?? = ?`,
-									[table_part + '_to_inventory_constraint',
-									table_part, parsed_url.query.id]),
+									[table_part + 'inventory_constraint',
+									column, parsed_url.query.id]),
 								query(`SELECT obj FROM ?? WHERE ?? = ?`,
-									[table_part + '_to_inventory_effect',
-									table_part, parsed_url.query.id]),
+									[table_part + 'inventory_effect',
+									column, parsed_url.query.id]),
 								query(`SELECT text FROM ?? WHERE ID = ?`,
-									[table_list[parsed_url.query.type],
+									[table_list.get(parsed_url.query.type),
 									parsed_url.query.id])
 							]);
 
@@ -647,19 +653,19 @@ http.createServer(async (req, res) => {
 				restrict(permission, 1);
 				if (/^location-/.test(parsed_url.query.type)) {
 					res.end(await show_file('location-constraint-or-effect.html',
-						0, await all_objects(get_objs(parsed_url.query.game)),
+						0, await all_objects(await get_objs(parsed_url.query.game)),
 						parsed_url.query.type === 'location-constraint' ?
 							'must be' : 'goes',
 						await all_locations(parsed_url.query.game)));
 				} else if (parsed_url.query.type === 'inventory-constraint') {
 					res.end(await show_file('inventory-constraint.html',
-						0, "", await all_objects(get_objs(parsed_url.query.game))));
+						0, "", await all_objects(await get_objs(parsed_url.query.game))));
 				} else if (parsed_url.query.type === 'inventory-effect') {
 					res.end(await show_file('inventory-effect.html',
-						0, all_objects(get_objs(parsed_url.query.game))));
+						0, all_objects(await get_objs(parsed_url.query.game))));
 				} else {
 					res.end(await show_file('constraint-or-effect.html',
-						0, await all_objects(get_objs(parsed_url.query.game)),
+						0, await all_objects(await get_objs(parsed_url.query.game)),
 						parsed_url.query.type === 'constraint' ?
 							'must be' : 'goes',
 						0));
@@ -682,16 +688,16 @@ http.createServer(async (req, res) => {
 					INSERT INTO user_to_game (user, game)
 					VALUES (?, ?)`, [userid, game]);
 				res.statusCode = 307;
-				res.setHeader('Location', '/');;
+				res.setHeader('Location', '/');
 			} else {
 				res.statusCode = 404;
 				res.end(await show_file('404.html'));
 			}
 		} else if (req.method === 'POST') {
-			let data = "";
+			let data = '?';
 			req.on('data', chunk => data += chunk);
 			await new Promise(resolve => req.on('end', resolve));
-			data = url.parse('?' + data, true).query;
+			data = url.parse(data, true).query;
 			const permission = await query(`
 				SELECT permission FROM user_to_game
 				WHERE user = ? AND game = ?`,
@@ -704,7 +710,7 @@ http.createServer(async (req, res) => {
 						INSERT INTO user_to_game (user, game, permission)
 						VALUES (?, ?, 2)`, [userid, game.insertId]);
 					res.statusCode = 201;
-				} catch (e) {
+				} catch {
 					res.statusCode = 409;
 				}
 			} else if (req.url === '/signin') {
@@ -715,7 +721,7 @@ http.createServer(async (req, res) => {
 				if (user.length) {
 					create_token(res, user[0].ID);
 					res.setHeader('Location', data.url);
-					res.statusCode = 303;;
+					res.statusCode = 303;
 				} else {
 					res.statusCode = 401;
 					res.end(await show_file('sign-in.html', data.url, '', data.url));
@@ -729,7 +735,7 @@ http.createServer(async (req, res) => {
 					[data.username, hash]);
 				create_token(res, data.username);
 				res.setHeader('Location', data.url);
-				res.statusCode = 303;;
+				res.statusCode = 303;
 			} else if (req.url === '/add') {
 				restrict(permission, 1);
 				switch (data.type) {
@@ -754,11 +760,7 @@ http.createServer(async (req, res) => {
 							result.insertId, sanitize(data.name.toLowerCase())));
 						break;
 					} case "action": {
-						const valid = await query(`
-							SELECT COUNT(*) AS valid FROM objects
-							WHERE ID = ? AND game = ?`,
-							[data.item, data.game]);
-						if (!valid[0].valid) throw "object does not match game";
+						await object_match_game(data.item, data.game);
 						const result = await query(`
 							INSERT INTO actions (obj1) VALUES (?)`,
 							[data.item]);
@@ -766,9 +768,10 @@ http.createServer(async (req, res) => {
 							SELECT name FROM objects WHERE ID = ?`, [data.item]);
 						res.end(await show_file('action.html',
 							result.insertId, sanitize(name[0].name),
-							await all_objects(get_objs(data.game))));
+							await all_objects(await get_objs(data.game))));
 						break;
 					} case "pick_up_action": {
+						await object_match_game(data.item, data.game);
 						const result = await query(`
 							INSERT INTO grab (obj) VALUES (?)`, [data.item]);
 						const name = await query(`
@@ -777,9 +780,9 @@ http.createServer(async (req, res) => {
 							result.insertId, sanitize(name[0].name), 'checked'));
 						break;
 					} case "path": {
+						await location_match_game(data.item, data.game);
 						const result = await query(`
-							INSERT INTO paths (start, game)
-							VALUES (?, ?)`, [data.item, data.game])
+							INSERT INTO paths (start) VALUES (?, ?)`, [data.item]);
 						res.end(await show_file('path.html', result.insertId,
 							await all_locations(data.game, data.item)));
 						break;
@@ -797,10 +800,12 @@ http.createServer(async (req, res) => {
 							description.insertId, '', '', '', ''));
 						break;
 					} default: {
+						await object_match_game(data.obj, data.game);
+						await action_match_game(data.parenttype, data.item, data.game);
+						if (!start_table_list.get(data.parenttype)) throw 'Invalid type';
 						const [,type1,type2] = data.type.match(
 							/^(location-|inventory-)?(constraint|effect)$/);
 						const select_params = [data.obj, data.value];
-						if (!start_table_list[data.parenttype]) throw 'Invalid type';
 						let id, table;
 						if (!type1) {
 							const exists = await query(`
@@ -809,7 +814,7 @@ http.createServer(async (req, res) => {
 							id = exists.length ? exists[0].ID : (await query(`
 								INSERT INTO constraint_and_effect (obj, state)
 								VALUES (?, ?)`, select_params)).insertId;
-							table = start_table_list[data.parenttype] + type2;
+							table = start_table_list.get(data.parenttype) + type2;
 						} else if (type1 === 'location-') {
 							await location_match_game(data.value, data.game);
 							const exists = await query(`
@@ -819,22 +824,22 @@ http.createServer(async (req, res) => {
 								INSERT INTO location_constraint_and_effect
 									(obj, location)
 								VALUES (?, ?)`, select_params)).insertId;
-							table = start_table_list[data.type] +
+							table = start_table_list.get(data.type) +
 								'location' + type2;
 						} else if (type1 === 'inventory-') {
-							const table = start_table_list[data.parenttype] +
+							const table = start_table_list.get(data.parenttype) +
 								'inventory_' + type2;
 							if (type2 === 'constraint') {
 								await query(`
 									INSERT INTO ?? (??, obj, have_it)
 									VALUES (?, ?, ?)`,
-									[table, column_list[data.parenttype],
+									[table, column_list.get(data.parenttype),
 									data.item, data.obj,
 									Number(data.value) ? 1 : 0]);
 							} else {
 								await query(`
 									INSERT INTO ?? (?, obj)	VALUES (?, ?)`,
-									[table, column_list[data.parenttype],
+									[table, column_list.get(data.parenttype),
 									data.item, data.obj]);
 							}
 							break;
@@ -842,7 +847,7 @@ http.createServer(async (req, res) => {
 						await query(`
 							INSERT INTO ?? (??, ??) VALUES (?, ?)`,
 							[table,
-							column_list[data.parenttype],
+							column_list.get(data.parenttype),
 							type2 === 'constraint' ? 'constraint_' : 'effect',
 							data.item, id]);
 					}
@@ -852,23 +857,20 @@ http.createServer(async (req, res) => {
 				await query(`
 					UPDATE games SET start = ?
 					WHERE ID = ?`, [data.id, data.game]);
-				res.statusCode = 204;;
+				res.statusCode = 204;
 			} else if (req.url === '/rename') {
 				restrict(permission, 1);
-				switch (data.type) {
-					case "location":
-						await query(`
-							UPDATE locations SET name = ?
-							WHERE ID = ?`, [data.name.toLowerCase(), data.id]);
-						break;
-					case "object":
-						await query(`
-							UPDATE objects SET name = ?
-							WHERE ID = ?`, [data.name.toLowerCase(), data.id]);
-						break;
-					default: throw "Not a valid type";
-				}
-				res.statusCode = 204;;
+				let table;
+				if (data.type === 'location') {
+					await location_match_game(data.id, data.game);
+					table = 'locations';
+				} else if (data.type === 'object') {
+					await object_match_game(data.id, data.game);
+					table = 'objects';
+				} else throw "Invalid type";
+				await query(`UPDATE ?? SET name = ? WHERE ID = ?`,
+					[table, data.name.toLowerCase(), data.id]);
+				res.statusCode = 204;
 			} else if (req.url === '/change/description') {
 				restrict(permission, 1);
 				if (data.type === 'location') {
@@ -883,14 +885,16 @@ http.createServer(async (req, res) => {
 						WHERE ID = ?`,
 						[data.text, data.id]);
 				} else {
+					await action_match_game(data.type, data.id, data.game);
 					await query(`
 						UPDATE ?? SET text = ?
 						WHERE ID = ?`,
-						[table_list[data.type], data.text, data.id]);
+						[table_list.get(data.type), data.text, data.id]);
 				}
-				res.statusCode = 204;;
+				res.statusCode = 204;
 			} else if (req.url === '/change/item') {
 				restrict(permission, 1);
+				await action_match_game(data.type, data.id, data.game);
 				if (data.type === 'action') {
 					await query(`
 						UPDATE actions SET obj2 = ?
@@ -904,7 +908,7 @@ http.createServer(async (req, res) => {
 						UPDATE grab SET success = ?
 						WHERE ID = ?`, [data.state, data.id]);
 				}
-				res.statusCode = 204;;
+				res.statusCode = 204;
 			} else if (req.url === '/change/permission') {
 				restrict(permission, 2);
 				if (data.permission === '-1') {
@@ -950,21 +954,16 @@ http.createServer(async (req, res) => {
 						[parsed_url.query.id, parsed_url.query.game]);
 					break;
 				case "action":
-					await query(`
-						DELETE FROM actions
-						WHERE ID = ?`, [parsed_url.query.id]);
-					break;
 				case "pick_up_action":
-					await query(`
-						DELETE FROM grab
-						WHERE ID = ?`, [parsed_url.query.id]);
-					break;
 				case "path":
+					await action_match_game(parsed_url.query.type, parsed_url.query.id, parsed_url.query.game);
 					await query(`
-						DELETE FROM paths
-						WHERE ID = ?`, [parsed_url.query.id]);
+						DELETE FROM ?? WHERE ID = ?`,
+						[table_list.get(data.type), parsed_url.query.id]);
 					break;
 				case "description":
+					await location_match_game(
+						parsed_url.query.item, parsed_url.query.game);
 					await query(`
 						DELETE FROM descriptions
 						WHERE location = ? AND num = ?`,
@@ -976,27 +975,38 @@ http.createServer(async (req, res) => {
 						[parsed_url.query.item, parsed_url.query.num]);
 					break;
 				default: {
+					await object_match_game(parsed_url.query.obj, parsed_url.query.game);
+					if (!start_table_list.get(parsed_url.query.parenttype)) {
+						throw 'Invalid type';
+					}
+					if (parsed_url.query.parenttype === 'description') {
+						const valid = await query(`
+							SELECT COUNT(*) AS valid FROM descriptions
+							JOIN locations ON descriptions.location = locations.ID
+							WHERE descriptions.ID = ? AND locations.game = ?`,
+							[parsed_url.query.item, parsed_url.query.game]);
+						if (!valid[0].valid) throw "Action does not match game";
+					} else await action_match_game(
+						parsed_url.query.parenttype, parsed_url.query.item,
+						parsed_url.query.game);
 					const [, type1, type2] = parsed_url.query.type.match(
 						/^(location-|inventory-)?(constraint|effect)$/);
 					let table1, table2;
-					if (!start_table_list[parsed_url.query.parenttype]) {
-						throw 'Invalid type';
-					}
 					if (type1 === 'inventory-') {
 						await query(`
 							DELETE FROM ?? WHERE obj = ? AND ?? = ?`,
-							[start_table_list[parsed_url.query.parenttype] +
+							[start_table_list.get(parsed_url.query.parenttype) +
 								'inventory_' + type2,
 							parsed_url.query.obj,
-							column_list[parsed_url.query.parenttype],
+							column_list.get(parsed_url.query.parenttype),
 							parsed_url.query.item]);
 						break;
 					} else if (type1 === 'location-') {
-						table1 = start_table_list[parsed_url.query.parenttype] +
+						table1 = start_table_list.get(parsed_url.query.parenttype) +
 							'location_' + type2;
 						table2 = 'location_constraint_and_effect';	
 					} else {
-						table1 = start_table_list[parsed_url.query.parenttype] + type2;
+						table1 = start_table_list.get(parsed_url.query.parenttype) + type2;
 						table2 = 'constraint_and_effect';
 					}
 
@@ -1007,7 +1017,7 @@ http.createServer(async (req, res) => {
 						AND ??.obj = ?`,
 						[table1, table2, table1, table1,
 						type2 === 'constraint' ? 'constraint_' : 'effect',
-						table2,	table1, column_list[parsed_url.query.parenttype],
+						table2,	table1, column_list.get(parsed_url.query.parenttype),
 						parsed_url.query.item, table2, parsed_url.query.obj]);
 				}
 			}
@@ -1017,7 +1027,8 @@ http.createServer(async (req, res) => {
 		if (error === "Unauthorized action") {
 			res.statusCode = 401;
 			if (req.method === "GET") {
-				res.end(await show_file('sign-in.html', req.url, 'hidden', req.url));
+				res.end(await show_file('sign-in.html',
+					sanitize(req.url), 'hidden', sanitize(req.url)));
 			} else res.end();
 		} else await invalid_request(res);
 		console.error(error);
@@ -1040,6 +1051,26 @@ async function object_match_game(object, game) {
 		SELECT COUNT(*) AS valid FROM objects
 		WHERE ID = ? AND game = ?`, [object, game]);
 	if (!valid[0].valid) throw "object does not match game";
+}
+
+const obj_column_map = new Map([['action', 'obj1'], ['pick_up_action', 'obj']]);
+async function action_match_game(type, id, game) {
+	let obj_column = obj_column_map.get(type);
+	if (obj_column) {
+		const table = table_list.get(type);
+		if (!(await query(`
+			SELECT COUNT(*) AS valid FROM ??
+			JOIN objects ON objects.ID = ??.??
+			WHERE objects.game = ? AND ??.ID = ?`,
+			[table, table, obj_column,
+			game, table, id]))[0].valid
+		) throw "Action does not match game";
+	} else if (!(await query(`
+		SELECT COUNT(*) AS valid FROM paths
+		JOIN locations ON locations.ID = paths.start
+		WHERE locations.game = ? AND paths.ID = ?`,
+		[game, id]))[0].valid
+	) throw "Action does not match game";
 }
 
 function restrict(permission, level) {
@@ -1169,8 +1200,7 @@ async function invalid_request(res) {
 }
 
 async function show_file(path, ...args) {
-	args.unshift(await files.get(path));
-	return util.format.apply(null, args);
+	return util.format.call(null, await files.get(path), ...args);
 }
 
 function sanitize(str) {
@@ -1186,13 +1216,13 @@ function sanitize(str) {
 async function get_objs(game) {
 	return await query(`
 		SELECT ID, name FROM objects
-		WHERE game = ? ORDER BY location`, [game])
+		WHERE game = ? ORDER BY location`, [game]);
 }
 
 async function all_objects(objs, id) {
 	const options = objs.map(elem =>
 		`<option value="${elem.ID}" ${id === elem.ID ? 'selected' : ''}>` +
-		elem.name + `</option>`);
+		sanitize(elem.name) + `</option>`);
 	return `<option></option>` + options.join('');
 }
 async function all_locations(game, no, id) {

@@ -72,7 +72,6 @@ sql.query(`
 		ID int unsigned NOT NULL AUTO_INCREMENT,
 		start int unsigned NOT NULL,
 		end int unsigned,
-		game int unsigned NOT NULL,
 		text varchar(255) DEFAULT "",
 		PRIMARY KEY (ID),
 		FOREIGN KEY (start) REFERENCES locations (ID) ON DELETE CASCADE,
