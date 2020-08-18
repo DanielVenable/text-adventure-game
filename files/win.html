@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<link rel="stylesheet" href="navbar.css">
+	<title>%s | Text adventure games</title>
+</head>
+
+<body>	
+	<div id="navbar">
+		<a class="left" href="/">Home</a>
+		<a class="right" href="/signin">Sign in/Sign up</a>
+	</div>
+	<div class="container">
+		<p>%s</p>
+		<p>You %s Game completed in %d moves.</p>
+		<a href="/start?game=%s"><button>Play again!</button></a>
+	</div>
+</body>
+
+<script>
+	const navbar = document.getElementById('navbar');
+
+	try {
+		if (window.self !== window.top) navbar.hidden = true;
+	} catch (e) {
+		navbar.hidden = true;
+	}
+</script>
+
+</html>

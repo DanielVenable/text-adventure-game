@@ -22,7 +22,7 @@ sql.query(`
 		name varchar(255) NOT NULL,
 		text varchar(255) NOT NULL DEFAULT "",
 		start int unsigned,
-		public tinyint(1) DEFAULT 0,
+		public bool DEFAULT 0,
 		PRIMARY KEY (ID),
 		UNIQUE KEY name (name),
 		FOREIGN KEY (start) REFERENCES locations (ID) ON DELETE SET NULL);
@@ -73,6 +73,7 @@ sql.query(`
 		start int unsigned NOT NULL,
 		end int unsigned,
 		text varchar(255) DEFAULT "",
+		win bool,
 		PRIMARY KEY (ID),
 		FOREIGN KEY (start) REFERENCES locations (ID) ON DELETE CASCADE,
 		FOREIGN KEY (end) REFERENCES locations (ID) ON DELETE CASCADE);
@@ -91,6 +92,7 @@ sql.query(`
 		obj1 int unsigned NOT NULL,
 		obj2 int unsigned,
 		text varchar(255) DEFAULT "",
+		win bool,
 		PRIMARY KEY (ID),
 		FOREIGN KEY (obj1) REFERENCES objects (ID) ON DELETE CASCADE,
 		FOREIGN KEY (obj2) REFERENCES objects (ID) ON DELETE CASCADE);
@@ -100,6 +102,7 @@ sql.query(`
 		obj int unsigned NOT NULL,
 		success boolean NOT NULL DEFAULT true,
 		text varchar(255) DEFAULT "",
+		win bool,
 		PRIMARY KEY (ID),
 		FOREIGN KEY (obj) REFERENCES objects (ID) ON DELETE CASCADE);
 
@@ -193,7 +196,7 @@ sql.query(`
 	CREATE TABLE IF NOT EXISTS grab_to_inventory_constraint (
 		grab int unsigned NOT NULL,
 		obj int unsigned NOT NULL,
-		have_it tinyint(1) unsigned NOT NULL,
+		have_it bool NOT NULL,
 		FOREIGN KEY (grab) REFERENCES grab (ID) ON DELETE CASCADE,
 		FOREIGN KEY (obj) REFERENCES objects (ID) ON DELETE CASCADE);
 
@@ -206,7 +209,7 @@ sql.query(`
 	CREATE TABLE IF NOT EXISTS path_to_inventory_constraint (
 		path int unsigned NOT NULL,
 		obj int unsigned NOT NULL,
-		have_it tinyint(1) unsigned NOT NULL,
+		have_it bool NOT NULL,
 		FOREIGN KEY (path) REFERENCES paths(ID) ON DELETE CASCADE,
 		FOREIGN KEY (obj) REFERENCES objects (ID) ON DELETE CASCADE);
 
@@ -219,7 +222,7 @@ sql.query(`
 	CREATE TABLE IF NOT EXISTS action_to_inventory_constraint (
 		action int unsigned NOT NULL,
 		obj int unsigned NOT NULL,
-		have_it tinyint(1) unsigned NOT NULL,
+		have_it bool NOT NULL,
 		FOREIGN KEY (action) REFERENCES actions (ID) ON DELETE CASCADE,
 		FOREIGN KEY (obj) REFERENCES objects (ID) ON DELETE CASCADE);
 

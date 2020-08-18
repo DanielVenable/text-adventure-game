@@ -239,6 +239,12 @@
 			} else if (path[1].dataset.type === 'description-constraint' ||
 				/constraint|effect/.test(path[2].dataset.type)) {
 				await change_constraint_or_effect(path);
+			} else if (/^(?:action|path|pick_up_action)$/.test(path[3].dataset.type)) {
+				await ajax('POST', '/change/win', {
+					id: path[2].dataset.id,
+					type: path[3].dataset.type,
+					value: path[0].value
+				});
 			}
 		}
 	});
@@ -296,10 +302,10 @@
 		await ajax('POST', '/add', obj);
 	}
 
-	function resize(event) {
-		event.target.height = 0;
-		event.target.height =
-			event.target.contentDocument
+	function resize({ target }) {
+		target.height = 0;
+		target.height =
+			target.contentDocument
 				.getElementsByTagName('html')[0].scrollHeight;
 	}
 
