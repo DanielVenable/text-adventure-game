@@ -199,7 +199,7 @@ async function get(path, data, userid, res) {
 						return await show(show_data, "You already have it.");
 					} else {
 						const constraints = await query(`
-							SELECT grab.ID, grab.text, grab.success,
+							SELECT grab.ID, grab.text, grab.success, grab.win,
 								constraint_and_effect.obj,
 								constraint_and_effect.state,
 								location_constraint_and_effect.obj AS loc_obj,
@@ -259,14 +259,14 @@ async function get(path, data, userid, res) {
 				} else return await show(show_data, "Nothing happens.");
 			} else if (split_use = command.match(/^use (?:(.+) on )?(.+)$/)) {
 				if (split_use[1] === undefined) {
-					await use_on(null, split_use[2]);
+					return await use_on(null, split_use[2]);
 				} else {
 					const item1 = await query(`
 						SELECT ID FROM objects
 						WHERE name = ?`, [split_use[1]]);
 					if (item1.length === 1 && inventory.has(
 						obj_index(objects, item1[0].ID))) {
-						await use_on(item1[0].ID, split_use[2]);
+						return await use_on(item1[0].ID, split_use[2]);
 					} else return await show(show_data,
 						`You don't have ${a_an(split_use[1])}`);
 				}
@@ -283,7 +283,7 @@ async function get(path, data, userid, res) {
 					}
 					if (valid_items.length === 1) {
 						const constraints = await query(`
-							SELECT actions.ID, actions.text,
+							SELECT actions.ID, actions.text, actions.win,
 								constraint_and_effect.obj,
 								constraint_and_effect.state,
 								location_constraint_and_effect.obj AS loc_obj,
@@ -337,7 +337,6 @@ async function get(path, data, userid, res) {
 					} else return await show(show_data, "Nothing happens.");
 				}
 			} else return await show(show_data, "Invalid command");
-			break;
 		} case '/': {
 			const result = await query(`
 				SELECT name FROM games
@@ -454,8 +453,7 @@ async function get(path, data, userid, res) {
 			restrict(permission, 1);
 			switch (data.type) {
 				case "location": {
-					await location_match_game(
-						data.id, data.game);
+					await location_match_game(data.id, data.game);
 					let description = '';
 					const objs = await get_objs(data.game);
 					for (const item of await get_constraint_array(data.id)) {
@@ -522,37 +520,38 @@ async function get(path, data, userid, res) {
 					return await show_file('expanded-location.html',
 						description, objects, paths);
 				} case "object": {
-					const object = await query(`
-					SELECT name FROM objects
-					WHERE ID = ? AND game = ?`,
-						[data.id, data.game]);
-					const actions = await query(`
-					SELECT ID, obj2, win FROM actions
-					WHERE obj1 = ?`, [data.id]);
-					res.write(await show_file('list-start.html',
-						'action', 'an action'));
-					for (const action of actions) {
-						res.write(await show_file('action.html',
-							action.ID, sanitize(object[0].name),
-							await all_objects(
-								await get_objs(data.game),
-								action.obj2),
-							...get_win_lose_array(action)));
-					}
-					res.write(`</ul>`);
-					const grabs = await query(`
-					SELECT ID, success FROM grab
-					WHERE grab.obj = ?`, [data.id]);
-					res.write(await show_file('list-start.html',
-						'pick_up_action', 'a pick up action'));
-					for (const grab of grabs) {
-						res.write(await show_file('pick-up-action.html',
-							grab.ID, sanitize(object[0].name),
-							grab.success ? 'checked' : '',
-							...get_win_lose_array(grab)));
-					}
-					res.end('</ul>');
-					break;
+					const [object, actions, grabs] = await Promise.all([
+						query(`
+							SELECT name FROM objects
+							WHERE ID = ? AND game = ?`,
+							[data.id, data.game]),
+						query(`
+							SELECT ID, obj2, win FROM actions
+							WHERE obj1 = ?`, [data.id]),
+						query(`
+							SELECT ID, success, win FROM grab
+							WHERE grab.obj = ?`, [data.id])
+					]);
+					
+					return await show_file('expanded-object.html',
+						...await Promise.all([
+							actions.reduce(
+								async (acc, action) =>
+									await acc + await show_file('action.html',
+										action.ID, sanitize(object[0].name),
+										await all_objects(
+											await get_objs(data.game),
+											action.obj2),
+										...get_win_lose_array(action)
+									), ''),
+							grabs.reduce(
+								async (acc, grab) =>
+									await acc + await show_file('pick-up-action.html',
+										grab.ID, sanitize(object[0].name),
+										grab.success ? 'checked' : '',
+										...get_win_lose_array(grab)
+									), '')
+						]));
 				} case "action":
 				case "pick_up_action":
 				case "path": {
@@ -618,15 +617,17 @@ async function get(path, data, userid, res) {
 								location_constraints, true),
 							show_location_constraint_effect(
 								location_effects, false),
-							inventory_constraints.reduce(async (acc, item) => await acc + await show_file(
-								'inventory-constraint.html',
-								item.obj, item.have_it ? '' : ' selected',
-								await all_objects(await objs.all, item.obj)),
+							inventory_constraints.reduce(
+								async (acc, item) => await acc + await show_file(
+									'inventory-constraint.html',
+									item.obj, item.have_it ? '' : ' selected',
+									await all_objects(await objs.all, item.obj)),
 								''),
-							inventory_effects.reduce(async (acc, item) => await acc + await show_file(
-								'inventory-effect.html',
-								item.obj,
-								await all_objects(await objs.all, item.obj)),
+							inventory_effects.reduce(
+								async (acc, item) => await acc + await show_file(
+									'inventory-effect.html',
+									item.obj,
+									await all_objects(await objs.all, item.obj)),
 								'')
 						]));
 
@@ -641,14 +642,15 @@ async function get(path, data, userid, res) {
 					}
 
 					function show_location_constraint_effect(items, is_constraint) {
-						return items.reduce(async (acc, item) => await acc + await show_file(
-							'location-constraint-or-effect.html',
-							item.obj,
-							await all_objects(await objs.all, item.obj),
-							is_constraint ? 'must be' : 'goes',
-							await all_locations(
-								data.game,
-								null, item.location
+						return items.reduce(async (acc, item) =>
+							await acc + await show_file(
+								'location-constraint-or-effect.html',
+								item.obj,
+								await all_objects(await objs.all, item.obj),
+								is_constraint ? 'must be' : 'goes',
+								await all_locations(
+									data.game,
+									null, item.location
 							)), '');
 					}
 				} default: await invalid_request(res);
@@ -959,7 +961,7 @@ async function post(path, data, userid, res) {
 			await query(`
 				UPDATE ?? SET win = ?
 				WHERE ID = ?
-			`, [table, data.value, data.id]);
+			`, [table, JSON.parse(data.value), data.id]);
 			res.statusCode = 204;
 			break;
 		} case '/change/permission': {
