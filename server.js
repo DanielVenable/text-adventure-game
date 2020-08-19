@@ -20,6 +20,13 @@ sql.connect();
 
 process.chdir(__dirname + '/files');
 
+class StrictMap extends Map {
+	get (key) {
+		if (!this.has(key)) throw new Error('Invalid value for StrictMap');
+		return super.get(key);
+	}
+}
+
 const query = util.promisify(sql.query).bind(sql),
 	files = {
 		async get(path) {
@@ -28,20 +35,22 @@ const query = util.promisify(sql.query).bind(sql),
 			}
 			return files[path];
 		}
-	}, table_list = new Map([
+	}, table_list = new StrictMap([
 		['action', 'actions'],
 		['pick_up_action', 'grab'],
 		['path', 'paths']]
-	), start_table_list = new Map([
+	), start_table_list = new StrictMap([
 		['action', 'action_to_'],
 		['pick_up_action', 'grab_to_'],
 		['path', 'path_to_'],
 		['description', 'description_to_']
-	]), column_list = new Map([
+	]), column_list = new StrictMap([
 		['action', 'action'],
 		['pick_up_action', 'grab'],
 		['path', 'path'],
 		['description', 'description']
+	]), win_value_list = new StrictMap([
+		['1', 1], ['0', 0], ['null', null]
 	]);
 
 http.createServer(async (req, res) => {
@@ -555,8 +564,7 @@ async function get(path, data, userid, res) {
 				} case "action":
 				case "pick_up_action":
 				case "path": {
-					await action_match_game(data.type,
-						data.id, data.game);
+					await action_match_game(data.type, data.id, data.game);
 					const table_part = start_table_list.get(data.type),
 						column = column_list.get(data.type);
 					const sql = `
@@ -597,8 +605,7 @@ async function get(path, data, userid, res) {
 									[table_part + 'inventory_effect',
 										column, data.id]),
 								query(`SELECT text FROM ?? WHERE ID = ?`,
-									[table_list.get(data.type),
-									data.id])
+									[table_list.get(data.type),	data.id])
 							]);
 
 					const objs = {
@@ -841,19 +848,18 @@ async function post(path, data, userid, res) {
 				} default: {
 					await object_match_game(data.obj, data.game);
 					await action_match_game(data.parenttype, data.item, data.game);
-					if (!start_table_list.get(data.parenttype)) throw 'Invalid type';
 					const [, type1, type2] = data.type.match(
 						/^(location-|inventory-)?(constraint|effect)$/);
 					const select_params = [data.obj, data.value];
 					let id, table;
 					if (!type1) {
+						table = start_table_list.get(data.parenttype) + type2;
 						const exists = await query(`
 							SELECT ID FROM constraint_and_effect
 							WHERE obj = ? AND state = ?`, select_params);
 						id = exists.length ? exists[0].ID : (await query(`
 							INSERT INTO constraint_and_effect (obj, state)
 							VALUES (?, ?)`, select_params)).insertId;
-						table = start_table_list.get(data.parenttype) + type2;
 					} else if (type1 === 'location-') {
 						await location_match_game(data.value, data.game);
 						const exists = await query(`
@@ -955,13 +961,11 @@ async function post(path, data, userid, res) {
 			break;
 		} case '/change/win': {
 			restrict(permission, 1);
-			const table = table_list.get(data.type);
-			if (!table) throw 'Invalid type';
 			await action_match_game(data.type, data.id, data.game);
 			await query(`
 				UPDATE ?? SET win = ?
-				WHERE ID = ?
-			`, [table, JSON.parse(data.value), data.id]);
+				WHERE ID = ?`,
+				[table_list.get(data.type), win_value_list.get(data.value), data.id]);
 			res.statusCode = 204;
 			break;
 		} case '/change/permission': {
@@ -1032,9 +1036,6 @@ async function remove(data, userid, res) {
 			break;
 		default: {
 			await object_match_game(data.obj, data.game);
-			if (!start_table_list.get(data.parenttype)) {
-				throw 'Invalid type';
-			}
 			if (data.parenttype === 'description') {
 				const valid = await query(`
 					SELECT COUNT(*) AS valid FROM descriptions
@@ -1047,7 +1048,6 @@ async function remove(data, userid, res) {
 				data.game);
 			const [, type1, type2] = data.type.match(
 				/^(location-|inventory-)?(constraint|effect)$/);
-			let table1, table2;
 			if (type1 === 'inventory-') {
 				await query(`
 					DELETE FROM ?? WHERE obj = ? AND ?? = ?`,
@@ -1056,25 +1056,21 @@ async function remove(data, userid, res) {
 					data.obj,
 					column_list.get(data.parenttype),
 					data.item]);
-				break;
-			} else if (type1 === 'location-') {
-				table1 = start_table_list.get(data.parenttype) +
-					'location_' + type2;
-				table2 = 'location_constraint_and_effect';
 			} else {
-				table1 = start_table_list.get(data.parenttype) + type2;
-				table2 = 'constraint_and_effect';
+				const table1 = start_table_list.get(data.parenttype) +
+					(type1 ? '' : 'location') + type2;
+				const table2 = (type1 ? '' : 'location_') +
+					'constraint_and_effect';
+				await query(`
+					DELETE ?? FROM ??
+					JOIN ?? ON ??.?? = ??.ID
+					WHERE ??.?? = ?
+					AND ??.obj = ?`,
+					[table1, table2, table1, table1,
+						type2 === 'constraint' ? 'constraint_' : 'effect',
+						table2, table1, column_list.get(data.parenttype),
+						data.item, table2, data.obj]);
 			}
-
-			await query(`
-				DELETE ?? FROM ??
-				JOIN ?? ON ??.?? = ??.ID
-				WHERE ??.?? = ?
-				AND ??.obj = ?`,
-				[table1, table2, table1, table1,
-					type2 === 'constraint' ? 'constraint_' : 'effect',
-					table2, table1, column_list.get(data.parenttype),
-					data.item, table2, data.obj]);
 		}
 	}
 }
@@ -1098,24 +1094,19 @@ async function object_match_game(object, game) {
 	if (!valid[0].valid) throw "object does not match game";
 }
 
-const obj_column_map = new Map([['action', 'obj1'], ['pick_up_action', 'obj']]);
+const obj_column_map = new StrictMap([
+	['action', 'obj1'], ['pick_up_action', 'obj'], ['path', 'start']
+]);
 async function action_match_game(type, id, game) {
-	let obj_column = obj_column_map.get(type);
-	if (obj_column) {
-		const table = table_list.get(type);
-		if (!(await query(`
-			SELECT COUNT(*) AS valid FROM ??
-			JOIN objects ON objects.ID = ??.??
-			WHERE objects.game = ? AND ??.ID = ?`,
-			[table, table, obj_column,
-				game, table, id]))[0].valid
-		) throw "Action does not match game";
-	} else if (!(await query(`
-		SELECT COUNT(*) AS valid FROM paths
-		JOIN locations ON locations.ID = paths.start
-		WHERE locations.game = ? AND paths.ID = ?`,
-		[game, id]))[0].valid
-	) throw "Action does not match game";
+	const table = table_list.get(type);
+	const table2 = type === 'path' ? 'locations' : 'objects';
+	if (!(await query(`
+		SELECT COUNT(*) AS valid FROM ??
+		JOIN ?? ON ??.ID = ??.??
+		WHERE ??.game = ? AND ??.ID = ?`,
+		[table, table2, table2, table,
+			obj_column_map.get(type), table2, game, table, id])
+		)[0].valid) throw "Action does not match game";
 }
 
 function restrict(permission, level) {
