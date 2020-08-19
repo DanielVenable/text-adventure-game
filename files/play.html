@@ -30,7 +30,7 @@
 	const navbar = document.getElementById('navbar'),
 		input = document.getElementById('command'),
 		submit_button = document.getElementById('submit'),
-		valid_cmd = /^(?:go|use|get|grab|pick up) ./;
+		valid_cmd = /^(?:go|use|get|grab|pick up) ./i;
 
 	try {
 		if (window.self !== window.top) navbar.hidden = true;
