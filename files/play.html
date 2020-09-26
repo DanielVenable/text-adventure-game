@@ -19,7 +19,7 @@
 		<form method="get" action="/play" autocomplete="off">
 			<input id="command" name="cmd" autofocus>
 			<input hidden value="%s" name="gameState">
-			<input type="submit" id="submit" disabled>
+			<input type="submit" id="submit">
 		</form>
 		<p>%s</p>
 		<a href="/start?game=%s"><button>Restart this game</button></a>
@@ -38,6 +38,7 @@
 		navbar.hidden = true;
 	}
 
+	input.disabled = true;
 	input.addEventListener('input', () => {
 		submit_button.disabled = !valid_cmd.test(input.value);
 	});
