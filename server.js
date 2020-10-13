@@ -90,7 +90,6 @@ if (cluster.isMaster) {
 						sanitize(req.url), 'hidden', sanitize(req.url)));
 				}
 			} else await invalid_request(res);
-			console.error(error);
 		} finally {
 			if (!res.writableEnded) res.end();
 		}
