@@ -359,7 +359,7 @@ if (cluster.isMaster) {
 			} case '/': {
 				const result = await query(`
 					SELECT name FROM games
-					WHERE start IS NOT NULL AND public = 1
+					WHERE start IS NOT NULL AND public = TRUE
 					ORDER BY name`);
 				let game_list = "";
 				for (const game of result) {
