@@ -105,7 +105,7 @@ if (cluster.isMaster) {
 		if (data.game) {
 			permission = await query(`
 				SELECT permission FROM user_to_game
-				WHERE user = %L AND game = %L`,
+				WHERE user_ = %L AND game = %L`,
 				[userid, data.game]);
 		}
 		switch (path) {
@@ -134,7 +134,7 @@ if (cluster.isMaster) {
 				if (!game[0].public) {
 					restrict(await query(`
 						SELECT permission FROM user_to_game
-						WHERE user = %L AND game = %L`,
+						WHERE user_ = %L AND game = %L`,
 						[userid, gameid]
 					), 0);
 				}
@@ -174,7 +174,7 @@ if (cluster.isMaster) {
 									path_to_location_constraint.constraint_
 							LEFT JOIN path_to_inventory_constraint
 								ON paths.ID = path_to_inventory_constraint.path
-							WHERE paths.start = %L AND paths.end = %L
+							WHERE paths.start = %L AND paths.end_ = %L
 							ORDER BY paths.ID;`,
 							[locationID, end_location[0].ID]);
 						const result = satisfy_constraints(
@@ -199,7 +199,7 @@ if (cluster.isMaster) {
 											path_to_location_effect.effect
 									LEFT JOIN path_to_inventory_effect
 										ON paths.ID = path_to_inventory_effect.path
-									WHERE paths.start = %L AND paths.end = %L`,
+									WHERE paths.start = %L AND paths.end_ = %L`,
 									[locationID, end_location[0].ID]);
 								handle_effects(
 									effects, objects, states, moved_objects, inventory);
@@ -396,7 +396,7 @@ if (cluster.isMaster) {
 						WHERE name = %L`, [data.game]),
 						permission = await query(`
 						SELECT permission FROM user_to_game
-						WHERE user = %L AND game = %L`, [userid, game[0].ID]);
+						WHERE user_ = %L AND game = %L`, [userid, game[0].ID]);
 					restrict(permission, 1);
 					const locations = await query(`
 						SELECT ID, name FROM locations WHERE game = %L`, [game[0].ID]);
@@ -425,7 +425,7 @@ if (cluster.isMaster) {
 						const users = await query(`
 							SELECT users.username, user_to_game.permission, users.ID
 							FROM user_to_game JOIN users
-							ON user_to_game.user = users.ID
+							ON user_to_game.user_ = users.ID
 							WHERE user_to_game.game = %L
 							AND users.ID != %L`, [game[0].ID, userid]);
 						let list = '';
@@ -447,7 +447,7 @@ if (cluster.isMaster) {
 					const result = await query(`
 					SELECT games.name, games.ID FROM games
 					JOIN user_to_game ON user_to_game.game = games.ID
-					WHERE user_to_game.user = %L AND user_to_game.permission >= 1
+					WHERE user_to_game.user_ = %L AND user_to_game.permission >= 1
 					ORDER BY games.name`, [userid]);
 					if (result.length) {
 						let game_list = "";
@@ -525,7 +525,7 @@ if (cluster.isMaster) {
 							);
 
 						const paths = await (await query(`
-							SELECT ID, end, win FROM paths
+							SELECT ID, end_, win FROM paths
 							WHERE start = %L`, [data.id]))
 							.reduce(
 								async (acc, path) => await acc + await show_file('path.html',
@@ -533,7 +533,7 @@ if (cluster.isMaster) {
 									await all_locations(
 										data.game,
 										data.id,
-										path.end),
+										path.end_),
 									...get_win_lose_array(path)), ''
 							);
 						return await show_file('expanded-location.html',
@@ -735,10 +735,10 @@ if (cluster.isMaster) {
 				const game = jwt.verify(data.token, jwtKey).id;
 				const valid = await query(`
 					SELECT COUNT(*) AS valid FROM user_to_game
-					WHERE user = %L AND game = %L`, [userid, game]);
+					WHERE user_ = %L AND game = %L`, [userid, game]);
 				if (!valid[0].valid)
 					await query(`
-						INSERT INTO user_to_game (user, game)
+						INSERT INTO user_to_game (user_, game)
 						VALUES (%L, %L)`, [userid, game]);
 				res.statusCode = 307;
 				res.setHeader('Location', '/');
@@ -754,7 +754,7 @@ if (cluster.isMaster) {
 	async function post(path, data, userid, res) {
 		const permission = await query(`
 			SELECT permission FROM user_to_game
-			WHERE user = %L AND game = %L`,
+			WHERE user_ = %L AND game = %L`,
 			[userid, data.game]);
 		switch (path) {
 			case '/create': {
@@ -763,7 +763,7 @@ if (cluster.isMaster) {
 					const game = await query(`
 						INSERT INTO games (name) VALUES (%L)`, [data.name]);
 					await query(`
-						INSERT INTO user_to_game (user, game, permission)
+						INSERT INTO user_to_game (user_, game, permission)
 						VALUES (%L, %L, 2)`, [userid, game.insertId]);
 					res.statusCode = 201;
 				} catch {
@@ -960,7 +960,7 @@ if (cluster.isMaster) {
 						WHERE ID = %L`, [data.newitem, data.id]);
 				} else if (data.type === 'path') {
 					await query(`
-						UPDATE paths SET end = %L
+						UPDATE paths SET end_ = %L
 						WHERE ID = %L`, [data.newitem, data.id]);
 				} else if (data.type === 'pick_up_action') {
 					await query(`
@@ -983,13 +983,13 @@ if (cluster.isMaster) {
 				if (data.permission === '-1') {
 					await query(`
 						DELETE FROM user_to_game
-						WHERE user = %L AND game = %L`,
+						WHERE user_ = %L AND game = %L`,
 						[data.user, data.game]);
 				} else if (['0', '1', '2'].includes(data.permission)) {
 					await query(`
 						UPDATE user_to_game
 						SET permission = %L
-						WHERE user = %L AND game = %L`,
+						WHERE user_ = %L AND game = %L`,
 						[data.permission, data.user, data.game]);
 				}
 				break;
@@ -1000,7 +1000,7 @@ if (cluster.isMaster) {
 	async function remove(data, userid, res) {
 		const permission = await query(`
 			SELECT permission FROM user_to_game
-			WHERE user = %L AND game = %L`,
+			WHERE user_ = %L AND game = %L`,
 			[userid, data.game]);
 		res.statusCode = 204;
 		restrict(permission, 1);
