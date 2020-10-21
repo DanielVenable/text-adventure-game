@@ -98,7 +98,7 @@ if (cluster.isMaster) {
 		} finally {
 			if (!res.writableEnded) res.end();
 		}
-	}).listen(port, () => console.log(`Server running at http://localhost:${port}`));
+	}).listen(port, () => console.log('Server running at port %d', port));
 
 	async function get(path, data, userid, res) {
 		let permission;
@@ -1299,7 +1299,7 @@ if (cluster.isMaster) {
 		return /^[aeiou]/i.test(string) ? `an ${string}` : `a ${string}`;
 	}
 
-	const jwtKey = fs.readFileSync('../secret-key.txt');
+	const jwtKey = process.env.SECRET_KEY;
 	const expire_seconds = 60 * 60 * 12;
 
 	function create_token(res, id) {
