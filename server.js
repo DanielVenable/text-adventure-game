@@ -31,39 +31,44 @@ if (cluster.isMaster) {
 	process.chdir(__dirname + '/files');
 
 	class StrictMap extends Map {
-		get (key) {
+		get(key) {
 			if (!this.has(key)) throw new Error('Invalid value for StrictMap');
 			return super.get(key);
 		}
 	}
 
 	const files = {
-			async get(path) {
-				if (!files[path]) {
-					files[path] = String(await fs.promises.readFile(path));
-				}
-				return files[path];
+		async get(path) {
+			if (!files[path]) {
+				files[path] = String(await fs.promises.readFile(path));
 			}
-		}, table_list = new StrictMap([
-			['action', 'actions'],
-			['pick_up_action', 'grab'],
-			['path', 'paths']]
-		), start_table_list = new StrictMap([
-			['action', 'action_to_'],
-			['pick_up_action', 'grab_to_'],
-			['path', 'path_to_'],
-			['description', 'description_to_']
-		]), column_list = new StrictMap([
-			['action', 'action'],
-			['pick_up_action', 'grab'],
-			['path', 'path'],
-			['description', 'description']
-		]), win_value_list = new StrictMap([
-			['1', 1], ['0', 0], ['null', null]
-		]);
+			return files[path];
+		}
+	}, table_list = new StrictMap([
+		['action', 'actions'],
+		['pick_up_action', 'grab'],
+		['path', 'paths']]
+	), start_table_list = new StrictMap([
+		['action', 'action_to_'],
+		['pick_up_action', 'grab_to_'],
+		['path', 'path_to_'],
+		['description', 'description_to_']
+	]), column_list = new StrictMap([
+		['action', 'action'],
+		['pick_up_action', 'grab'],
+		['path', 'path'],
+		['description', 'description']
+	]), win_value_list = new StrictMap([
+		['1', 1], ['0', 0], ['null', null]
+	]);
 
 	client.connect().then(() =>
 		http.createServer(async (req, res) => {
+			if (req.headers['x-forwarded-proto'] !== 'https') {
+				res.statusCode = 308;
+				res.setHeader('Location', `https://${req.headers.host}${req.url}`);
+				return res.end();
+			}
 			try {
 				let userid;
 				try {
@@ -551,7 +556,7 @@ if (cluster.isMaster) {
 								SELECT id, success, win FROM grab
 								WHERE grab.obj = %L`, [data.id])
 						]);
-						
+
 						return await show_file('expanded-object.html',
 							...await Promise.all([
 								actions.reduce(
@@ -615,7 +620,7 @@ if (cluster.isMaster) {
 										[table_part + 'inventory_effect',
 											column, data.id]),
 									query(`SELECT text FROM %I WHERE id = %L`,
-										[table_list.get(data.type),	data.id])
+										[table_list.get(data.type), data.id])
 								]);
 
 						const objs = {
@@ -668,7 +673,7 @@ if (cluster.isMaster) {
 									await all_locations(
 										data.game,
 										null, item.location
-								)), '');
+									)), '');
 						}
 					} default: await invalid_request(res);
 				}
@@ -1120,7 +1125,7 @@ if (cluster.isMaster) {
 			WHERE %I.game = %L AND %I.id = %L`,
 			[table, table2, table2, table,
 				obj_column_map.get(type), table2, game, table, id])
-			)[0].valid) throw "Action does not match game";
+		)[0].valid) throw "Action does not match game";
 	}
 
 	function restrict(permission, level) {
@@ -1191,8 +1196,7 @@ if (cluster.isMaster) {
 			await describe(data),
 			sanitize(text),
 			token, data.inventory.size ?
-			`You have: ${
-			sanitize(Array.from(data.inventory, i => data.objects[i].name).join(', '))
+			`You have: ${sanitize(Array.from(data.inventory, i => data.objects[i].name).join(', '))
 			}` : "",
 			encodeURIComponent(data.game));
 	}
