@@ -24,8 +24,6 @@ if (cluster.isMaster) {
 		}
 	});
 
-	client.connect();
-
 	function query(str, arr) {
 		return client.query(pg_format(str, ...arr));
 	}
@@ -64,41 +62,43 @@ if (cluster.isMaster) {
 			['1', 1], ['0', 0], ['null', null]
 		]);
 
-	http.createServer(async (req, res) => {
-		try {
-			let userid;
+	client.connect().then(() =>
+		http.createServer(async (req, res) => {
 			try {
-				userid = jwt.verify(
-					cookie.parse(req.headers.cookie).token, jwtKey).id;
-			} catch { }
-			res.setHeader('Content-Type', 'text/html');
-			res.statusCode = 200;
-			const parsed_url = url.parse(req.url, true);
-			if (req.method === 'GET') {
-				res.end(await get(parsed_url.pathname, parsed_url.query, userid, res));
-			} else if (req.method === 'POST') {
-				let data = '?';
-				req.on('data', chunk => data += chunk);
-				await new Promise(resolve => req.on('end', resolve));
-				res.end(await post(parsed_url.pathname,
-					url.parse(data, true).query, userid, res));
-			} else if (req.method === 'DELETE') {
-				if (parsed_url.pathname === '/remove') {
-					await remove(parsed_url.query, userid, res);
-				} else res.statusCode = 404;
-			} else res.statusCode = 405;
-		} catch (error) {
-			if (error === "Unauthorized action") {
-				res.statusCode = 401;
-				if (req.method === "GET") {
-					res.end(await show_file('sign-in.html',
-						sanitize(req.url), 'hidden', sanitize(req.url)));
-				}
-			} else await invalid_request(res);
-		} finally {
-			if (!res.writableEnded) res.end();
-		}
-	}).listen(port, () => console.log('Server running at port %d', port));
+				let userid;
+				try {
+					userid = jwt.verify(
+						cookie.parse(req.headers.cookie).token, jwtKey).id;
+				} catch { }
+				res.setHeader('Content-Type', 'text/html');
+				res.statusCode = 200;
+				const parsed_url = url.parse(req.url, true);
+				if (req.method === 'GET') {
+					res.end(await get(parsed_url.pathname, parsed_url.query, userid, res));
+				} else if (req.method === 'POST') {
+					let data = '?';
+					req.on('data', chunk => data += chunk);
+					await new Promise(resolve => req.on('end', resolve));
+					res.end(await post(parsed_url.pathname,
+						url.parse(data, true).query, userid, res));
+				} else if (req.method === 'DELETE') {
+					if (parsed_url.pathname === '/remove') {
+						await remove(parsed_url.query, userid, res);
+					} else res.statusCode = 404;
+				} else res.statusCode = 405;
+			} catch (error) {
+				if (error === "Unauthorized action") {
+					res.statusCode = 401;
+					if (req.method === "GET") {
+						res.end(await show_file('sign-in.html',
+							sanitize(req.url), 'hidden', sanitize(req.url)));
+					}
+				} else await invalid_request(res);
+				console.error(error);
+			} finally {
+				if (!res.writableEnded) res.end();
+			}
+		}).listen(port, () => console.log('Server running at port %d', port)));
 
 	async function get(path, data, userid, res) {
 		let permission;
@@ -1261,7 +1261,7 @@ if (cluster.isMaster) {
 	}
 
 	async function show_file(path, ...args) {
-		return util.format.call(null, await files.get(path), ...args);
+		return util.format(await files.get(path), ...args);
 	}
 
 	function sanitize(str) {
