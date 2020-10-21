@@ -7,22 +7,28 @@ if (cluster.isMaster) {
 	cluster.on('disconnect', cluster.fork);
 } else {
 	const http = require('http'),
-		mysql = require('mysql'),
 		url = require('url'),
 		fs = require('fs'),
 		util = require('util'),
 		crypto = require('crypto'),
 		jwt = require('jsonwebtoken'),
 		cookie = require('cookie'),
-		port = +process.argv[2] || 80;
+		pg = require('pg'),
+		pg_format = require('pg-format'),
+		port = +process.env.PORT || 80;
 
-	const sql = mysql.createConnection({
-		host: "localhost",
-		user: "text_adventure_game",
-		password: fs.readFileSync(__dirname + '/password.txt').toString(),
-		database: "text_adventure_games"
+	const client = new pg.Client({
+		connectionString: process.env.DATABASE_URL,
+		ssl: {
+			rejectUnauthorized: false
+		}
 	});
-	sql.connect();
+
+	client.connect();
+
+	function query(str, arr) {
+		return client.query(pg_format(str, ...arr));
+	}
 
 	process.chdir(__dirname + '/files');
 
@@ -33,8 +39,7 @@ if (cluster.isMaster) {
 		}
 	}
 
-	const query = util.promisify(sql.query).bind(sql),
-		files = {
+	const files = {
 			async get(path) {
 				if (!files[path]) {
 					files[path] = String(await fs.promises.readFile(path));
@@ -100,7 +105,7 @@ if (cluster.isMaster) {
 		if (data.game) {
 			permission = await query(`
 				SELECT permission FROM user_to_game
-				WHERE user = ? AND game = ?`,
+				WHERE user = %L AND game = %L`,
 				[userid, data.game]);
 		}
 		switch (path) {
@@ -113,10 +118,10 @@ if (cluster.isMaster) {
 					command = data.cmd.toLowerCase(),
 					[{ game: gameid }] = await query(`
 						SELECT game FROM locations
-						WHERE ID = ?`, [locationID]),
+						WHERE ID = %L`, [locationID]),
 					game = await query(`
 						SELECT public, name FROM games
-						WHERE ID = ?`, [gameid]),
+						WHERE ID = %L`, [gameid]),
 					states = new Map(),
 					moved_objects = new Map(),
 					inventory = new Set(inventory_list);
@@ -129,13 +134,13 @@ if (cluster.isMaster) {
 				if (!game[0].public) {
 					restrict(await query(`
 						SELECT permission FROM user_to_game
-						WHERE user = ? AND game = ?`,
+						WHERE user = %L AND game = %L`,
 						[userid, gameid]
 					), 0);
 				}
 				const objects = await query(`
 						SELECT * FROM objects
-						WHERE game = ? ORDER BY ID`, [gameid]),
+						WHERE game = %L ORDER BY ID`, [gameid]),
 					show_data = {
 						game: game[0].name, states, moved_objects,
 						location: locationID, inventory, moves, objects
@@ -146,7 +151,7 @@ if (cluster.isMaster) {
 				if (split_go_to = command.match(/^go (?:to )?(.+)$/)) {
 					const end_location = await query(`
 						SELECT ID FROM locations
-						WHERE name = ? AND game = ?`,
+						WHERE name = %L AND game = %L`,
 						[split_go_to[1], gameid]);
 					if (end_location.length === 1) {
 						const constraints = await query(`
@@ -169,7 +174,7 @@ if (cluster.isMaster) {
 									path_to_location_constraint.constraint_
 							LEFT JOIN path_to_inventory_constraint
 								ON paths.ID = path_to_inventory_constraint.path
-							WHERE paths.start = ? AND paths.end = ?
+							WHERE paths.start = %L AND paths.end = %L
 							ORDER BY paths.ID;`,
 							[locationID, end_location[0].ID]);
 						const result = satisfy_constraints(
@@ -194,7 +199,7 @@ if (cluster.isMaster) {
 											path_to_location_effect.effect
 									LEFT JOIN path_to_inventory_effect
 										ON paths.ID = path_to_inventory_effect.path
-									WHERE paths.start = ? AND paths.end = ?`,
+									WHERE paths.start = %L AND paths.end = %L`,
 									[locationID, end_location[0].ID]);
 								handle_effects(
 									effects, objects, states, moved_objects, inventory);
@@ -206,7 +211,7 @@ if (cluster.isMaster) {
 				} else if (split_pick_up = command.match(/^(?:pick up|grab|get) (.+)$/)) {
 					const obj = await query(`
 						SELECT ID FROM objects
-						WHERE name = ? AND game = ? AND location = ?;`,
+						WHERE name = %L AND game = %L AND location = %L;`,
 						[split_pick_up[1], gameid, locationID]);
 					if (obj.length === 1) {
 						if (inventory.has(obj_index(objects, obj[0].ID))) {
@@ -232,7 +237,7 @@ if (cluster.isMaster) {
 										grab_to_location_constraint.constraint_
 								LEFT JOIN grab_to_inventory_constraint
 									ON grab.ID = grab_to_inventory_constraint.grab
-								WHERE grab.obj = ?
+								WHERE grab.obj = %L
 								ORDER BY grab.ID`, [obj[0].ID]);
 							const result = satisfy_constraints(
 								states, moved_objects, inventory, constraints, objects);
@@ -256,7 +261,7 @@ if (cluster.isMaster) {
 												grab_to_location_effect.effect
 										LEFT JOIN grab_to_inventory_effect
 											ON grab.ID = grab_to_inventory_effect.grab
-										WHERE grab.ID = ?`, [result.ID]);
+										WHERE grab.ID = %L`, [result.ID]);
 									handle_effects(
 										effects, objects, states, moved_objects, inventory);
 									if (result.success) {
@@ -277,7 +282,7 @@ if (cluster.isMaster) {
 					} else {
 						const item1 = await query(`
 							SELECT ID FROM objects
-							WHERE name = ?`, [split_use[1]]);
+							WHERE name = %L`, [split_use[1]]);
 						if (item1.length === 1 && inventory.has(
 							obj_index(objects, item1[0].ID))) {
 							return await use_on(item1[0].ID, split_use[2]);
@@ -287,7 +292,7 @@ if (cluster.isMaster) {
 					async function use_on(first_ID, second_name) {
 						const item2 = await query(`
 							SELECT ID, location FROM objects
-							WHERE name = ?`, [second_name]);
+							WHERE name = %L`, [second_name]);
 						let valid_items = [];
 						for (const item of item2) {
 							if (item.location == locationID ||
@@ -316,7 +321,7 @@ if (cluster.isMaster) {
 										action_to_location_constraint.constraint_
 								LEFT JOIN action_to_inventory_constraint
 									ON actions.ID = action_to_inventory_constraint.action
-								WHERE actions.obj1 = ? AND actions.obj2 = ?
+								WHERE actions.obj1 = %L AND actions.obj2 = %L
 								ORDER BY actions.ID;`, [first_ID, item2[0].ID]);
 							const result = satisfy_constraints(
 								states, moved_objects, inventory, constraints, objects);
@@ -341,7 +346,7 @@ if (cluster.isMaster) {
 												action_to_location_effect.effect
 										LEFT JOIN action_to_inventory_effect
 											ON actions.ID = action_to_inventory_effect.action
-										WHERE actions.ID = ?;`, [result.ID]);
+										WHERE actions.ID = %L;`, [result.ID]);
 									handle_effects(
 										effects, objects, states, moved_objects, inventory);
 									return await show(show_data,
@@ -367,7 +372,7 @@ if (cluster.isMaster) {
 				const result = await query(`
 					SELECT locations.ID, games.text, games.public FROM games
 					JOIN locations ON locations.ID = games.start
-					WHERE games.name = ?`, [game]);
+					WHERE games.name = %L`, [game]);
 				if (!result[0].public)
 					restrict(permission, 0);
 				const list = Array(5).fill([]);
@@ -388,13 +393,13 @@ if (cluster.isMaster) {
 				if (data.game) {
 					const game = await query(`
 						SELECT ID, start FROM games
-						WHERE name = ?`, [data.game]),
+						WHERE name = %L`, [data.game]),
 						permission = await query(`
 						SELECT permission FROM user_to_game
-						WHERE user = ? AND game = ?`, [userid, game[0].ID]);
+						WHERE user = %L AND game = %L`, [userid, game[0].ID]);
 					restrict(permission, 1);
 					const locations = await query(`
-						SELECT ID, name FROM locations WHERE game = ?`, [game[0].ID]);
+						SELECT ID, name FROM locations WHERE game = %L`, [game[0].ID]);
 					let location_list = "";
 					for (const location of locations) {
 						if (game[0].start === location.ID) {
@@ -409,7 +414,7 @@ if (cluster.isMaster) {
 					}
 					const objects = await query(`
 						SELECT * FROM objects
-						WHERE location IS NULL AND game = ?`, [game[0].ID]);
+						WHERE location IS NULL AND game = %L`, [game[0].ID]);
 					let obj_list = '';
 					for (const obj of objects) {
 						obj_list += await show_file('object.html',
@@ -421,8 +426,8 @@ if (cluster.isMaster) {
 							SELECT users.username, user_to_game.permission, users.ID
 							FROM user_to_game JOIN users
 							ON user_to_game.user = users.ID
-							WHERE user_to_game.game = ?
-							AND users.ID != ?`, [game[0].ID, userid]);
+							WHERE user_to_game.game = %L
+							AND users.ID != %L`, [game[0].ID, userid]);
 						let list = '';
 						for (const user of users) {
 							let opts = ['', '', ''];
@@ -442,7 +447,7 @@ if (cluster.isMaster) {
 					const result = await query(`
 					SELECT games.name, games.ID FROM games
 					JOIN user_to_game ON user_to_game.game = games.ID
-					WHERE user_to_game.user = ? AND user_to_game.permission >= 1
+					WHERE user_to_game.user = %L AND user_to_game.permission >= 1
 					ORDER BY games.name`, [userid]);
 					if (result.length) {
 						let game_list = "";
@@ -512,7 +517,7 @@ if (cluster.isMaster) {
 
 						const objects = await (await query(`
 							SELECT name, ID FROM objects
-							WHERE location = ? AND game = ?`,
+							WHERE location = %L AND game = %L`,
 							[data.id, data.game]))
 							.reduce(
 								async (acc, obj) => await acc + await show_file(
@@ -521,7 +526,7 @@ if (cluster.isMaster) {
 
 						const paths = await (await query(`
 							SELECT ID, end, win FROM paths
-							WHERE start = ?`, [data.id]))
+							WHERE start = %L`, [data.id]))
 							.reduce(
 								async (acc, path) => await acc + await show_file('path.html',
 									path.ID,
@@ -537,14 +542,14 @@ if (cluster.isMaster) {
 						const [object, actions, grabs] = await Promise.all([
 							query(`
 								SELECT name FROM objects
-								WHERE ID = ? AND game = ?`,
+								WHERE ID = %L AND game = %L`,
 								[data.id, data.game]),
 							query(`
 								SELECT ID, obj2, win FROM actions
-								WHERE obj1 = ?`, [data.id]),
+								WHERE obj1 = %L`, [data.id]),
 							query(`
 								SELECT ID, success, win FROM grab
-								WHERE grab.obj = ?`, [data.id])
+								WHERE grab.obj = %L`, [data.id])
 						]);
 						
 						return await show_file('expanded-object.html',
@@ -576,14 +581,14 @@ if (cluster.isMaster) {
 							SELECT constraint_and_effect.obj,
 								constraint_and_effect.state
 								FROM constraint_and_effect
-							JOIN ?? ON constraint_and_effect.ID = ??.??
-							WHERE ??.?? = ?`,
+							JOIN %I ON constraint_and_effect.ID = %I.%I
+							WHERE %I.%I = %L`,
 							location_sql = `
 							SELECT location_constraint_and_effect.obj,
 								location_constraint_and_effect.location
 								FROM location_constraint_and_effect
-							JOIN ?? ON location_constraint_and_effect.ID = ??.??
-							WHERE ??.?? = ?`,
+							JOIN %I ON location_constraint_and_effect.ID = %I.%I
+							WHERE %I.%I = %L`,
 							params = type => {
 								const table = table_part + type;
 								return [
@@ -603,13 +608,13 @@ if (cluster.isMaster) {
 									query(sql, params('effect')),
 									query(location_sql, params('location_constraint')),
 									query(location_sql, params('location_effect')),
-									query(`SELECT obj, have_it FROM ?? WHERE ?? = ?`,
+									query(`SELECT obj, have_it FROM %I WHERE %I = %L`,
 										[table_part + 'inventory_constraint',
 											column, data.id]),
-									query(`SELECT obj FROM ?? WHERE ?? = ?`,
+									query(`SELECT obj FROM %I WHERE %I = %L`,
 										[table_part + 'inventory_effect',
 											column, data.id]),
-									query(`SELECT text FROM ?? WHERE ID = ?`,
+									query(`SELECT text FROM %I WHERE ID = %L`,
 										[table_list.get(data.type),	data.id])
 								]);
 
@@ -675,8 +680,8 @@ if (cluster.isMaster) {
 					['games', 'name', data.name] :
 					['users', 'username', data.name];
 				const taken = await query(`
-					SELECT COUNT(*) AS num FROM ??
-					WHERE ?? = ?`, list);
+					SELECT COUNT(*) AS num FROM %I
+					WHERE %I = %L`, list);
 				return String(taken[0].num);
 			} case '/description-constraint': {
 				restrict(permission, 1);
@@ -730,11 +735,11 @@ if (cluster.isMaster) {
 				const game = jwt.verify(data.token, jwtKey).id;
 				const valid = await query(`
 					SELECT COUNT(*) AS valid FROM user_to_game
-					WHERE user = ? AND game = ?`, [userid, game]);
+					WHERE user = %L AND game = %L`, [userid, game]);
 				if (!valid[0].valid)
 					await query(`
 						INSERT INTO user_to_game (user, game)
-						VALUES (?, ?)`, [userid, game]);
+						VALUES (%L, %L)`, [userid, game]);
 				res.statusCode = 307;
 				res.setHeader('Location', '/');
 				break;
@@ -749,17 +754,17 @@ if (cluster.isMaster) {
 	async function post(path, data, userid, res) {
 		const permission = await query(`
 			SELECT permission FROM user_to_game
-			WHERE user = ? AND game = ?`,
+			WHERE user = %L AND game = %L`,
 			[userid, data.game]);
 		switch (path) {
 			case '/create': {
 				if (!userid) throw 'Unauthorized action';
 				try {
 					const game = await query(`
-						INSERT INTO games (name) VALUES (?)`, [data.name]);
+						INSERT INTO games (name) VALUES (%L)`, [data.name]);
 					await query(`
 						INSERT INTO user_to_game (user, game, permission)
-						VALUES (?, ?, 2)`, [userid, game.insertId]);
+						VALUES (%L, %L, 2)`, [userid, game.insertId]);
 					res.statusCode = 201;
 				} catch {
 					res.statusCode = 409;
@@ -767,7 +772,7 @@ if (cluster.isMaster) {
 				break;
 			} case '/signin': {
 				const user = await query(`
-					SELECT ID FROM users WHERE username = ? AND hash = ?`,
+					SELECT ID FROM users WHERE username = %L AND hash = %L`,
 					[data.username, crypto.createHash('sha256')
 						.update(data.password).digest('hex')]);
 				if (user.length) {
@@ -784,7 +789,7 @@ if (cluster.isMaster) {
 					.update(data.password)
 					.digest('hex');
 				await query(`
-					INSERT INTO users (username, hash) VALUES (?, ?)`,
+					INSERT INTO users (username, hash) VALUES (%L, %L)`,
 					[data.username, hash]);
 				create_token(res, data.username);
 				res.setHeader('Location', data.url);
@@ -796,7 +801,7 @@ if (cluster.isMaster) {
 					case "location": {
 						const result = await query(`
 							INSERT INTO locations (game, name, description)
-							VALUES (?,?,?)`,
+							VALUES (%L,%L,%L)`,
 							[data.game, data.name.toLowerCase(), data.description]);
 						return await show_file('location.html',
 							result.insertId, "",
@@ -806,7 +811,7 @@ if (cluster.isMaster) {
 						if (is_anywhere) await location_match_game(location, game);
 						const result = await query(`
 							INSERT INTO objects (game, name, location)
-							VALUES (?,?,?)`,
+							VALUES (%L,%L,%L)`,
 							[data.game, data.name.toLowerCase(),
 							is_anywhere ? data.location : null]);
 						return await show_file('object.html',
@@ -814,10 +819,10 @@ if (cluster.isMaster) {
 					} case "action": {
 						await object_match_game(data.item, data.game);
 						const result = await query(`
-							INSERT INTO actions (obj1) VALUES (?)`,
+							INSERT INTO actions (obj1) VALUES (%L)`,
 							[data.item]);
 						const name = await query(`
-							SELECT name FROM objects WHERE ID = ?`, [data.item]);
+							SELECT name FROM objects WHERE ID = %L`, [data.item]);
 						return await show_file('action.html',
 							result.insertId, sanitize(name[0].name),
 							await all_objects(await get_objs(data.game)),
@@ -825,16 +830,16 @@ if (cluster.isMaster) {
 					} case "pick_up_action": {
 						await object_match_game(data.item, data.game);
 						const result = await query(`
-							INSERT INTO grab (obj) VALUES (?)`, [data.item]);
+							INSERT INTO grab (obj) VALUES (%L)`, [data.item]);
 						const name = await query(`
-							SELECT name FROM objects WHERE ID = ?`, [data.item]);
+							SELECT name FROM objects WHERE ID = %L`, [data.item]);
 						return await show_file('pick-up-action.html',
 							result.insertId, sanitize(name[0].name), 'checked',
 							...get_win_lose_array({ ID: result.insertId, win: null }));
 					} case "path": {
 						await location_match_game(data.item, data.game);
 						const result = await query(`
-							INSERT INTO paths (start) VALUES (?, ?)`, [data.item]);
+							INSERT INTO paths (start) VALUES (%L, %L)`, [data.item]);
 						return await show_file('path.html', result.insertId,
 							await all_locations(data.game, data.item),
 							get_win_lose_array({ ID: result.insertId, win: null }));
@@ -843,11 +848,11 @@ if (cluster.isMaster) {
 						await query(`
 							UPDATE descriptions
 							SET num = num + 1
-							WHERE location = ? AND num >= ?`,
+							WHERE location = %L AND num >= %L`,
 							[data.item, data.num]);
 						const description = await query(`
 							INSERT INTO descriptions (location, num)
-							VALUES (?, ?)`, [data.item, data.num]);
+							VALUES (%L, %L)`, [data.item, data.num]);
 						return await show_file('description.html',
 							description.insertId, '', '', '', '');
 					} default: {
@@ -861,19 +866,19 @@ if (cluster.isMaster) {
 							table = start_table_list.get(data.parenttype) + type2;
 							const exists = await query(`
 								SELECT ID FROM constraint_and_effect
-								WHERE obj = ? AND state = ?`, select_params);
+								WHERE obj = %L AND state = %L`, select_params);
 							id = exists.length ? exists[0].ID : (await query(`
 								INSERT INTO constraint_and_effect (obj, state)
-								VALUES (?, ?)`, select_params)).insertId;
+								VALUES (%L, %L)`, select_params)).insertId;
 						} else if (type1 === 'location-') {
 							await location_match_game(data.value, data.game);
 							const exists = await query(`
 								SELECT ID FROM location_constraint_and_effect
-								WHERE obj = ? AND location = ?`, select_params);
+								WHERE obj = %L AND location = %L`, select_params);
 							id = exists.length ? exists[0].ID : (await query(`
 								INSERT INTO location_constraint_and_effect
 									(obj, location)
-								VALUES (?, ?)`, select_params)).insertId;
+								VALUES (%L, %L)`, select_params)).insertId;
 							table = start_table_list.get(data.type) +
 								'location' + type2;
 						} else if (type1 === 'inventory-') {
@@ -881,21 +886,21 @@ if (cluster.isMaster) {
 								'inventory_' + type2;
 							if (type2 === 'constraint') {
 								await query(`
-									INSERT INTO ?? (??, obj, have_it)
-									VALUES (?, ?, ?)`,
+									INSERT INTO %I (%I, obj, have_it)
+									VALUES (%L, %L, %L)`,
 									[table, column_list.get(data.parenttype),
 										data.item, data.obj,
 										Number(data.value) ? 1 : 0]);
 							} else {
 								await query(`
-									INSERT INTO ?? (?, obj)	VALUES (?, ?)`,
+									INSERT INTO %I (%L, obj) VALUES (%L, %L)`,
 									[table, column_list.get(data.parenttype),
 										data.item, data.obj]);
 							}
 							break;
 						}
 						await query(`
-							INSERT INTO ?? (??, ??) VALUES (?, ?)`,
+							INSERT INTO %I (%I, %I) VALUES (%L, %L)`,
 							[table,
 								column_list.get(data.parenttype),
 								type2 === 'constraint' ? 'constraint_' : 'effect',
@@ -906,8 +911,8 @@ if (cluster.isMaster) {
 			} case '/setstart': {
 				restrict(permission, 1);
 				await query(`
-					UPDATE games SET start = ?
-					WHERE ID = ?`, [data.id, data.game]);
+					UPDATE games SET start = %L
+					WHERE ID = %L`, [data.id, data.game]);
 				res.statusCode = 204;
 				break;
 			} case '/rename': {
@@ -920,7 +925,7 @@ if (cluster.isMaster) {
 					await object_match_game(data.id, data.game);
 					table = 'objects';
 				} else throw "Invalid type";
-				await query(`UPDATE ?? SET name = ? WHERE ID = ?`,
+				await query(`UPDATE %I SET name = %L WHERE ID = %L`,
 					[table, data.name.toLowerCase(), data.id]);
 				res.statusCode = 204;
 				break;
@@ -930,18 +935,18 @@ if (cluster.isMaster) {
 					const valid = await query(`
 						SELECT COUNT(*) AS valid FROM locations
 						JOIN descriptions ON descriptions.location = locations.ID
-						WHERE locations.game = ? AND descriptions.ID = ?`,
+						WHERE locations.game = %L AND descriptions.ID = %L`,
 						[data.game, data.id]);
 					if (!valid[0].valid) throw 'description does not match game';
 					await query(`
-						UPDATE descriptions SET text = ?
-						WHERE ID = ?`,
+						UPDATE descriptions SET text = %L
+						WHERE ID = %L`,
 						[data.text, data.id]);
 				} else {
 					await action_match_game(data.type, data.id, data.game);
 					await query(`
-						UPDATE ?? SET text = ?
-						WHERE ID = ?`,
+						UPDATE %I SET text = %L
+						WHERE ID = %L`,
 						[table_list.get(data.type), data.text, data.id]);
 				}
 				res.statusCode = 204;
@@ -951,16 +956,16 @@ if (cluster.isMaster) {
 				await action_match_game(data.type, data.id, data.game);
 				if (data.type === 'action') {
 					await query(`
-						UPDATE actions SET obj2 = ?
-						WHERE ID = ?`, [data.newitem, data.id]);
+						UPDATE actions SET obj2 = %L
+						WHERE ID = %L`, [data.newitem, data.id]);
 				} else if (data.type === 'path') {
 					await query(`
-						UPDATE paths SET end = ?
-						WHERE ID = ?`, [data.newitem, data.id]);
+						UPDATE paths SET end = %L
+						WHERE ID = %L`, [data.newitem, data.id]);
 				} else if (data.type === 'pick_up_action') {
 					await query(`
-						UPDATE grab SET success = ?
-						WHERE ID = ?`, [data.state, data.id]);
+						UPDATE grab SET success = %L
+						WHERE ID = %L`, [data.state, data.id]);
 				}
 				res.statusCode = 204;
 				break;
@@ -968,8 +973,8 @@ if (cluster.isMaster) {
 				restrict(permission, 1);
 				await action_match_game(data.type, data.id, data.game);
 				await query(`
-					UPDATE ?? SET win = ?
-					WHERE ID = ?`,
+					UPDATE %I SET win = %L
+					WHERE ID = %L`,
 					[table_list.get(data.type), win_value_list.get(data.value), data.id]);
 				res.statusCode = 204;
 				break;
@@ -978,13 +983,13 @@ if (cluster.isMaster) {
 				if (data.permission === '-1') {
 					await query(`
 						DELETE FROM user_to_game
-						WHERE user = ? AND game = ?`,
+						WHERE user = %L AND game = %L`,
 						[data.user, data.game]);
 				} else if (['0', '1', '2'].includes(data.permission)) {
 					await query(`
 						UPDATE user_to_game
-						SET permission = ?
-						WHERE user = ? AND game = ?`,
+						SET permission = %L
+						WHERE user = %L AND game = %L`,
 						[data.permission, data.user, data.game]);
 				}
 				break;
@@ -995,7 +1000,7 @@ if (cluster.isMaster) {
 	async function remove(data, userid, res) {
 		const permission = await query(`
 			SELECT permission FROM user_to_game
-			WHERE user = ? AND game = ?`,
+			WHERE user = %L AND game = %L`,
 			[userid, data.game]);
 		res.statusCode = 204;
 		restrict(permission, 1);
@@ -1004,18 +1009,18 @@ if (cluster.isMaster) {
 				restrict(permission, 2);
 				await query(`
 					DELETE FROM games
-					WHERE ID = ?`, [data.game]);
+					WHERE ID = %L`, [data.game]);
 				break;
 			case "location":
 				await query(`
 					DELETE FROM locations
-					WHERE ID = ? AND game = ?`,
+					WHERE ID = %L AND game = %L`,
 					[data.id, data.game]);
 				break;
 			case "object":
 				await query(`
 					DELETE FROM objects
-					WHERE ID = ? AND game = ?`,
+					WHERE ID = %L AND game = %L`,
 					[data.id, data.game]);
 				break;
 			case "action":
@@ -1023,7 +1028,7 @@ if (cluster.isMaster) {
 			case "path":
 				await action_match_game(data.type, data.id, data.game);
 				await query(`
-					DELETE FROM ?? WHERE ID = ?`,
+					DELETE FROM %I WHERE ID = %L`,
 					[table_list.get(data.type), data.id]);
 				break;
 			case "description":
@@ -1031,12 +1036,12 @@ if (cluster.isMaster) {
 					data.item, data.game);
 				await query(`
 					DELETE FROM descriptions
-					WHERE location = ? AND num = ?`,
+					WHERE location = %L AND num = %L`,
 					[data.item, data.num]);
 				await query(`
 					UPDATE descriptions
 					SET num = num - 1
-					WHERE location = ? AND num > ?`,
+					WHERE location = %L AND num > %L`,
 					[data.item, data.num]);
 				break;
 			default: {
@@ -1045,7 +1050,7 @@ if (cluster.isMaster) {
 					const valid = await query(`
 						SELECT COUNT(*) AS valid FROM descriptions
 						JOIN locations ON descriptions.location = locations.ID
-						WHERE descriptions.ID = ? AND locations.game = ?`,
+						WHERE descriptions.ID = %L AND locations.game = ?`,
 						[data.item, data.game]);
 					if (!valid[0].valid) throw "Action does not match game";
 				} else await action_match_game(
@@ -1055,7 +1060,7 @@ if (cluster.isMaster) {
 					/^(location-|inventory-)?(constraint|effect)$/);
 				if (type1 === 'inventory-') {
 					await query(`
-						DELETE FROM ?? WHERE obj = ? AND ?? = ?`,
+						DELETE FROM %I WHERE obj = %L AND %I = %L`,
 						[start_table_list.get(data.parenttype) +
 							'inventory_' + type2,
 						data.obj,
@@ -1067,10 +1072,10 @@ if (cluster.isMaster) {
 					const table2 = (type1 ? '' : 'location_') +
 						'constraint_and_effect';
 					await query(`
-						DELETE ?? FROM ??
-						JOIN ?? ON ??.?? = ??.ID
-						WHERE ??.?? = ?
-						AND ??.obj = ?`,
+						DELETE %I FROM %I
+						JOIN %I ON %I.%I = %I.ID
+						WHERE %I.%I = %L
+						AND %I.obj = %L`,
 						[table1, table2, table1, table1,
 							type2 === 'constraint' ? 'constraint_' : 'effect',
 							table2, table1, column_list.get(data.parenttype),
@@ -1088,14 +1093,14 @@ if (cluster.isMaster) {
 	async function location_match_game(location, game) {
 		const valid = await query(`
 			SELECT COUNT(*) AS valid FROM locations
-			WHERE ID = ? AND game = ?`, [location, game]);
+			WHERE ID = %L AND game = %L`, [location, game]);
 		if (!valid[0].valid) throw "location does not match game";
 	}
 
 	async function object_match_game(object, game) {
 		const valid = await query(`
 			SELECT COUNT(*) AS valid FROM objects
-			WHERE ID = ? AND game = ?`, [object, game]);
+			WHERE ID = %L AND game = %L`, [object, game]);
 		if (!valid[0].valid) throw "object does not match game";
 	}
 
@@ -1106,9 +1111,9 @@ if (cluster.isMaster) {
 		const table = table_list.get(type);
 		const table2 = type === 'path' ? 'locations' : 'objects';
 		if (!(await query(`
-			SELECT COUNT(*) AS valid FROM ??
-			JOIN ?? ON ??.ID = ??.??
-			WHERE ??.game = ? AND ??.ID = ?`,
+			SELECT COUNT(*) AS valid FROM %I
+			JOIN %I ON %I.ID = %I.%I
+			WHERE %I.game = %L AND %I.ID = %L`,
 			[table, table2, table2, table,
 				obj_column_map.get(type), table2, game, table, id])
 			)[0].valid) throw "Action does not match game";
@@ -1228,7 +1233,7 @@ if (cluster.isMaster) {
 					description_to_location_constraint.constraint_
 			LEFT JOIN description_to_inventory_constraint
 				ON descriptions.ID = description_to_inventory_constraint.description
-			WHERE descriptions.location = ?
+			WHERE descriptions.location = %L
 			ORDER BY descriptions.num`, [location]);
 		let constraint_array = [];
 		let last_num;
@@ -1272,7 +1277,7 @@ if (cluster.isMaster) {
 	async function get_objs(game) {
 		return await query(`
 			SELECT ID, name FROM objects
-			WHERE game = ? ORDER BY location`, [game]);
+			WHERE game = %L ORDER BY location`, [game]);
 	}
 
 	async function all_objects(objs, id) {
@@ -1283,7 +1288,7 @@ if (cluster.isMaster) {
 	}
 	async function all_locations(game, no, id) {
 		const locations = await query(`
-			SELECT * FROM locations WHERE game = ?`, [game]);
+			SELECT * FROM locations WHERE game = %L`, [game]);
 		const options = locations.map(elem => elem.ID === no ? '' :
 			`<option value="${elem.ID}" ${id === elem.ID ? 'selected' : ''}>` +
 			elem.name + `</option>`);
@@ -1305,8 +1310,8 @@ if (cluster.isMaster) {
 		res.setHeader('Set-Cookie', cookie.serialize('token', token, {
 			maxAge: expire_seconds,
 			httpOnly: true,
-			sameSite: 'lax'/*,
-			secure: true*/
+			sameSite: 'lax',
+			secure: true
 		}));
 	}
 }
