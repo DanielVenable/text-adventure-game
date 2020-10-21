@@ -24,7 +24,7 @@ if (cluster.isMaster) {
 		}
 	});
 
-	function query(str, arr) {
+	function query(str, arr = []) {
 		return client.query(pg_format(str, ...arr));
 	}
 
