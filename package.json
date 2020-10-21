@@ -20,6 +20,7 @@
   "dependencies": {
     "jsonwebtoken": "8.5.1",
     "cookie": "0.4.1",
-    "pg": "8.3.3"
+    "pg": "8.3.3",
+    "pg-format": "1.0.4"
   }
 }
