@@ -761,7 +761,7 @@ if (cluster.isMaster) {
 			case '/create': {
 				if (!userid) throw 'Unauthorized action';
 				const game = await query(`
-					INSERT INTO games (name) VALUES (%L) RETURNING id`,
+					INSERT INTO games (name, text) VALUES (%L, '') RETURNING id`,
 					[data.name]);
 				await query(`
 					INSERT INTO user_to_game (user_, game, permission)
