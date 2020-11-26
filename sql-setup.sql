@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS users (
 
 CREATE TABLE IF NOT EXISTS games (
     id SERIAL,
-    name varchar(255) NOT NULL UNIQUE,
+    name varchar(255) NOT NULL,
     text varchar(255) NOT NULL,
     start int,
     public bool DEFAULT false,

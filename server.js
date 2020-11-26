@@ -678,15 +678,11 @@ if (cluster.isMaster) {
 					} default: await invalid_request(res);
 				}
 				break;
-			case '/check/game':
 			case '/check/username': {
 				res.setHeader('Content-Type', 'text/plain');
-				const list = path === '/check/game' ?
-					['games', 'name', data.name] :
-					['users', 'username', data.name];
 				const taken = await query(`
 					SELECT COUNT(*) AS num FROM %I
-					WHERE %I = %L`, list);
+					WHERE %I = %L`, ['users', 'username', data.name]);
 				return String(taken[0].num);
 			} case '/description-constraint': {
 				restrict(permission, 1);
@@ -764,17 +760,13 @@ if (cluster.isMaster) {
 		switch (path) {
 			case '/create': {
 				if (!userid) throw 'Unauthorized action';
-				try {
-					const game = await query(`
-						INSERT INTO games (name) VALUES (%L) RETURNING id`,
-						[data.name]);
-					await query(`
-						INSERT INTO user_to_game (user_, game, permission)
-						VALUES (%L, %L, 2)`, [userid, game[0].id]);
-					res.statusCode = 201;
-				} catch {
-					res.statusCode = 409;
-				}
+				const game = await query(`
+					INSERT INTO games (name) VALUES (%L) RETURNING id`,
+					[data.name]);
+				await query(`
+					INSERT INTO user_to_game (user_, game, permission)
+					VALUES (%L, %L, 2)`, [userid, game[0].id]);
+				res.statusCode = 201;
 				break;
 			} case '/signin': {
 				const user = await query(`

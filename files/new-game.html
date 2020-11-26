@@ -20,35 +20,20 @@
 	<div class="container">
 		<form method="GET" action="/edit" onsubmit="create(event)">
 			<lable for="name">Choose a name for your game:</lable><br>
-			<input id="name" name="name" onkeyup="check_name(event)">
+			<input id="name" name="name">
 			<input id="submit" type="submit">
 		</form>
-		<p><span id="warning" hidden>Name already taken.</span></p>
 	</div>
 </body>
 
 <script>
 	const input = document.getElementById('name');
 	const submit = document.getElementById('submit');
-	const warning = document.getElementById('warning');
-
-	function check_name() {
-		const xhttp = new XMLHttpRequest();
-		xhttp.onreadystatechange = function () {
-			if (this.readyState == 4) {
-				submit.disabled = this.responseText == "1";
-				warning.hidden = this.responseText == "0";
-			}
-		}
-		xhttp.open('GET', `/check/game?name=${encodeURIComponent(input.value)}`, true);
-		xhttp.send();
-	}
 
 	function create(event) {
 		const xhttp = new XMLHttpRequest();
 		xhttp.open('POST', '/create', false);
 		xhttp.send(`name=${encodeURIComponent(input.value)}`);
-		if (xhttp.status == 409) event.preventDefault();
 	}
 </script>
 
