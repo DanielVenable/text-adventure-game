@@ -147,7 +147,7 @@ if (cluster.isMaster) {
 						SELECT * FROM objects
 						WHERE game = %L ORDER BY id`, [gameid]),
 					show_data = {
-						game: game[0].name, states, moved_objects,
+						game: game[0].name, states, moved_objects, gameid,
 						location: locationID, inventory, moves, objects
 					};
 				let split_go_to,
@@ -362,14 +362,14 @@ if (cluster.isMaster) {
 					}
 				} else return await show(show_data, "Invalid command");
 			} case '/': {
-				const result = await query(`
-					SELECT name FROM games
+				const games = await query(`
+					SELECT id, name FROM games
 					WHERE start IS NOT NULL AND public = TRUE
 					ORDER BY name`);
 				let game_list = "";
-				for (const game of result) {
+				for (const game of games) {
 					game_list += await show_file('start-game-link.html',
-						encodeURIComponent(game.name), sanitize(game.name));
+						encodeURIComponent(game.id), sanitize(game.name));
 				}
 				return await show_file('home-page.html', game_list);
 			} case '/start': {
@@ -377,7 +377,7 @@ if (cluster.isMaster) {
 				const result = await query(`
 					SELECT locations.id, games.text, games.public FROM games
 					JOIN locations ON locations.id = games.start
-					WHERE games.name = %L`, [game]);
+					WHERE games.id = %L`, [game]);
 				if (!result[0].public)
 					restrict(permission, 0);
 				const list = Array(5).fill([]);
@@ -397,14 +397,14 @@ if (cluster.isMaster) {
 			} case '/edit':
 				if (data.game) {
 					const game = await query(`
-						SELECT id, start FROM games
-						WHERE name = %L`, [data.game]),
+						SELECT start FROM games
+						WHERE id = %L`, [data.game]),
 						permission = await query(`
 						SELECT permission FROM user_to_game
-						WHERE user_ = %L AND game = %L`, [userid, game[0].id]);
+						WHERE user_ = %L AND game = %L`, [userid, data.game]);
 					restrict(permission, 1);
 					const locations = await query(`
-						SELECT id, name FROM locations WHERE game = %L`, [game[0].id]);
+						SELECT id, name FROM locations WHERE game = %L`, [data.game]);
 					let location_list = "";
 					for (const location of locations) {
 						if (game[0].start === location.id) {
@@ -419,7 +419,7 @@ if (cluster.isMaster) {
 					}
 					const objects = await query(`
 						SELECT * FROM objects
-						WHERE location IS NULL AND game = %L`, [game[0].id]);
+						WHERE location IS NULL AND game = %L`, [data.game]);
 					let obj_list = '';
 					for (const obj of objects) {
 						obj_list += await show_file('object.html',
@@ -432,7 +432,7 @@ if (cluster.isMaster) {
 							FROM user_to_game JOIN users
 							ON user_to_game.user_ = users.id
 							WHERE user_to_game.game = %L
-							AND users.id != %L`, [game[0].id, userid]);
+							AND users.id != %L`, [data.game, userid]);
 						let list = '';
 						for (const user of users) {
 							let opts = ['', '', ''];
@@ -442,11 +442,10 @@ if (cluster.isMaster) {
 						}
 						operator_controls = await show_file('operator-controls.html', list);
 					}
+					const game_id = encodeURIComponent(data.game);
 					return await show_file('edit.html',
-						location_list,
-						obj_list,
-						encodeURIComponent(data.game),
-						operator_controls, game[0].id);
+						location_list, obj_list, game_id,
+						operator_controls, game_id);
 				} else {
 					if (!userid) throw "Unauthorized action";
 					const result = await query(`
@@ -766,8 +765,8 @@ if (cluster.isMaster) {
 				await query(`
 					INSERT INTO user_to_game (user_, game, permission)
 					VALUES (%L, %L, 2)`, [userid, game[0].id]);
-				res.statusCode = 201;
-				break;
+				res.setHeader('content-type', 'text/plain');
+				return game[0].id;
 			} case '/signin': {
 				const user = await query(`
 					SELECT id FROM users WHERE username = %L AND hash = %L`,
@@ -1190,15 +1189,15 @@ if (cluster.isMaster) {
 			token, data.inventory.size ?
 			`You have: ${sanitize(Array.from(data.inventory, i => data.objects[i].name).join(', '))
 			}` : "",
-			encodeURIComponent(data.game));
+			encodeURIComponent(data.gameid));
 	}
 
-	function win_lose({ game, moves }, { text, win }) {
+	function win_lose({ game, gameid, moves }, { text, win }) {
 		return show_file('win.html',
 			sanitize(game),
 			sanitize(text),
 			win ? 'win!' : 'lose.', moves + 1,
-			encodeURIComponent(game));
+			encodeURIComponent(gameid));
 	}
 
 	async function describe(data) {

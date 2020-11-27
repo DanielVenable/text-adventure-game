@@ -18,11 +18,9 @@
 		<a href="/signin" class="right">Sign in/Sign up</a>
 	</div>
 	<div class="container">
-		<form method="GET" action="/edit" onsubmit="create(event)">
-			<lable for="name">Choose a name for your game:</lable><br>
-			<input id="name" name="name">
-			<input id="submit" type="submit">
-		</form>
+		<lable for="name">Choose a name for your game:</lable><br>
+		<input id="name" name="name">
+		<button id="submit">Submit</button>
 	</div>
 </body>
 
@@ -30,10 +28,18 @@
 	const input = document.getElementById('name');
 	const submit = document.getElementById('submit');
 
+	submit.addEventListener('click', create);
+
 	function create(event) {
 		const xhttp = new XMLHttpRequest();
 		xhttp.open('POST', '/create', false);
 		xhttp.send(`name=${encodeURIComponent(input.value)}`);
+		xhttp.onreadystatechange = () => {
+			if (xhttp.readyState === 4 && xhttp.status === 200) {
+				window.location.href = `/edit?game=${
+					encodeURIComponent(xhttp.response)}`;
+			}
+		}
 	}
 </script>
 
