@@ -38,7 +38,7 @@
 		navbar.hidden = true;
 	}
 
-	input.disabled = true;
+	submit_button.disabled = true;
 	input.addEventListener('input', () => {
 		submit_button.disabled = !valid_cmd.test(input.value);
 	});

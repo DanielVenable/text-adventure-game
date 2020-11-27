@@ -390,15 +390,14 @@ if (cluster.isMaster) {
 			} case '/start': {
 				const game = data.game;
 				const result = await query(`
-					SELECT locations.id, games.text, games.public FROM games
+					SELECT locations.id, games.text, games.public, games.name FROM games
 					JOIN locations ON locations.id = games.start
 					WHERE games.id = %L`, [game]);
-				if (!result[0].public)
-					restrict(permission, 0);
+				if (!result[0].public) restrict(permission, 0);
 				const list = Array(5).fill([]);
 				list[2] = result[0].id;
 				return await show_file('play.html',
-					sanitize(game),
+					sanitize(result[0].name),
 					sanitize(result[0].text),
 					await describe({
 						location: result[0].id,
@@ -812,13 +811,14 @@ if (cluster.isMaster) {
 				restrict(permission, 1);
 				switch (data.type) {
 					case "location": {
+						const name = data.name.toLowerCase();
 						const result = await query(`
 							INSERT INTO locations (game, name)
 							VALUES (%L,%L) RETURNING id`,
-							[data.game, data.name.toLowerCase()]);
+							[data.game, name]);
 						return await show_file('location.html',
 							result[0].id, "",
-							sanitize(data.name.toLowerCase()), "");
+							sanitize(name), "");
 					} case "object": {
 						const is_anywhere = !isNaN(parseInt(data.location));
 						if (is_anywhere) await location_match_game(location, game);
