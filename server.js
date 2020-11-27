@@ -98,7 +98,7 @@ if (cluster.isMaster) {
 						res.end(await show_file('sign-in.html',
 							sanitize(req.url), 'hidden', sanitize(req.url)));
 					}
-				} else await invalid_request(res);
+				} else res.statusCode = 400;
 				console.error(error);
 			} finally {
 				if (!res.writableEnded) res.end();
@@ -362,16 +362,31 @@ if (cluster.isMaster) {
 					}
 				} else return await show(show_data, "Invalid command");
 			} case '/': {
-				const games = await query(`
+				const publics = await query(`
 					SELECT id, name FROM games
 					WHERE start IS NOT NULL AND public = TRUE
 					ORDER BY name`);
-				let game_list = "";
-				for (const game of games) {
-					game_list += await show_file('start-game-link.html',
+				let public_game_list = "";
+				for (const game of publics) {
+					public_game_list += await show_file('start-game-link.html',
 						encodeURIComponent(game.id), sanitize(game.name));
 				}
-				return await show_file('home-page.html', game_list);
+				let private_game_list = "";
+				if (userid) {
+					const privates = await query(`
+						SELECT games.id, games.name FROM games
+						JOIN user_to_game ON user_to_game.game = games.id
+						WHERE games.start IS NOT NULL
+							AND games.public = FALSE
+							AND user_to_game.user = %L
+						ORDER BY games.name`, [userid]);
+					for (const game of privates) {
+						private_game_list += await show_file('start-game-link.html',
+							encodeURIComponent(game.id), sanitize(game.name));
+					}
+				}
+				return await show_file('home-page.html',
+					public_game_list, private_game_list);
 			} case '/start': {
 				const game = data.game;
 				const result = await query(`
@@ -449,14 +464,14 @@ if (cluster.isMaster) {
 				} else {
 					if (!userid) throw "Unauthorized action";
 					const result = await query(`
-						SELECT games.name FROM games
+						SELECT games.id, games.name FROM games
 						JOIN user_to_game ON user_to_game.game = games.id
 						WHERE user_to_game.user_ = %L AND user_to_game.permission >= 1
 						ORDER BY games.name`, [userid]);
 					if (result.length) {
 						let game_list = "";
-						for (const game of result) {
-							game_list += `<option>${sanitize(game.name)}</option>`;
+						for (const { id, name } of result) {
+							game_list += `<option value=${id}>${sanitize(name)}</option>`;
 						}
 						return await show_file('choose-edit.html', game_list);
 					} else {
@@ -674,7 +689,7 @@ if (cluster.isMaster) {
 										null, item.location
 									)), '');
 						}
-					} default: await invalid_request(res);
+					} default: res.statusCode = 400;
 				}
 				break;
 			case '/check/username': {
@@ -1252,11 +1267,6 @@ if (cluster.isMaster) {
 			id, win === null ? 'checked' : '',
 			id, win === 1 ? 'checked' : '',
 			id, win === 0 ? 'checked' : ''];
-	}
-
-	async function invalid_request(res) {
-		res.statusCode = 400;
-		res.end(await show_file('invalid-request.html'));
 	}
 
 	async function show_file(path, ...args) {
