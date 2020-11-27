@@ -411,7 +411,7 @@ if (cluster.isMaster) {
 			} case '/edit':
 				if (data.game) {
 					const game = await query(`
-						SELECT start FROM games
+						SELECT start, name FROM games
 						WHERE id = %L`, [data.game]),
 						permission = await query(`
 						SELECT permission FROM user_to_game
@@ -458,8 +458,8 @@ if (cluster.isMaster) {
 					}
 					const game_id = encodeURIComponent(data.game);
 					return await show_file('edit.html',
-						location_list, obj_list, game_id,
-						operator_controls, game_id);
+						game[0].name, location_list, obj_list,
+						game_id, operator_controls, game_id);
 				} else {
 					if (!userid) throw "Unauthorized action";
 					const result = await query(`
