@@ -821,7 +821,9 @@ if (cluster.isMaster) {
 							sanitize(name), "");
 					} case "object": {
 						const is_anywhere = !isNaN(data.location);
-						if (is_anywhere) await location_match_game(data.location, game);
+						if (is_anywhere) {
+							await location_match_game(data.location, data.game);
+						}
 						const result = await query(`
 							INSERT INTO objects (game, name, location)
 							VALUES (%L,%L,%L) RETURNING id`,
