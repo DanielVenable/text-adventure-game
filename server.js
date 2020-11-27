@@ -378,7 +378,7 @@ if (cluster.isMaster) {
 						JOIN user_to_game ON user_to_game.game = games.id
 						WHERE games.start IS NOT NULL
 							AND games.public = FALSE
-							AND user_to_game.user = %L
+							AND user_to_game.user_ = %L
 						ORDER BY games.name`, [userid]);
 					for (const game of privates) {
 						private_game_list += await show_file('start-game-link.html',
