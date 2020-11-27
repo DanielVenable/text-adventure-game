@@ -813,8 +813,8 @@ if (cluster.isMaster) {
 				switch (data.type) {
 					case "location": {
 						const result = await query(`
-							INSERT INTO locations (game, name, description)
-							VALUES (%L,%L,%L) RETURNING id`,
+							INSERT INTO locations (game, name)
+							VALUES (%L,%L) RETURNING id`,
 							[data.game, data.name.toLowerCase(), data.description]);
 						return await show_file('location.html',
 							result[0].id, "",
