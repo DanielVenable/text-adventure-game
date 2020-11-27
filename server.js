@@ -815,7 +815,7 @@ if (cluster.isMaster) {
 						const result = await query(`
 							INSERT INTO locations (game, name)
 							VALUES (%L,%L) RETURNING id`,
-							[data.game, data.name.toLowerCase(), data.description]);
+							[data.game, data.name.toLowerCase()]);
 						return await show_file('location.html',
 							result[0].id, "",
 							sanitize(data.name.toLowerCase()), "");
