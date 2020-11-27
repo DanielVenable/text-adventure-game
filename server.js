@@ -820,8 +820,8 @@ if (cluster.isMaster) {
 							result[0].id, "",
 							sanitize(name), "");
 					} case "object": {
-						const is_anywhere = !isNaN(parseInt(data.location));
-						if (is_anywhere) await location_match_game(location, game);
+						const is_anywhere = !isNaN(data.location);
+						if (is_anywhere) await location_match_game(data.location, game);
 						const result = await query(`
 							INSERT INTO objects (game, name, location)
 							VALUES (%L,%L,%L) RETURNING id`,
@@ -853,7 +853,7 @@ if (cluster.isMaster) {
 					} case "path": {
 						await location_match_game(data.item, data.game);
 						const result = await query(`
-							INSERT INTO paths (start) VALUES (%L, %L) RETURNING id`,
+							INSERT INTO paths (start) VALUES (%L) RETURNING id`,
 							[data.item]);
 						return await show_file('path.html', result[0].id,
 							await all_locations(data.game, data.item),
@@ -866,8 +866,8 @@ if (cluster.isMaster) {
 							WHERE location = %L AND num >= %L`,
 							[data.item, data.num]);
 						const description = await query(`
-							INSERT INTO descriptions (location, num)
-							VALUES (%L, %L) RETURNING id`, [data.item, data.num]);
+							INSERT INTO descriptions (location, num, text)
+							VALUES (%L, %L, '') RETURNING id`, [data.item, data.num]);
 						return await show_file('description.html',
 							description[0].id, '', '', '', '');
 					} default: {
