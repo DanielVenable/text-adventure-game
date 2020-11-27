@@ -738,12 +738,12 @@ if (cluster.isMaster) {
 				}
 			} case '/join-link': {
 				restrict(permission, 2);
-				res.setHeader('Content-Type', 'text/uri-list');
-				return `http://localhost:${port}/join?token=${jwt.sign({
+				res.setHeader('Content-Type', 'text/plain');
+				return jwt.sign({
 					id: Number(data.game)
 				}, jwtKey, {
 					expiresIn: '5 days'
-				})}`;
+				});
 			} case '/join': {
 				if (!userid) throw "Unauthorized action";
 				const game = jwt.verify(data.token, jwtKey).id;

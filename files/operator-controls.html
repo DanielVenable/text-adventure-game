@@ -14,7 +14,8 @@
 	document.getElementById('get-join-link')
 		.addEventListener('click', async () => {
 			const join_link = document.getElementById('join-link');
-			join_link.value = (await ajax('GET', '/join-link')).responseText;
+			join_link.value = `${window.location.origin
+				}/join?token=${(await ajax('GET', '/join-link')).responseText}`;
 			join_link.select();
 			document.execCommand('copy');
 		});
