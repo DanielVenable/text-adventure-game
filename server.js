@@ -398,7 +398,7 @@ if (cluster.isMaster) {
 				list[2] = result[0].id;
 				return await show_file('play.html',
 					sanitize(result[0].name),
-					sanitize(result[0].text),
+					show_newlines(sanitize(result[0].text)),
 					await describe({
 						location: result[0].id,
 						states: new Map(),
@@ -1210,7 +1210,7 @@ if (cluster.isMaster) {
 		return await show_file('play.html',
 			sanitize(data.game),
 			await describe(data),
-			sanitize(text),
+			show_newlines(sanitize(text)),
 			token, data.inventory.size ?
 			`You have: ${sanitize(Array.from(data.inventory, i => data.objects[i].name).join(', '))
 			}` : "",
@@ -1232,7 +1232,7 @@ if (cluster.isMaster) {
 				data.states, data.moved_objects, data.inventory,
 				item, data.objects).text || "";
 		}
-		return sanitize(description);
+		return show_newlines(sanitize(description));
 	}
 
 	async function get_constraint_array(location) {
@@ -1291,6 +1291,10 @@ if (cluster.isMaster) {
 			.replace(/"/g, '&quot;')
 			.replace(/'/g, '&#x27')
 			.replace(/\\/g, '&#x2F');
+	}
+
+	function show_newlines(str) {
+		return String(str).replace(/\n/g, '<br>');
 	}
 
 	async function get_objs(game) {
