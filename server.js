@@ -458,7 +458,7 @@ if (cluster.isMaster) {
 					}
 					const game_id = encodeURIComponent(data.game);
 					return await show_file('edit.html',
-						sanitize(game[0].name), sanitize(game.text),
+						sanitize(game[0].name), sanitize(game[0].text),
 						location_list, obj_list, game_id,
 						operator_controls, game_id);
 				} else {
