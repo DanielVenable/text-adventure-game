@@ -73,6 +73,7 @@
 	</div>
 	<div class="container">
 		<div id="game">
+			<textarea>%s</textarea>
 			<h3>Locations</h3>
 			<ul data-type="location">
 				<li class="nobullet"><button data-type="add">Add a location</button></li>
@@ -217,7 +218,11 @@
 				id: path[1].dataset.id
 			});
 		} else if (path[0] instanceof HTMLTextAreaElement) {
-			if (path[0].dataset.type === 'action-description') {
+			if (path[0].id === 'start-text') {
+				await ajax('POST', '/change/start-text', {
+					text: path[0].value
+				});
+			} else if (path[0].dataset.type === 'action-description') {
 				await ajax('POST', '/change/description', {
 					text: path[0].value,
 					id: path[1].dataset.id,

@@ -411,7 +411,7 @@ if (cluster.isMaster) {
 			} case '/edit':
 				if (data.game) {
 					const game = await query(`
-						SELECT start, name FROM games
+						SELECT start, name, text FROM games
 						WHERE id = %L`, [data.game]),
 						permission = await query(`
 						SELECT permission FROM user_to_game
@@ -458,8 +458,9 @@ if (cluster.isMaster) {
 					}
 					const game_id = encodeURIComponent(data.game);
 					return await show_file('edit.html',
-						game[0].name, location_list, obj_list,
-						game_id, operator_controls, game_id);
+						sanitize(game[0].name), sanitize(game.text),
+						location_list, obj_list, game_id,
+						operator_controls, game_id);
 				} else {
 					if (!userid) throw "Unauthorized action";
 					const result = await query(`
@@ -859,7 +860,7 @@ if (cluster.isMaster) {
 							[data.item]);
 						return await show_file('path.html', result[0].id,
 							await all_locations(data.game, data.item),
-							get_win_lose_array({ id: result[0].id, win: null }));
+							...get_win_lose_array({ id: result[0].id, win: null }));
 					} case "description": {
 						await location_match_game(data.item, data.game);
 						await query(`
@@ -946,6 +947,12 @@ if (cluster.isMaster) {
 					[table, data.name.toLowerCase(), data.id]);
 				res.statusCode = 204;
 				break;
+			} case '/change/start-text': {
+				restrict(permission, 1);
+				await query(`
+					UPDATE games SET text = %L
+					WHERE id = %L`, [data.text, data.game]);
+				break;
 			} case '/change/description': {
 				restrict(permission, 1);
 				if (data.type === 'location') {
@@ -1013,6 +1020,7 @@ if (cluster.isMaster) {
 			} default: res.statusCode = 404;
 		}
 	}
+
 
 	async function remove(data, userid, res) {
 		const permission = await query(`
@@ -1293,16 +1301,16 @@ if (cluster.isMaster) {
 
 	async function all_objects(objs, id) {
 		const options = objs.map(elem =>
-			`<option value="${elem.id}" ${id === elem.id ? 'selected' : ''}>` +
-			sanitize(elem.name) + `</option>`);
+			`<option value="${elem.id}" ${id === elem.id ? 'selected' : ''}>${
+			sanitize(elem.name)}</option>`);
 		return `<option></option>` + options.join('');
 	}
 	async function all_locations(game, no, id) {
 		const locations = await query(`
 			SELECT * FROM locations WHERE game = %L`, [game]);
 		const options = locations.map(elem => elem.id === no ? '' :
-			`<option value="${elem.id}" ${id === elem.id ? 'selected' : ''}>` +
-			elem.name + `</option>`);
+			`<option value="${elem.id}" ${id === elem.id ? 'selected' : ''}>${
+			sanitize(elem.name)}</option>`);
 		return `<option></option>` + options.join('');
 	}
 
