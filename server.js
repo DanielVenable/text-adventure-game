@@ -3,8 +3,7 @@
 const cluster = require('cluster');
 
 if (cluster.isMaster) {
-	for (let i = 0; i < require('os').cpus().length; i++) cluster.fork();
-	cluster.on('disconnect', cluster.fork);
+	for (let i = 0; i < (process.env.WEB_CONCURRENCY || 1); i++) cluster.fork();
 } else {
 	const http = require('http'),
 		url = require('url'),
@@ -64,7 +63,8 @@ if (cluster.isMaster) {
 
 	client.connect().then(() =>
 		http.createServer(async (req, res) => {
-			if (req.headers['x-forwarded-proto'] !== 'https') {
+			if (req.headers['x-forwarded-proto'] !== 'https' &&
+					process.env.NODE_ENV === 'production') {
 				res.statusCode = 308;
 				res.setHeader('Location', `https://${req.headers.host}${req.url}`);
 				return res.end();
