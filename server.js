@@ -423,7 +423,7 @@ if (cluster.isMaster) {
 					for (const location of locations) {
 						if (game[0].start === location.id) {
 							location_list += await show_file('location.html',
-								location.id, ' data-type="start"',
+								location.id, ' class="start"',
 								sanitize(location.name), "hidden");
 						} else {
 							location_list += await show_file('location.html',

@@ -198,9 +198,11 @@
 				path[0].insertAdjacentHTML('afterend', result.responseText);
 			} else if (path[0].dataset.type === 'make-start') {
 				await ajax('POST', '/setstart', { id: path[1].dataset.id });
-				const old_start = document.getElementsByClassName('start')[0];
-				old_start.classList.remove('start');
-				old_start.getElementsByClassName("make-start")[0].hidden = false;
+				const old_start = document.querySelector('.start');
+				if (old_start) {
+					old_start.classList.remove('start');
+					old_start.querySelector('[data-type="make-start"]').hidden = false;
+				}
 				path[1].classList.add('start');
 				path[0].hidden = true;
 			}
