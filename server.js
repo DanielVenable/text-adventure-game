@@ -781,7 +781,7 @@ if (cluster.isMaster) {
 					INSERT INTO user_to_game (user_, game, permission)
 					VALUES (%L, %L, 2)`, [userid, game[0].id]);
 				res.setHeader('content-type', 'text/plain');
-				return game[0].id;
+				return String(game[0].id);
 			} case '/signin': {
 				const user = await query(`
 					SELECT id FROM users WHERE username = %L AND hash = %L`,
@@ -1334,7 +1334,7 @@ if (cluster.isMaster) {
 			maxAge: expire_seconds,
 			httpOnly: true,
 			sameSite: 'lax',
-			secure: true
+			secure: process.env.NODE_ENV === 'production'
 		}));
 	}
 }
