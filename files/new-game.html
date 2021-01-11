@@ -17,22 +17,21 @@
 		<a href="/" class="left">Home</a>
 		<a href="/signin" class="right">Sign in/Sign up</a>
 	</div>
-	<div class="container">
+	<form class="container">
 		<lable for="name">Choose a name for your game:</lable><br>
 		<input id="name" name="name">
-		<button id="submit">Submit</button>
-	</div>
+		<input type="submit" value="submit">
+	</form>
 </body>
 
 <script>
 	const input = document.getElementById('name');
 	const submit = document.getElementById('submit');
 
-	submit.addEventListener('click', create);
-
-	function create(event) {
+	document.querySelector('form').addEventListener('submit', e => {
+		e.preventDefault();
 		const xhttp = new XMLHttpRequest();
-		xhttp.open('POST', '/create', false);
+		xhttp.open('POST', '/create');
 		xhttp.send(`name=${encodeURIComponent(input.value)}`);
 		xhttp.onreadystatechange = () => {
 			if (xhttp.readyState === 4 && xhttp.status === 200) {
@@ -40,7 +39,7 @@
 					encodeURIComponent(xhttp.response)}`;
 			}
 		}
-	}
+	});
 </script>
 
 </html>
