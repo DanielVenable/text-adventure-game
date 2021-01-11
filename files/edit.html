@@ -124,7 +124,7 @@
 						"? This operation cannot be undone")) {
 					const obj = {
 						type: path[2].dataset.type || 'game',
-						obj: path[1].dataset.id,
+						id: path[1].dataset.id,
 					};
 					if (is_constraint_or_effect) {
 						obj.item = path[3].dataset.id;
