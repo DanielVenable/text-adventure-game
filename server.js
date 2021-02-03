@@ -46,7 +46,8 @@ if (cluster.isMaster) {
 	}, table_list = new StrictMap([
 		['action', 'actions'],
 		['pick_up_action', 'grab'],
-		['path', 'paths']]
+		['path', 'paths'],
+		['description', 'descriptions']]
 	), start_table_list = new StrictMap([
 		['action', 'action_to_'],
 		['pick_up_action', 'grab_to_'],
@@ -1075,7 +1076,7 @@ if (cluster.isMaster) {
 					const valid = await query(`
 						SELECT COUNT(*) AS valid FROM descriptions
 						JOIN locations ON descriptions.location = locations.id
-						WHERE descriptions.id = %L AND locations.game = ?`,
+						WHERE descriptions.id = %L AND locations.game = %L`,
 						[data.item, data.game]);
 					if (!valid[0].valid) throw "Action does not match game";
 				} else await action_match_game(
@@ -1093,15 +1094,15 @@ if (cluster.isMaster) {
 						data.item]);
 				} else {
 					const table1 = start_table_list.get(data.parenttype) +
-						(type1 ? '' : 'location') + type2;
-					const table2 = (type1 ? '' : 'location_') +
+						(type1 ? 'location_' : '') + type2;
+					const table2 = (type1 ? 'location_' : '') +
 						'constraint_and_effect';
 					await query(`
-						DELETE %I FROM %I
-						JOIN %I ON %I.%I = %I.id
-						WHERE %I.%I = %L
+						DELETE FROM %I USING %I
+						WHERE %I.%I = %I.id
+						AND %I.%I = %L
 						AND %I.obj = %L`,
-						[table1, table2, table1, table1,
+						[table1, table2, table1,
 							type2 === 'constraint' ? 'constraint_' : 'effect',
 							table2, table1, column_list.get(data.parenttype),
 							data.item, table2, data.obj]);
@@ -1130,7 +1131,7 @@ if (cluster.isMaster) {
 	}
 
 	const obj_column_map = new StrictMap([
-		['action', 'obj1'], ['pick_up_action', 'obj'], ['path', 'start']
+		['action', 'obj1'], ['pick_up_action', 'obj'], ['path', 'start'], ['description', 'location']
 	]);
 	async function action_match_game(type, id, game) {
 		const table = table_list.get(type);
