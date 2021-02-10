@@ -4,19 +4,19 @@
   "description": "A program that lets you create and play text adventure games.",
   "main": "server.js",
   "scripts": {
-    "test": "node -r dotenv/config server.js",
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "jasmine"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/DanielVenable/Text-adventure-game.git"
+    "url": "git+https://github.com/DanielVenable/text-adventure-game.git"
   },
   "author": "Daniel Venable",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/DanielVenable/Text-adventure-game/issues"
+    "url": "https://github.com/DanielVenable/text-adventure-game/issues"
   },
-  "homepage": "https://github.com/DanielVenable/Text-adventure-game#readme",
+  "homepage": "https://github.com/DanielVenable/text-adventure-game#readme",
   "dependencies": {
     "jsonwebtoken": "8.5.1",
     "cookie": "0.4.1",
@@ -24,6 +24,7 @@
     "pg-format": "1.0.4"
   },
   "devDependencies": {
-    "dotenv": "8.2.0"
+    "dotenv": "8.2.0",
+    "jasmine": "3.6.4"
   }
 }
