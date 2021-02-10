@@ -2,6 +2,10 @@
 
 const cluster = require('cluster');
 
+if (process.env.NODE_ENV !== 'production') {
+	require('dotenv').config();
+}
+
 if (cluster.isMaster) {
 	for (let i = 0; i < (process.env.WEB_CONCURRENCY || 1); i++) cluster.fork();
 } else {
@@ -17,10 +21,7 @@ if (cluster.isMaster) {
 		port = +process.env.PORT || 80;
 
 	const client = new pg.Client({
-		connectionString: process.env.DATABASE_URL,
-		ssl: {
-			rejectUnauthorized: false
-		}
+		connectionString: process.env.DATABASE_URL
 	});
 
 	async function query(str, arr = []) {
