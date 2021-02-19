@@ -96,7 +96,7 @@ if (cluster.isMaster) {
 			} catch (error) {
 				if (error === "Unauthorized action") {
 					res.statusCode = 401;
-					if (req.method === "GET") {
+					if (req.method === "GET" && !userid) {
 						res.end(await show_file('sign-in.html', await navbar(userid),
 							sanitize(req.url), 'hidden', sanitize(req.url)));
 					}
@@ -485,6 +485,7 @@ if (cluster.isMaster) {
 				}
 				break;
 			case '/new':
+				if (!userid) throw "Unauthorized action";
 				return await show_file('new-game.html', await navbar(userid));
 			case '/signin':
 				return await show_file('sign-in.html',
