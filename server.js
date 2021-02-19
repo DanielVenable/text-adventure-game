@@ -804,6 +804,10 @@ if (cluster.isMaster) {
 				}
 				break;
 			} case '/signup': {
+				if (data.password.length < 8 || data.username === '') {
+					res.statusCode = 400;
+					break;
+				}
 				const hash = crypto.createHash('sha256')
 					.update(data.password)
 					.digest('hex');
