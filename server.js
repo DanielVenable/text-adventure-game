@@ -71,8 +71,8 @@ if (cluster.isMaster) {
 				res.setHeader('Location', `https://${req.headers.host}${req.url}`);
 				return res.end();
 			}
+			let userid;
 			try {
-				let userid;
 				try {
 					userid = jwt.verify(
 						cookie.parse(req.headers.cookie).token, jwtKey).id;
@@ -97,7 +97,7 @@ if (cluster.isMaster) {
 				if (error === "Unauthorized action") {
 					res.statusCode = 401;
 					if (req.method === "GET") {
-						res.end(await show_file('sign-in.html',
+						res.end(await show_file('sign-in.html', await navbar(userid),
 							sanitize(req.url), 'hidden', sanitize(req.url)));
 					}
 				} else res.statusCode = 400;
@@ -150,7 +150,7 @@ if (cluster.isMaster) {
 						WHERE game = %L ORDER BY id`, [gameid]),
 					show_data = {
 						game: game[0].name, states, moved_objects, gameid,
-						location: locationID, inventory, moves, objects
+						location: locationID, inventory, moves, objects, userid
 					};
 				let split_go_to,
 					split_pick_up,
@@ -388,7 +388,7 @@ if (cluster.isMaster) {
 					}
 				}
 				return await show_file('home-page.html',
-					public_game_list, private_game_list);
+					await navbar(userid),	public_game_list, private_game_list);
 			} case '/start': {
 				const game = data.game;
 				const result = await query(`
@@ -400,6 +400,7 @@ if (cluster.isMaster) {
 				list[2] = result[0].id;
 				return await show_file('play.html',
 					sanitize(result[0].name),
+					await navbar(userid),
 					show_newlines(sanitize(result[0].text)),
 					await describe({
 						location: result[0].id,
@@ -460,9 +461,9 @@ if (cluster.isMaster) {
 					}
 					const game_id = encodeURIComponent(data.game);
 					return await show_file('edit.html',
-						sanitize(game[0].name), sanitize(game[0].text),
-						location_list, obj_list, game_id,
-						operator_controls, game_id);
+						sanitize(game[0].name), await navbar(userid),
+						sanitize(game[0].text), location_list, obj_list,
+						game_id, operator_controls, game_id);
 				} else {
 					if (!userid) throw "Unauthorized action";
 					const result = await query(`
@@ -475,7 +476,8 @@ if (cluster.isMaster) {
 						for (const { id, name } of result) {
 							game_list += `<option value=${id}>${sanitize(name)}</option>`;
 						}
-						return await show_file('choose-edit.html', game_list);
+						return await show_file('choose-edit.html',
+							await navbar(userid), game_list);
 					} else {
 						res.setHeader('Location', '/new');
 						res.statusCode = 307;
@@ -483,9 +485,10 @@ if (cluster.isMaster) {
 				}
 				break;
 			case '/new':
-				return await show_file('new-game.html');
+				return await show_file('new-game.html', await navbar(userid));
 			case '/signin':
-				return await show_file('sign-in.html', '/', 'hidden', '/');
+				return await show_file('sign-in.html',
+					await navbar(userid), '/', 'hidden', '/');
 			case '/navbar.css':
 				res.setHeader('Content-Type', 'text/css');
 				return await show_file('navbar.css');
@@ -795,7 +798,8 @@ if (cluster.isMaster) {
 					res.statusCode = 303;
 				} else {
 					res.statusCode = 401;
-					return await show_file('sign-in.html', data.url, '', data.url);
+					return await show_file('sign-in.html',
+						await navbar(userid), data.url, '', data.url);
 				}
 				break;
 			} case '/signup': {
@@ -808,6 +812,11 @@ if (cluster.isMaster) {
 					[data.username, hash]);
 				create_token(res, id);
 				res.setHeader('Location', data.url);
+				res.statusCode = 303;
+				break;
+			} case '/signout': {
+				res.setHeader('Set-Cookie', cookie.serialize('token', '', { maxAge: 0 }));
+				res.setHeader('Location', '/');
 				res.statusCode = 303;
 				break;
 			} case '/add': {
@@ -1211,6 +1220,7 @@ if (cluster.isMaster) {
 		}, jwtKey);
 		return await show_file('play.html',
 			sanitize(data.game),
+			await navbar(data.userid),
 			await describe(data),
 			show_newlines(sanitize(text)),
 			token, data.inventory.size ?
@@ -1219,9 +1229,10 @@ if (cluster.isMaster) {
 			encodeURIComponent(data.gameid));
 	}
 
-	function win_lose({ game, gameid, moves }, { text, win }) {
-		return show_file('win.html',
+	async function win_lose({ game, gameid, moves, userid }, { text, win }) {
+		return await show_file('win.html',
 			sanitize(game),
+			await navbar(userid),
 			sanitize(text),
 			win ? 'win!' : 'lose.', moves + 1,
 			encodeURIComponent(gameid));
@@ -1283,6 +1294,10 @@ if (cluster.isMaster) {
 
 	async function show_file(path, ...args) {
 		return util.format(await files.get(path), ...args);
+	}
+
+	async function navbar(is_signed_in) {
+		return await show_file(`navbar-sign-${is_signed_in ? 'out' : 'in'}.html`);
 	}
 
 	function sanitize(str) {
