@@ -78,12 +78,275 @@
 		<iframe src="/start?game=%s" title="Play your game"></iframe>
 		%s
 	</div>
+	<div hidden>
+		<div id="location">
+			<li>
+				<button class="link"></button>&emsp;
+				<button data-type="delete">delete</button>&emsp;
+				<button data-type="rename">rename</button>&emsp;
+				<button data-type="make-start">make start</button>
+			</li>
+		</div>
+		<div id="object">
+			<li>
+				<button class="link"></button>&emsp;
+				<button data-type="delete">delete</button>&emsp;
+				<button data-type="rename">rename</button>&emsp;
+			</li>
+		</div>
+		<div id="constraint">
+			<li>
+				<select class="object-select"></select>
+				must be in state
+				<input type="number" min="0" max="15" value="0">&emsp;
+				<button data-type="delete">delete</button>
+			</li>
+		</div>
+		<div id="effect">
+			<li>
+				<select class="object-select"></select>
+				goes in state
+				<input type="number" min="0" max="15" value="0">&emsp;
+				<button data-type="delete">delete</button>
+			</li>
+		</div>
+		<div id="location-constraint">
+			<li>
+				<select class="object-select"></select>
+				must be in <select class="location-select"></select>&emsp;
+				<button data-type="delete">delete</button>
+			</li>
+		</div>
+		<div id="location-effect">
+			<li>
+				<select class="object-select"></select>
+				goes in <select class="location-select"></select>&emsp;
+				<button data-type="delete">delete</button>
+			</li>
+		</div>
+		<div id="inventory-constraint">
+			<li>
+				You
+				<select class="noupdate">
+					<option value="1">
+						must have
+					</option>
+					<option value="0">
+						must not have
+					</option>
+				</select>
+				<select class="object-select"></select>
+				&emsp;
+				<button data-type="delete">delete</button>
+			</li>
+		</div>
+		<div id="inventory-effect">
+			<li>
+				You get
+				<select class="object-select"></select>&emsp;
+				<button data-type="delete">delete</button>
+			</li>
+		</div>
+		<div id="expanded-location">
+			<div class="textarea">
+				<p>
+					<button data-type="add-description-part">+</button>
+				</p>
+			</div>
+			<ul data-type="object">
+				<li class="nobullet">
+					<button data-type="add">Add an object</button>
+				</li>
+			</ul>
+			<ul data-type="path">
+				<li class="nobullet">
+					<button data-type="add">Add a path</button>
+				</li>
+			</ul>
+		</div>
+		<div id="expanded-object">
+			<ul data-type="action">
+				<li class="nobullet">
+					<button data-type="add">Add an action</button>
+				</li>
+			</ul>
+			<ul data-type="grab">
+				<li class="nobullet">
+					<button data-type="add">Add a pick up action</button>
+				</li>
+			</ul>
+		</div>
+		<div id="expanded-action">
+			<br>
+			<textarea data-type="action-description"></textarea>
+			<ul data-type="constraint">
+				<li class="nobullet">
+					<button data-type="add">Add a constraint</button>
+				</li>
+			</ul>
+			<ul data-type="effect">
+				<li class="nobullet">
+					<button data-type="add">Add an effect</button>
+				</li>
+			</ul>
+			<ul data-type="location-constraint">
+				<li class="nobullet">
+					<button data-type="add">Add a location constraint</button>
+				</li>
+			</ul>
+			<ul data-type="location-effect">
+				<li class="nobullet">
+					<button data-type="add">Add a location effect</button>
+				</li>
+			</ul>
+			<ul data-type="inventory-constraint">
+				<li class="nobullet">
+					<button data-type="add">Add an inventory constraint</button>
+				</li>
+			</ul>
+			<ul data-type="inventory-effect">
+				<li class="nobullet">
+					<button data-type="add">Add an inventory effect</button>
+				</li>
+			</ul>
+		</div>
+		<div id="description">
+			<div class="description">
+				<ul data-type="constraint">
+					<li class="nobullet">
+						<button data-type="add-description-constraint">
+							Add a constraint
+						</button>
+					</li>
+				</ul>
+				<ul data-type="location-constraint">
+					<li class="nobullet">
+						<button data-type="add-description-constraint">
+							Add a location constraint
+						</button>
+					</li>
+				</ul>
+				<ul data-type="inventory-constraint">
+					<li class="nobullet">
+						<button data-type="add-description-constraint">
+							Add a inventory constraint
+						</button>
+					</li>
+				</ul>
+				<textarea></textarea>
+				<button data-type="remove-description-part">Delete</button>
+			</div>
+			<p><button data-type="add-description-part">+</button></p>
+		</div>
+		<div id="action">
+			<li>
+				<button class="link"></button>
+				<select class="object-select"></select>
+				<label>
+					<input type="radio" value="null">
+					Does not end game
+				</label>
+				<label>
+					<input type="radio" value="1">
+					You win
+				</label>
+				<label>
+					<input type="radio" value="0">
+					You lose
+				</label>
+				&emsp;
+				<button data-type="delete">delete</button>
+			</li>
+		</div>
+		<div id="grab">
+			<li>
+				<button class="link"></button>&emsp;
+				<label><input type="checkbox" data-type="success-checkbox">success</label>
+				<label>
+					<input type="radio" value="null">
+					Does not end game
+				</label>
+				<label>
+					<input type="radio" value="1">
+					You win
+				</label>
+				<label>
+					<input type="radio" value="0">
+					You lose
+				</label>
+				&emsp;
+				<button data-type="delete">delete</button>
+			</li>
+		</div>
+		<div id="path">
+			<li>
+				<button class="link">go to </button>
+				<select class="location-select"></select>
+				<label>
+					<input type="radio" value="null">
+					Does not end game
+				</label>
+				<label>
+					<input type="radio" value="1">
+					You win
+				</label>
+				<label>
+					<input type="radio" value="0">
+					You lose
+				</label>
+				&emsp;
+				<button data-type="delete">delete</button>
+			</li>
+		</div>
+	</div>
 </body>
 
 <script>
-	"use strict";
+	'use strict';
+
 	const game_view = document.getElementById('game');
-	let opened = new Set();
+	const opened = new Set;
+
+	const all_objects = {};
+	all_objects.load = new Promise(resolve => all_objects.trigger = resolve);
+
+	ajax('GET', '/all-objects').then(objs => {
+		all_objects.trigger();
+		const selects = document.querySelectorAll('.object-select');
+		for (const select of selects) select.append(document.createElement('option'));
+		let current;
+		for (const { id, name, loc_id, loc_name } of objs.response) {
+			if (current === loc_id || loc_id === null) {
+				for (const select of selects) {
+					const elem = document.createElement('option');
+					elem.value = id;
+					elem.text = name;
+					(loc_id === null ? select : select.lastChild).append(elem);
+				}
+			} else {
+				current = loc_id;
+				for (const select of selects) {
+					const elem = document.createElement('optgroup');
+					elem.label = loc_name;
+					elem.dataset.id = loc_id;
+					select.append(elem);
+				}
+			}
+		}
+	});
+ 
+	{
+		const locations = document.querySelectorAll('ul[data-type="location"] > li:not(.nobullet)');
+		for (const select of document.querySelectorAll('.location-select')) {
+			select.append(document.createElement('option'));
+			for (const location of locations) {
+				const elem = document.createElement('option');
+				elem.value = location.dataset.id;
+				elem.text = location.children[0].textContent;
+				select.append(elem);
+			}
+		}
+	}
 
 	game_view.addEventListener('click', async event => {
 		const path = event.composedPath();
@@ -101,7 +364,122 @@
 						type: path[2].dataset.type,
 						id: path[1].dataset.id
 					});
-					path[1].insertAdjacentHTML('beforeend', result.responseText);
+					await all_objects.load;
+					if (path[2].dataset.type === 'location') {
+						const [description, objects, paths] = result.response;
+						const location_elem = clone('expanded-location');
+						for (const description_part of description) {
+							const description_elem = clone('description');
+							description_elem[0].dataset.id = description_part[0].id;
+							description_elem[0].querySelector('textarea').value =
+								description_part[0].text;
+							for (const constraint of description_part) {
+								if (constraint.obj) {
+									const elem = clone('constraint')[0];
+									elem.querySelector('select').value =
+										elem.dataset.id = constraint.obj;
+									elem.querySelector('input').value = constraint.state;
+									description_elem[0].children[0].append(elem);
+								}
+								if (constraint.loc_obj) {
+									const elem = clone('location-constriant')[0];
+									elem.querySelector('.location-select').value =
+										elem.dataset.id = constraint.loc_obj;
+									elem.querySelector('.object-select').value = constraint.location;
+									description_elem[0].children[1].append(elem);
+								}
+								if (constraint.inv_obj) {
+									const elem = clone('inventory-constraint')[0];
+									elem.querySelector('.object-select').value =
+										elem.dataset.id = constraint.inv_obj;
+									elem.querySelector('select').value = constraint.have_it;
+									description_elem[0].children[2].append(elem);
+								}
+							}
+							location_elem[0].children[0].append(...description_elem);
+						}
+
+						for (const { name, id } of objects) {
+							const elem = clone('object')[0];
+							elem.dataset.id = id;
+							elem.children[0].textContent = name;
+							location_elem[1].append(elem);
+						}
+
+						for (const { id, end, win } of paths) {
+							const elem = clone('path')[0];
+							elem.dataset.id = id;
+							elem.querySelector('.location-select').value = end;
+							for (const input of elem.querySelectorAll('input')) {
+								input.name = `path${id}`;
+								if (String(win) === input.value) input.checked = true;
+							}
+							location_elem[2].append(elem);
+						}
+						path[1].append(...location_elem);
+					} else if (path[2].dataset.type === 'object') {
+						const [actions, grab] = result.response;
+						const object_elem = clone('expanded-object');
+						for (const { id, obj2, win } of actions) {
+							const elem = clone('action')[0];
+							elem.dataset.id = id;
+							elem.querySelector('.link').textContent = `use ${path[0].textContent} on `;
+							for (const input of elem.querySelectorAll('input[type="radio"]')) {
+								input.name = `action-${id}`;
+								if (input.value === win) input.selected = true;
+							}
+							object_elem[0].append(elem);
+						}
+						for (const { id, success, win } of grab) {
+							const elem = clone('grab')[0];
+							elem.dataset.id = id;
+							elem.querySelector('.link').textContent = `pick up ${path[0].textContent}`;
+							if (success) elem.querySelector('input[type="checkbox"]').checked = true;
+							for (const input of elem.querySelectorAll('input[type="radio"]')) {
+								input.name = `grab-${id}`;
+								if (input.value === win) input.selected = true;
+							}
+							object_elem[1].append(elem);
+						}
+						path[1].append(...object_elem);
+					} else {
+						const [constraints, effects,
+							location_constraints, location_effects,
+							inventory_constraints, inventory_effects, text] = result.response;
+						const action_elem = clone('expanded-action');
+						action_elem[1].value = text;
+						for (const is_constraint of [true, false]) {
+							for (const { obj, state } of is_constraint ? constraints : effects) {
+								const elem = clone(is_constraint ? 'constraint' : 'effect')[0];
+								elem.dataset.id = obj;
+								elem.querySelector('select').value = obj;
+								elem.querySelector('input').value = state;
+								action_elem[is_constraint ? 2 : 3].append(elem);
+							}
+							for (const { obj, location } of location_constraints) {
+								const elem = clone(`location-${
+									is_constraint ? 'constraint' : 'effect'}`)[0];
+								elem.dataset.id = obj;
+								elem.querySelector('.object-select').value = obj;
+								elem.querySelector('.location-select').value = state;
+								action_elem[is_constraint ? 4 : 5].append(elem);
+							}
+						}
+						for (const { obj, have_it } of inventory_constraints) {
+							const elem = clone('inventory-constraint')[0];
+							elem.dataset.id = obj;
+							elem.querySelector('select').value = have_it;
+							elem.querySelector('.object-select').value = obj;
+							action_elem[6].append(elem);
+						}
+						for (const { obj } of inventory_effects) {
+							const elem = clone('inventory-effect')[0];
+							elem.dataset.id = obj;
+							elem.querySelector('.object-select').value = obj;
+							action_elem[7].append(elem);
+						}
+						path[1].append(...action_elem);
+					}
 				}
 			} else if (path[0].dataset.type === 'delete') {
 				const is_constraint_or_effect =
@@ -122,53 +500,94 @@
 					}
 					ajax('DELETE', '/remove', obj).catch(console.error);
 					if (path[2].dataset.type) path[1].remove();
-					else window.location.replace("/");
+					else window.location.replace('/');
 				}
 			} else if (path[0].dataset.type === 'add') {
-				let result;
-				if (/^(?:action|path|pick_up_action)$/.test(path[2].dataset.type)) {
-					result = await ajax('POST', '/add', {
-						type: path[2].dataset.type,
-						item: path[3].dataset.id,
-						parenttype: path[4].dataset.type
-					});
-				} else if (/constraint|effect/.test(path[2].dataset.type)) {
-					result = await ajax('GET', '/constraint-or-effect', {
-						type: path[2].dataset.type,
-					});
-				} else {
+				if (['object', 'location'].includes(path[2].dataset.type)) {
 					const name = prompt(
-						`Choose a name for the ${path[2].dataset.type}.`, "");
+						`Choose a name for the ${path[2].dataset.type}.`, '');
 					if (!name) return;
-					if (path[2].dataset.type === "location") {
-						result = await ajax('POST', '/add', {
+					if (path[2].dataset.type === 'location') {
+						const { response: { id, text } } = await ajax('POST', '/add', {
 							type: 'location', name
 						});
-					} else if (path[2].dataset.type === "object") {
-						result = await ajax('POST', '/add', {
+						const elem = clone('location')[0];
+						elem.dataset.id = id;
+						elem.children[0].textContent = text;
+						path[4].append(elem);
+						for (const select of document.querySelectorAll('.location-select')) {
+							const option = document.createElement('option');
+							option.value = id;
+							option.text = text;
+							select.append(option);
+						}
+						for (const select of document.querySelectorAll('.object-select')) {
+							const optgroup = document.createElement('optgroup');
+							optgroup.label = text;
+							optgroup.dataset.id = id;
+							select.append(optgroup);
+						}
+					} else if (path[2].dataset.type === 'object') {
+						const { response } = await ajax('POST', '/add', {
 							type: 'object', name,
 							location: path[3].dataset.id
 						});
+						const elem = clone('object')[0];
+						elem.dataset.id = response.id;
+						elem.children[0].textContent = response.text;
+						path[4].append(elem);
+						for (const select of document.querySelectorAll('.object-select')) {
+							const option = document.createElement('option');
+							option.value = response.id;
+							option.text = response.text;
+							(path[3].dataset.id ?
+								select.querySelector(`[data-id="${path[3].dataset.id}"]`) :
+								select).append(option);
+						}
 					}
+				} else {
+					const elem = clone(path[2].dataset.type)[0];
+					if (['action', 'path', 'grab'].includes(path[2].dataset.type)) {
+						elem.dataset.id = (await ajax('POST', '/add', {
+							type: path[2].dataset.type,
+							item: path[3].dataset.id
+						})).response;
+						switch (path[2].dataset.type) {
+							case 'action':
+								elem.children[0].textContent =
+									`use ${path[3].children[0].textContent} on `;
+							break; case 'grab':
+								elem.children[0].textContent =
+									`pick up ${path[3].children[0].textContent}`;
+								elem.querySelector('[data-type="success-checkbox"').checked = true;
+						}
+						elem.querySelector('[value="null"]').selected = true;
+					}
+					path[2].insertBefore(elem, path[1].nextSibling);
 				}
-				path[2].insertAdjacentHTML('beforeend', result.responseText);
 				update_selects(path[2]);
 			} else if (path[0].dataset.type === 'rename') {
-				const list = path[1].getElementsByClassName('link')[0];
+				const list = path[1].querySelector('.link');
 				const element = document.createElement('input');
-				element.value = list.innerText;
-				element.addEventListener('blur', end_rename);
+				element.value = list.textContent;
+				element.addEventListener('blur', event => {
+					const path = event.composedPath();
+					const text = path[0].value;
+					ajax('POST', '/rename', {
+						id: path[2].dataset.id,
+						name: text,
+						type: path[3].dataset.type
+					});
+					path[1].textContent = text;
+				});
 				element.addEventListener('keypress', e => {
 					if (e.key === 'Enter') e.target.blur();
 				});
-				list.innerHTML = '';
+				list.textContent = '';
 				list.appendChild(element);
 				element.select();
 			} else if (path[0].dataset.type === 'add-description-constraint') {
-				const result = await ajax('GET', 'description-constraint', {
-					type: path[2].dataset.type
-				});
-				path[1].insertAdjacentHTML('afterend', result.responseText);
+				path[2].insertBefore(clone(path[2].dataset.type)[0], path[1].nextSibling);
 				update_selects(path[2]);
 			} else if (path[0].dataset.type === 'remove-description-part') {
 				await ajax('DELETE', '/remove', {
@@ -229,12 +648,12 @@
 				await ajax('POST', '/change/item', {
 					id: path[2].dataset.id,
 					state: path[0].checked,
-					type: 'pick_up_action'
+					type: 'grab'
 				});
 			} else if (path[1].dataset.type === 'description-constraint' ||
 				/constraint|effect/.test(path[2].dataset.type)) {
 				await change_constraint_or_effect(path);
-			} else if (/^(?:action|path|pick_up_action)$/.test(path[3].dataset.type)) {
+			} else if (/^(?:action|path|grab)$/.test(path[3].dataset.type)) {
 				await ajax('POST', '/change/win', {
 					id: path[2].dataset.id,
 					type: path[3].dataset.type,
@@ -244,7 +663,7 @@
 		}
 	});
 
-	document.getElementsByTagName('iframe')[0].addEventListener('load', resize);
+	document.querySelector('iframe').addEventListener('load', resize);
 
 	function update_selects(elem) {
 		let values = new Set();
@@ -255,16 +674,6 @@
 				option.hidden = values.has(option.value);
 			}
 		}
-	}
-
-	async function end_rename(event) {
-		const text = event.path[0].value;
-		await ajax('POST', '/rename', {
-			id: event.path[2].dataset.id,
-			name: text,
-			type: event.path[3].dataset.type
-		});
-		event.path[1].innerText = text;
 	}
 
 	async function change_constraint_or_effect(path) {
@@ -317,6 +726,7 @@
 	function ajax(method, url, query) {
 		return new Promise((resolve, reject) => {
 			const xhttp = new XMLHttpRequest();
+			xhttp.responseType = 'json';
 			xhttp.onreadystatechange = function () {
 				if (this.readyState === 4) {
 					(this.status < 400 ? resolve : reject)(this);
@@ -329,6 +739,10 @@
 			xhttp.open(method, url + (method === "POST" ? '' : '?' + body), true);
 			xhttp.send(method === "POST" ? body : undefined);
 		});
+	}
+
+	function clone(type) {
+		return [...document.querySelectorAll(`#${type} > *`)].map(e => e.cloneNode(true));
 	}
 </script>
 
