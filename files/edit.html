@@ -55,6 +55,11 @@
 		.container > * {
 			margin: 10px;
 		}
+
+		svg {
+			height: 1em;
+			width: 1em;
+		}
 	</style>
 </head>
 
@@ -62,6 +67,14 @@
 	%s
 	<div class="container">
 		<div id="game">
+			<a href="/how-to-make-a-game" target="_blank" rel="noreferrer" title="How do I make a game?">
+				<svg viewbox="0 0 20 20">
+					<circle r=9 cx=10 cy=10 fill="white" stroke="black"/>
+					<text dominant-baseline="middle" text-anchor="middle"
+						x=10 y=10 style="font-size: 15px;">?</text>
+				</svg>
+			</a>
+			<br>
 			<textarea id="start-text">%s</textarea>
 			<h3>Locations</h3>
 			<ul data-type="location">
@@ -610,7 +623,7 @@
 				if (old_start) {
 					old_start.classList.remove('start');
 					old_start.querySelector('[data-type="make-start"]').hidden = false;
-				}
+				} else document.querySelector('iframe').contentWindow.reload();
 				path[1].classList.add('start');
 				path[0].hidden = true;
 			}

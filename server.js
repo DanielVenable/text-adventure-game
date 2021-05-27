@@ -494,7 +494,7 @@ if (cluster.isMaster) {
 				}
 				break;
 			case '/new':
-				if (!userid) throw "Unauthorized action";
+				if (!userid) throw 'Unauthorized action';
 				return await show_file('new-game.html', await navbar(userid));
 			case '/signin':
 				return await show_file('sign-in.html',
@@ -572,7 +572,9 @@ if (cluster.isMaster) {
 					} default: res.statusCode = 400;
 				}
 				break;
-			case '/check/username': {
+			case '/how-to-make-a-game': {
+				return await show_file('instructions.html', await navbar(userid));
+			} case '/check/username': {
 				return (await query(`
 					SELECT COUNT(*) AS num FROM users
 					WHERE username = %L`, [data.get('name')]))[0].num;
