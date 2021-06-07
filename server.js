@@ -20,7 +20,10 @@ if (cluster.isMaster) {
 		port = +process.env.PORT || 80;
 
 	const client = new pg.Client({
-		connectionString: process.env.DATABASE_URL
+		connectionString: process.env.DATABASE_URL,
+		ssl: {
+			rejectUnauthorized: false
+		}
 	});
 
 	async function query(str, arr = []) {
@@ -95,7 +98,7 @@ if (cluster.isMaster) {
 
 				function stringify(obj) {
 					if (typeof obj === 'string') return obj;
-					res.setHeader('Content-Type', 'Application/json');
+					res.setHeader('Content-Type', 'application/json');
 					return JSON.stringify(obj);
 				}
 			} catch (error) {
@@ -396,7 +399,7 @@ if (cluster.isMaster) {
 					}
 				}
 				return await show_file('home-page.html',
-					await navbar(userid),	public_game_list, private_game_list);
+					await navbar(userid), public_game_list, private_game_list);
 			} case '/start': {
 				const result = await query(`
 					SELECT locations.id, games.text, games.public, games.name FROM games
@@ -572,20 +575,20 @@ if (cluster.isMaster) {
 					} default: res.statusCode = 400;
 				}
 				break;
-			case '/how-to-make-a-game': {
+			case '/how-to-make-a-game':
 				return await show_file('instructions.html', await navbar(userid));
-			} case '/check/username': {
+			case '/check/username':
 				return (await query(`
 					SELECT COUNT(*) AS num FROM users
 					WHERE username = %L`, [data.get('name')]))[0].num;
-			} case '/all-objects': {
+			case '/all-objects':
 				restrict(permission, 1);
 				return await query(`
 					SELECT objects.id, objects.name,
 						objects.location AS loc_id, locations.name AS loc_name FROM objects
 					LEFT JOIN locations ON objects.location = locations.id
 					WHERE objects.game = %L ORDER BY objects.location`, [game]);
-			} case '/join-link': {
+			case '/join-link':
 				restrict(permission, 2);
 				res.setHeader('Content-Type', 'text/plain');
 				return jwt.sign({
@@ -593,7 +596,7 @@ if (cluster.isMaster) {
 				}, jwtKey, {
 					expiresIn: '5 days'
 				});
-			} case '/join': {
+			case '/join': {
 				if (!userid) throw "Unauthorized action";
 				const game = jwt.verify(data.get('token'), jwtKey).id;
 				const valid = await query(`
@@ -606,10 +609,9 @@ if (cluster.isMaster) {
 				res.statusCode = 307;
 				res.setHeader('Location', '/');
 				break;
-			} default: {
+			} default:
 				res.statusCode = 404;
 				return await show_file('404.html');
-			}
 		}
 	}
 
@@ -671,26 +673,20 @@ if (cluster.isMaster) {
 				switch (data.get('type')) {
 					case 'location': {
 						const name = data.get('name').toLowerCase();
-						return {
-							id: (await query(`
-								INSERT INTO locations (game, name)
-								VALUES (%L,%L) RETURNING id`,
-								[game, name]))[0].id,
-							name
-						};
+						return (await query(`
+							INSERT INTO locations (game, name)
+							VALUES (%L,%L) RETURNING id`,
+							[game, name]))[0].id
 					} case 'object': {
 						const is_anywhere = !isNaN(data.get('location'));
 						if (is_anywhere) {
 							await location_match_game(data.get('location'), game);
 						}
-						return {
-							id: (await query(`
-								INSERT INTO objects (game, name, location)
-								VALUES (%L,%L,%L) RETURNING id`,
-								[game, data.get('name').toLowerCase(),
-								is_anywhere ? data.get('location') : null]))[0].id,
-							name: data.get('name').toLowerCase()
-						};
+						return (await query(`
+							INSERT INTO objects (game, name, location)
+							VALUES (%L,%L,%L) RETURNING id`,
+							[game, data.get('name').toLowerCase(),
+							is_anywhere ? data.get('location') : null]))[0].id;
 					} case 'action': {
 						await object_match_game(data.get('item'), game);
 						return (await query(`
@@ -797,6 +793,7 @@ if (cluster.isMaster) {
 				await query(`
 					UPDATE games SET text = %L
 					WHERE id = %L`, [data.get('text'), game]);
+				res.statusCode = 204;
 				break;
 			} case '/change/description': {
 				restrict(permission, 1);
@@ -861,6 +858,7 @@ if (cluster.isMaster) {
 						WHERE user_ = %L AND game = %L`,
 						[data.get('permission'), data.get('user'), game]);
 				}
+				res.statusCode = 204;
 				break;
 			} default: res.statusCode = 404;
 		}
@@ -1120,13 +1118,6 @@ if (cluster.isMaster) {
 		return constraint_array;
 	}
 
-	function get_win_lose_array({ win, id }) {
-		return [
-			id, win === null ? 'checked' : '',
-			id, win === 1 ? 'checked' : '',
-			id, win === 0 ? 'checked' : ''];
-	}
-
 	async function show_file(path, ...args) {
 		return util.format(await files.get(path), ...args);
 	}
@@ -1147,27 +1138,6 @@ if (cluster.isMaster) {
 
 	function show_newlines(str) {
 		return String(str).replace(/\n/g, '<br>');
-	}
-
-	async function get_objs(game) {
-		return await query(`
-			SELECT id, name, location FROM objects
-			WHERE game = %L ORDER BY location`, [game]);
-	}
-
-	async function all_objects(objs, id) {
-		const options = objs.map(elem =>
-			`<option value="${elem.id}" ${id === elem.id ? 'selected' : ''}>${
-			sanitize(elem.name)}</option>`);
-		return `<option></option>` + options.join('');
-	}
-	async function all_locations(game, no, id) {
-		const locations = await query(`
-			SELECT * FROM locations WHERE game = %L`, [game]);
-		const options = locations.map(elem => elem.id === no ? '' :
-			`<option value="${elem.id}" ${id === elem.id ? 'selected' : ''}>${
-			sanitize(elem.name)}</option>`);
-		return `<option></option>` + options.join('');
 	}
 
 	function a_an(string) {

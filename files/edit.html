@@ -520,24 +520,25 @@
 					const name = prompt(
 						`Choose a name for the ${path[2].dataset.type}.`, '');
 					if (!name) return;
+					const text = name.toLowerCase();
 					if (path[2].dataset.type === 'location') {
-						const { response: { id, text } } = await ajax('POST', '/add', {
+						const { response } = await ajax('POST', '/add', {
 							type: 'location', name
 						});
 						const elem = clone('location')[0];
-						elem.dataset.id = id;
+						elem.dataset.id = response;
 						elem.children[0].textContent = text;
-						path[4].append(elem);
+						path[2].append(elem);
 						for (const select of document.querySelectorAll('.location-select')) {
 							const option = document.createElement('option');
-							option.value = id;
+							option.value = response;
 							option.text = text;
 							select.append(option);
 						}
 						for (const select of document.querySelectorAll('.object-select')) {
 							const optgroup = document.createElement('optgroup');
 							optgroup.label = text;
-							optgroup.dataset.id = id;
+							optgroup.dataset.id = response;
 							select.append(optgroup);
 						}
 					} else if (path[2].dataset.type === 'object') {
@@ -546,13 +547,13 @@
 							location: path[3].dataset.id
 						});
 						const elem = clone('object')[0];
-						elem.dataset.id = response.id;
-						elem.children[0].textContent = response.text;
+						elem.dataset.id = response;
+						elem.children[0].textContent = text;
 						path[4].append(elem);
 						for (const select of document.querySelectorAll('.object-select')) {
 							const option = document.createElement('option');
-							option.value = response.id;
-							option.text = response.text;
+							option.value = response;
+							option.text = text;
 							(path[3].dataset.id ?
 								select.querySelector(`[data-id="${path[3].dataset.id}"]`) :
 								select).append(option);
@@ -611,12 +612,14 @@
 				path[1].nextElementSibling.remove();
 				path[1].remove();
 			} else if (path[0].dataset.type === 'add-description-part') {
-				const result = await ajax('POST', '/add', {
+				const [elem, plus] = clone('description');
+				elem.dataset.id = (await ajax('POST', '/add', {
 					item: path[3].dataset.id,
 					type: 'description',
 					num: description_num(path[1])
-				});
-				path[0].insertAdjacentHTML('afterend', result.responseText);
+				})).response;
+				path[2].insertBefore(plus, path[1].nextSibling);
+				path[2].insertBefore(elem, plus);
 			} else if (path[0].dataset.type === 'make-start') {
 				await ajax('POST', '/setstart', { id: path[1].dataset.id });
 				const old_start = document.querySelector('.start');
