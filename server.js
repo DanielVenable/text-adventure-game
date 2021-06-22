@@ -97,7 +97,7 @@ if (cluster.isMaster) {
 				} else res.statusCode = 405;
 
 				function stringify(obj) {
-					if (typeof obj === 'string') return obj;
+					if (typeof obj === 'string' || obj === undefined) return obj;
 					res.setHeader('Content-Type', 'application/json');
 					return JSON.stringify(obj);
 				}
@@ -158,7 +158,10 @@ if (cluster.isMaster) {
 				}
 				const objects = await query(`
 						SELECT * FROM objects
-						WHERE game = %L ORDER BY id`, [gameid]),
+						WHERE game = %L`, [gameid]),
+					locations = await query(`
+						SELECT * FROM locations
+						WHERE game = %L`, [gameid]),
 					show_data = {
 						game: game[0].name, states, moved_objects, gameid,
 						location: locationID, inventory, moves, objects, userid
@@ -196,7 +199,7 @@ if (cluster.isMaster) {
 							ORDER BY paths.id;`,
 							[locationID, end_location[0].id]);
 						const result = satisfy_constraints(
-							states, moved_objects, inventory, constraints, objects);
+							states, moved_objects, inventory, constraints, objects, locations);
 						if (result) {
 							if (result.win === null) {
 								const effects = await query(`
@@ -219,7 +222,7 @@ if (cluster.isMaster) {
 										ON paths.id = path_to_inventory_effect.path
 									WHERE paths.start = %L AND paths.end_ = %L`,
 									[locationID, end_location[0].id]);
-								handle_effects(
+								await handle_effects(
 									effects, objects, states, moved_objects, inventory);
 								show_data.location = end_location[0].id;
 								return await show(show_data, result.text);
@@ -227,10 +230,7 @@ if (cluster.isMaster) {
 						} else return await show(show_data, 'Nothing happens.');
 					} else return await show(show_data, 'Nothing happens.');
 				} else if (split_pick_up = command.match(/^(?:pick up|grab|get) (.+)$/)) {
-					const obj = await query(`
-						SELECT id FROM objects
-						WHERE name = %L AND game = %L AND location = %L;`,
-						[split_pick_up[1], gameid, locationID]);
+					const obj = await objects_here(split_pick_up[1]);
 					if (obj.length === 1) {
 						if (inventory.has(obj_index(objects, obj[0].id))) {
 							return await show(show_data, "You already have it.");
@@ -258,7 +258,7 @@ if (cluster.isMaster) {
 								WHERE grab.obj = %L
 								ORDER BY grab.id`, [obj[0].id]);
 							const result = satisfy_constraints(
-								states, moved_objects, inventory, constraints, objects);
+								states, moved_objects, inventory, constraints, objects, locations);
 							if (result) {
 								if (result.win === null) {
 									const effects = await query(`
@@ -280,7 +280,7 @@ if (cluster.isMaster) {
 										LEFT JOIN grab_to_inventory_effect
 											ON grab.id = grab_to_inventory_effect.grab
 										WHERE grab.id = %L`, [result.id]);
-									handle_effects(
+									await handle_effects(
 										effects, objects, states, moved_objects, inventory);
 									if (result.success) {
 										inventory.add(objects.findIndex(
@@ -308,16 +308,7 @@ if (cluster.isMaster) {
 							`You don't have ${a_an(split_use[1])}`);
 					}
 					async function use_on(first_ID, second_name) {
-						const item2 = await query(`
-							SELECT id, location FROM objects
-							WHERE name = %L`, [second_name]);
-						let valid_items = [];
-						for (const item of item2) {
-							if (item.location == locationID ||
-								inventory.has(item.id)) {
-								valid_items.push(item);
-							}
-						}
+						const valid_items = await objects_here(second_name, true);
 						if (valid_items.length === 1) {
 							const constraints = await query(`
 								SELECT actions.id, actions.text, actions.win,
@@ -339,10 +330,13 @@ if (cluster.isMaster) {
 										action_to_location_constraint.constraint_
 								LEFT JOIN action_to_inventory_constraint
 									ON actions.id = action_to_inventory_constraint.action
-								WHERE actions.obj1 = %L AND actions.obj2 = %L
-								ORDER BY actions.id;`, [first_ID, item2[0].id]);
+								WHERE actions.obj1 = %L AND actions.obj2 %s
+								ORDER BY actions.id`,
+								first_ID ?
+									[first_ID, pg_format('%L', valid_items[0].id)] :
+									[valid_items[0].id, 'IS NULL']);
 							const result = satisfy_constraints(
-								states, moved_objects, inventory, constraints, objects);
+								states, moved_objects, inventory, constraints, objects, locations);
 							if (result) {
 								if (result.win === null) {
 									const effects = await query(`
@@ -364,8 +358,8 @@ if (cluster.isMaster) {
 												action_to_location_effect.effect
 										LEFT JOIN action_to_inventory_effect
 											ON actions.id = action_to_inventory_effect.action
-										WHERE actions.id = %L;`, [result.id]);
-									handle_effects(
+										WHERE actions.id = %L`, [result.id]);
+									await handle_effects(
 										effects, objects, states, moved_objects, inventory);
 									return await show(show_data,
 										result.text ? result.text : "Nothing happens.");
@@ -373,7 +367,18 @@ if (cluster.isMaster) {
 							} else return await show(show_data, "Nothing happens.");
 						} else return await show(show_data, "Nothing happens.");
 					}
-				} else return await show(show_data, "Invalid command");
+				} else return await show(show_data, "Invalid command.");
+
+				async function objects_here(name, include_inventory = false) {
+					const obj = await query(`
+						SELECT id, location FROM objects
+						WHERE name = %L AND game = %L`,
+						[name, gameid]);
+					return obj.filter(({ id, location }) =>
+						location === locationID ^
+							moved_object_list.includes(obj_index(objects, id)) ||
+						include_inventory && inventory.has(obj_index(objects, id)));
+				}
 			} case '/': {
 				const publics = await query(`
 					SELECT id, name FROM games
@@ -597,7 +602,7 @@ if (cluster.isMaster) {
 					expiresIn: '5 days'
 				});
 			case '/join': {
-				if (!userid) throw "Unauthorized action";
+				if (!userid) throw 'Unauthorized action';
 				const game = jwt.verify(data.get('token'), jwtKey).id;
 				const valid = await query(`
 					SELECT COUNT(*) AS valid FROM user_to_game
@@ -803,7 +808,7 @@ if (cluster.isMaster) {
 						JOIN descriptions ON descriptions.location = locations.id
 						WHERE locations.game = %L AND descriptions.id = %L`,
 						[game, data.get('id')]);
-					if (!valid[0].valid) throw 'description does not match game';
+					if (!valid[0].valid) throw 'Description does not match game';
 					await query(`
 						UPDATE descriptions SET text = %L
 						WHERE id = %L`,
@@ -841,7 +846,8 @@ if (cluster.isMaster) {
 				await query(`
 					UPDATE %I SET win = %L
 					WHERE id = %L`,
-					[table_list.get(data.get('type')), win_value_list.get(data.get('value')), data.get('id')]);
+					[table_list.get(data.get('type')),
+					win_value_list.get(data.get('value')), data.get('id')]);
 				res.statusCode = 204;
 				break;
 			} case '/change/permission': {
@@ -963,14 +969,14 @@ if (cluster.isMaster) {
 		const valid = await query(`
 			SELECT COUNT(*) AS valid FROM locations
 			WHERE id = %L AND game = %L`, [location, game]);
-		if (!valid[0].valid) throw "Location does not match game";
+		if (!valid[0].valid) throw 'Location does not match game';
 	}
 
 	async function object_match_game(object, game) {
 		const valid = await query(`
 			SELECT COUNT(*) AS valid FROM objects
 			WHERE id = %L AND game = %L`, [object, game]);
-		if (!valid[0].valid) throw "Object does not match game";
+		if (!valid[0].valid) throw 'Object does not match game';
 	}
 
 	const obj_column_map = new StrictMap([
@@ -985,23 +991,27 @@ if (cluster.isMaster) {
 			WHERE %I.game = %L AND %I.id = %L`,
 			[table, table2, table2, table,
 				obj_column_map.get(type), table2, game, table, id])
-		)[0].valid) throw "Action does not match game";
+		)[0].valid) throw 'Action does not match game';
 	}
 
 	function restrict(permission, level) {
 		if (!permission.length || permission[0].permission < level) {
-			throw "Unauthorized action";
+			throw 'Unauthorized action';
 		}
 	}
 
-	function handle_effects(effects, objects, states, moved_objects, inventory) {
+	async function handle_effects(effects, objects, states, moved_objects, inventory) {
 		for (const effect of effects) {
 			if (effect.obj) {
 				states.set(obj_index(objects, effect.obj), effect.state);
 			}
 			if (effect.loc_obj) {
-				const index = obj_index(objects, effect.inv_obj);
-				moved_objects.set(index, effect.location);
+				const index = obj_index(objects, effect.loc_obj);
+				if ((await query(`
+						SELECT location FROM objects WHERE id = %L`,
+						[effect.loc_obj]))[0].location === effect.location) {
+					moved_objects.delete(index);
+				} else moved_objects.set(index, effect.location);
 				inventory.delete(index);
 			}
 			if (effect.inv_obj) {
@@ -1012,7 +1022,8 @@ if (cluster.isMaster) {
 		}
 	}
 
-	function satisfy_constraints(states, moved_objects, inventory, constraints, objects) {
+	function satisfy_constraints(
+		states, moved_objects, inventory, constraints, objects, locations) {
 		let current_ID,
 			valid = false;
 		for (const constraint of constraints) {
@@ -1027,7 +1038,8 @@ if (cluster.isMaster) {
 					!== constraint.state
 				) ||
 				(constraint.loc_obj &&
-					(moved_objects.get(obj_index(objects, constraint.loc_obj)) || 0)
+					(obj_index(locations,
+						moved_objects.get(obj_index(objects, constraint.loc_obj)))|| 0)
 					!== constraint.location
 				) ||
 				(constraint.inv_obj &&
@@ -1149,7 +1161,7 @@ if (cluster.isMaster) {
 
 	function create_token(res, id) {
 		const token = jwt.sign({ id }, jwtKey, {
-			algorithm: "HS256",
+			algorithm: 'HS256',
 			expiresIn: expire_seconds,
 		});
 		res.setHeader('Set-Cookie', cookie.serialize('token', token, {
