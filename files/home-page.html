@@ -10,12 +10,39 @@
 <body>
     %s
     <div class="container">
-        <h3>Choose a game to play:</h3>
+        <h3>Choose a game to start:</h3>
         <ul>%s</ul>
         <ul>%s</ul>
+        <div id="load" hidden>
+            <h3>Or play from where you left off:</h3>
+            <ul id="links"></ul>
+        </div>
         <h3>Or <a href="/edit">edit a game</a></h3>
         <h3>Or <a href="/new">make your own game</h3>
     </div>
 </body>
+
+<script>
+    {
+        let show_load = false;
+        const load = document.querySelector('#load'),
+            links = document.querySelector('#links'),
+            games = JSON.parse(localStorage.saved_games);
+        for (const key in games) {
+            const state = games[key],
+                link = document.querySelector(`a[href="/start?game=${key}"]`);
+            if (link) {
+                show_load = true;
+                const a = document.createElement('a');
+                a.textContent = link.textContent;
+                a.href = `/play?gameState=${state}`;
+                const li = document.createElement('li');
+                li.append(a);
+                links.append(li);
+            }
+        }
+        if (show_load) load.hidden = false;
+    }
+</script>
 
 </html>

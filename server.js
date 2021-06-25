@@ -133,7 +133,6 @@ if (cluster.isMaster) {
 					locationID, inventory_list,
 					moved_object_list, location_list], moves
 				} = jwt.verify(data.get('gameState'), jwtKey),
-					command = data.get('cmd').toLowerCase(),
 					[{ game: gameid }] = await query(`
 						SELECT game FROM locations
 						WHERE id = %L`, [locationID]),
@@ -159,13 +158,15 @@ if (cluster.isMaster) {
 				const objects = await query(`
 						SELECT * FROM objects
 						WHERE game = %L`, [gameid]),
-					locations = await query(`
-						SELECT * FROM locations
-						WHERE game = %L`, [gameid]),
 					show_data = {
 						game: game[0].name, states, moved_objects, gameid,
 						location: locationID, inventory, moves, objects, userid
 					};
+				if (!data.has('cmd')) return await show(show_data, '');
+				const command = data.get('cmd').toLowerCase(),
+					locations = await query(`
+						SELECT * FROM locations
+						WHERE game = %L`, [gameid]);
 				let split_go_to,
 					split_pick_up,
 					split_use;
@@ -425,7 +426,7 @@ if (cluster.isMaster) {
 						objects: []
 					}),
 					jwt.sign({ data: list, moves: 0 }, jwtKey),
-					"", encodeURIComponent(data.get(game)));
+					"", +game, +game);
 			} case '/edit':
 				if (data.has('game')) {
 					const [{ start, name, text }] = await query(`
@@ -1069,9 +1070,10 @@ if (cluster.isMaster) {
 			await describe(data),
 			show_newlines(sanitize(text)),
 			token, data.inventory.size ?
-			`You have: ${sanitize(Array.from(data.inventory, i => data.objects[i].name).join(', '))
-			}` : "",
-			encodeURIComponent(data.gameid));
+				`You have: ${
+					sanitize(Array.from(data.inventory, i => data.objects[i].name).join(', '))
+				}` : "",
+			data.gameid, data.gameid);
 	}
 
 	async function win_lose({ game, gameid, moves, userid }, { text, win }) {

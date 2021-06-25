@@ -19,7 +19,7 @@
 			<input type="submit" id="submit" value="Submit">
 		</form>
 		<p>%s</p>
-		<a href="/start?game=%s"><button>Restart this game</button></a>
+		<a href="/start?game=%d"><button>Restart this game</button></a>
 	</div>
 </body>
 
@@ -39,6 +39,11 @@
 	input.addEventListener('input', () => {
 		submit_button.disabled = !valid_cmd.test(input.value);
 	});
+
+	if (!localStorage.saved_games) localStorage.saved_games = '{}';
+	const saved_games = JSON.parse(localStorage.saved_games);
+	saved_games['%d'] = document.querySelector('input[name="gameState"]').value;
+	localStorage.saved_games = JSON.stringify(saved_games);
 </script>
 
 </html>
