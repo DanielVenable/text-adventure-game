@@ -19,6 +19,11 @@
             margin-top: 0;
             padding-top: 1em;
         }
+
+        ul button {
+            padding: 1px;
+            margin-left: 1em;
+        }
     </style>
 </head>
 
@@ -77,6 +82,14 @@
                 const li = document.createElement('li');
                 li.append(a);
                 links.append(li);
+                const button = document.createElement('button');
+                button.textContent = 'x';
+                button.addEventListener('click', () => {
+                    li.remove();
+                    delete games.key;
+                    localStorage.saved_games = games;
+                });
+                li.append(button);
             }
         }
         if (show_load) load.hidden = false;
