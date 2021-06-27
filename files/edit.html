@@ -60,6 +60,10 @@
 			height: 1em;
 			width: 1em;
 		}
+
+		li > button:not(.link) {
+			margin-left: 1em;
+		}
 	</style>
 </head>
 
@@ -94,24 +98,24 @@
 	<div hidden>
 		<div id="location">
 			<li>
-				<button class="link"></button>&emsp;
-				<button data-type="delete">delete</button>&emsp;
-				<button data-type="rename">rename</button>&emsp;
+				<button class="link"></button>
+				<button data-type="delete">delete</button>
+				<button data-type="rename">rename</button>
 				<button data-type="make-start">make start</button>
 			</li>
 		</div>
 		<div id="object">
 			<li>
-				<button class="link"></button>&emsp;
-				<button data-type="delete">delete</button>&emsp;
-				<button data-type="rename">rename</button>&emsp;
+				<button class="link"></button>
+				<button data-type="delete">delete</button>
+				<button data-type="rename">rename</button>
 			</li>
 		</div>
 		<div id="constraint">
 			<li>
 				<select class="object-select"></select>
 				must be in state
-				<input type="number" min="0" max="15" value="0">&emsp;
+				<input type="number" min="0" max="15" value="0">
 				<button data-type="delete">delete</button>
 			</li>
 		</div>
@@ -119,21 +123,21 @@
 			<li>
 				<select class="object-select"></select>
 				goes in state
-				<input type="number" min="0" max="15" value="0">&emsp;
+				<input type="number" min="0" max="15" value="0">
 				<button data-type="delete">delete</button>
 			</li>
 		</div>
 		<div id="location-constraint">
 			<li>
 				<select class="object-select"></select>
-				must be in <select class="location-select"></select>&emsp;
+				must be in <select class="location-select"></select>
 				<button data-type="delete">delete</button>
 			</li>
 		</div>
 		<div id="location-effect">
 			<li>
 				<select class="object-select"></select>
-				goes in <select class="location-select"></select>&emsp;
+				goes in <select class="location-select"></select>
 				<button data-type="delete">delete</button>
 			</li>
 		</div>
@@ -149,14 +153,14 @@
 					</option>
 				</select>
 				<select class="object-select"></select>
-				&emsp;
+				
 				<button data-type="delete">delete</button>
 			</li>
 		</div>
 		<div id="inventory-effect">
 			<li>
 				You get
-				<select class="object-select"></select>&emsp;
+				<select class="object-select"></select>
 				<button data-type="delete">delete</button>
 			</li>
 		</div>
@@ -267,13 +271,12 @@
 					<input type="radio" value="0">
 					You lose
 				</label>
-				&emsp;
 				<button data-type="delete">delete</button>
 			</li>
 		</div>
 		<div id="grab">
 			<li>
-				<button class="link"></button>&emsp;
+				<button class="link"></button>
 				<label><input type="checkbox" data-type="success-checkbox">success</label>
 				<label>
 					<input type="radio" value="null" checked>
@@ -287,7 +290,7 @@
 					<input type="radio" value="0">
 					You lose
 				</label>
-				&emsp;
+				
 				<button data-type="delete">delete</button>
 			</li>
 		</div>
@@ -307,7 +310,6 @@
 					<input type="radio" value="0">
 					You lose
 				</label>
-				&emsp;
 				<button data-type="delete">delete</button>
 			</li>
 		</div>
