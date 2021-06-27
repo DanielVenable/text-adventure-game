@@ -73,11 +73,6 @@ describe('server', () => {
             .headers['set-cookie']).not.toBeDefined();
     });
 
-    it("should let you go to /new if and only if you are signed in", async () => {
-        expect((await get('/new')).statusCode).toBe(401);
-        expect((await get('/new', user1)).statusCode).toBe(200);
-    });
-
     let game_id;
 
     it("should let you create a game", async () => {

@@ -381,31 +381,33 @@ if (cluster.isMaster) {
 						include_inventory && inventory.has(obj_index(objects, id)));
 				}
 			} case '/': {
-				const publics = await query(`
+				const listify = path => (acc, { id, name }) =>
+					acc + `<li><a href="/${path}?game=${id}">${sanitize(name)}</a></li>`;
+				const public_game_list = (await query(`
 					SELECT id, name FROM games
 					WHERE start IS NOT NULL AND public = TRUE
-					ORDER BY name`);
-				let public_game_list = "";
-				for (const game of publics) {
-					public_game_list += await show_file('start-game-link.html',
-						encodeURIComponent(game.id), sanitize(game.name));
-				}
-				let private_game_list = "";
+					ORDER BY name`))
+					.reduce(listify('start'), '');
+				let private_list = '', edit_list = '';
 				if (userid) {
-					const privates = await query(`
+					private_list = (await query(`
 						SELECT games.id, games.name FROM games
 						JOIN user_to_game ON user_to_game.game = games.id
 						WHERE games.start IS NOT NULL
 							AND games.public = FALSE
 							AND user_to_game.user_ = %L
-						ORDER BY games.name`, [userid]);
-					for (const game of privates) {
-						private_game_list += await show_file('start-game-link.html',
-							encodeURIComponent(game.id), sanitize(game.name));
-					}
+						ORDER BY games.name`, [userid]))
+						.reduce(listify('start'), '');
+					edit_list = (await query(`
+						SELECT games.id, games.name FROM games
+						JOIN user_to_game ON user_to_game.game = games.id
+						WHERE user_to_game.user_ = %L AND user_to_game.permission >= 1
+						ORDER BY games.name`, [userid]))
+						.reduce(listify('edit'), '');
 				}
 				return await show_file('home-page.html',
-					await navbar(userid), public_game_list, private_game_list);
+					await navbar(userid), public_game_list, private_list, ...(userid ?
+						['hidden', '', edit_list] : ['', 'hidden', '']));
 			} case '/start': {
 				const result = await query(`
 					SELECT locations.id, games.text, games.public, games.name FROM games
@@ -427,85 +429,61 @@ if (cluster.isMaster) {
 					}),
 					jwt.sign({ data: list, moves: 0 }, jwtKey),
 					"", +game, +game);
-			} case '/edit':
-				if (data.has('game')) {
-					const [{ start, name, text }] = await query(`
-							SELECT start, name, text FROM games
-							WHERE id = %L`, [game]),
-						permission = await query(`
-							SELECT permission FROM user_to_game
-							WHERE user_ = %L AND game = %L`,
-							[userid, game]);
-					restrict(permission, 1);
-					const locations = await query(`
-						SELECT id, name FROM locations WHERE game = %L`, [game]);
-					let location_list = "";
-					for (const location of locations) {
-						if (start === location.id) {
-							location_list += await show_file('location.html',
-								location.id, ' class="start"',
-								sanitize(location.name), "hidden");
-						} else {
-							location_list += await show_file('location.html',
-								location.id, "",
-								sanitize(location.name), "");
-						}
-					}
-					const objects = await query(`
-						SELECT * FROM objects
-						WHERE location IS NULL AND game = %L`,
-						[game]);
-					let obj_list = '';
-					for (const obj of objects) {
-						obj_list += await show_file('object.html',
-							obj.id, sanitize(obj.name));
-					}
-					let operator_controls = '';
-					if (permission[0].permission >= 2) {
-						const users = await query(`
-							SELECT users.username, user_to_game.permission, users.id
-							FROM user_to_game JOIN users
-							ON user_to_game.user_ = users.id
-							WHERE user_to_game.game = %L
-							AND users.id != %L`, [game, userid]);
-						let list = '';
-						for (const user of users) {
-							let opts = ['', '', ''];
-							opts[user.permission] = 'selected';
-							list += await show_file('user.html',
-								user.id, sanitize(user.username), ...opts);
-						}
-						operator_controls = await show_file('operator-controls.html', list);
-					}
-					const game_id = encodeURIComponent(game);
-					return await show_file('edit.html',
-						sanitize(name), await navbar(userid),
-						sanitize(text), location_list, obj_list,
-						game_id, operator_controls, game_id);
-				} else {
-					if (!userid) throw "Unauthorized action";
-					const result = await query(`
-						SELECT games.id, games.name FROM games
-						JOIN user_to_game ON user_to_game.game = games.id
-						WHERE user_to_game.user_ = %L AND user_to_game.permission >= 1
-						ORDER BY games.name`, [userid]);
-					if (result.length) {
-						let game_list = "";
-						for (const { id, name } of result) {
-							game_list += `<option value=${id}>${sanitize(name)}</option>`;
-						}
-						return await show_file('choose-edit.html',
-							await navbar(userid), game_list);
+			} case '/edit': {
+				const [{ start, name, text }] = await query(`
+						SELECT start, name, text FROM games
+						WHERE id = %L`, [game]),
+					permission = await query(`
+						SELECT permission FROM user_to_game
+						WHERE user_ = %L AND game = %L`,
+						[userid, game]);
+				restrict(permission, 1);
+				const locations = await query(`
+					SELECT id, name FROM locations WHERE game = %L`, [game]);
+				let location_list = "";
+				for (const location of locations) {
+					if (start === location.id) {
+						location_list += await show_file('location.html',
+							location.id, ' class="start"',
+							sanitize(location.name), "hidden");
 					} else {
-						res.setHeader('Location', '/new');
-						res.statusCode = 307;
+						location_list += await show_file('location.html',
+							location.id, "",
+							sanitize(location.name), "");
 					}
 				}
-				break;
-			case '/new':
-				if (!userid) throw 'Unauthorized action';
-				return await show_file('new-game.html', await navbar(userid));
-			case '/signin':
+				const objects = await query(`
+					SELECT * FROM objects
+					WHERE location IS NULL AND game = %L`,
+					[game]);
+				let obj_list = '';
+				for (const obj of objects) {
+					obj_list += await show_file('object.html',
+						obj.id, sanitize(obj.name));
+				}
+				let operator_controls = '';
+				if (permission[0].permission >= 2) {
+					const users = await query(`
+						SELECT users.username, user_to_game.permission, users.id
+						FROM user_to_game JOIN users
+						ON user_to_game.user_ = users.id
+						WHERE user_to_game.game = %L
+						AND users.id != %L`, [game, userid]);
+					let list = '';
+					for (const user of users) {
+						let opts = ['', '', ''];
+						opts[user.permission] = 'selected';
+						list += await show_file('user.html',
+							user.id, sanitize(user.username), ...opts);
+					}
+					operator_controls = await show_file('operator-controls.html', list);
+				}
+				const game_id = encodeURIComponent(game);
+				return await show_file('edit.html',
+					sanitize(name), await navbar(userid),
+					sanitize(text), location_list, obj_list,
+					game_id, operator_controls, game_id);
+			} case '/signin':
 				return await show_file('sign-in.html',
 					await navbar(userid), '/', 'hidden', '/');
 			case '/navbar.css':

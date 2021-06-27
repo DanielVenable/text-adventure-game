@@ -5,6 +5,21 @@
     <title>Text Adventure Game Creator</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="navbar.css">
+    <style>
+        a {
+            color: black;
+        }
+
+        #edit-container > button:not(:hover) + ul:not(:hover) {
+            display: none;
+        }
+
+        #edit-container > ul {
+            position: relative;
+            margin-top: 0;
+            padding-top: 1em;
+        }
+    </style>
 </head>
 
 <body>
@@ -17,12 +32,35 @@
             <h3>Or play from where you left off:</h3>
             <ul id="links"></ul>
         </div>
-        <h3>Or <a href="/edit">edit a game</a></h3>
-        <h3>Or <a href="/new">make your own game</h3>
+        <div %s>
+            Or <a href="signin">Sign in</a> to make your own game.
+        </div>
+        <div %s>
+            <div id="edit-container">
+                <button>Or edit a game. ></button>
+                <ul>%s</ul>
+            </div>
+            <button id="make-your-own-game">Or make your own game.</button>
+            <noscript>(You must enable javascript to make a game.)</noscript>
+        </div>
     </div>
 </body>
 
 <script>
+    'use strict';
+
+    document.querySelector('#make-your-own-game').addEventListener('click', () => {
+        const xhttp = new XMLHttpRequest();
+		xhttp.open('POST', '/create');
+		xhttp.send(`name=${encodeURIComponent(prompt('Pick a name for your game:'))}`);
+		xhttp.onreadystatechange = () => {
+			if (xhttp.readyState === 4 && xhttp.status === 200) {
+				window.location.href = `/edit?game=${
+					encodeURIComponent(xhttp.response)}`;
+			}
+		}
+    });
+
     {
         let show_load = false;
         const load = document.querySelector('#load'),
