@@ -66,10 +66,14 @@ CREATE TABLE IF NOT EXISTS grab (
 
 CREATE TABLE IF NOT EXISTS constraint_and_effect (
     id SERIAL,
-    obj int NOT NULL,
-    state int NOT NULL,
+    game int NOT NULL,
+    obj int,
+    loc int,
+    name varchar(255), -- null means default
     PRIMARY KEY (id),
-    FOREIGN KEY (obj) REFERENCES objects (id) ON DELETE CASCADE);
+    FOREIGN KEY (game) REFERENCES games (id) ON DELETE CASCADE,
+    FOREIGN KEY (obj) REFERENCES objects (id) ON DELETE CASCADE,
+    FOREIGN KEY (loc) REFERENCES locations (id) ON DELETE CASCADE);
 
 CREATE TABLE IF NOT EXISTS grab_to_constraint (
     grab int NOT NULL,
@@ -215,7 +219,7 @@ CREATE TABLE IF NOT EXISTS description_to_constraint (
     description int NOT NULL,
     constraint_ int NOT NULL,
     FOREIGN KEY (description) REFERENCES descriptions (id) ON DELETE CASCADE,
-    FOREIGN KEY (constraint_) REFERENCES constraint_and_effect (id));
+    FOREIGN KEY (constraint_) REFERENCES constraint_and_effect (id) ON DELETE CASCADE);
 
 ALTER TABLE games
     ADD CONSTRAINT constraint_fk

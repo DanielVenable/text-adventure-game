@@ -64,6 +64,14 @@
 		li > button:not(.link) {
 			margin-left: 1em;
 		}
+
+		.location-selectable .group {
+			font-weight: bold;
+		}
+
+		input.default {
+			font-style: italic;
+		}
 	</style>
 </head>
 
@@ -113,17 +121,17 @@
 		</div>
 		<div id="constraint">
 			<li>
-				<select class="object-select"></select>
+				<select class="object-select location-selectable"></select>
 				must be in state
-				<input type="number" min="0" max="15" value="0">
+				<input disabled size="10">
 				<button data-type="delete">delete</button>
 			</li>
 		</div>
 		<div id="effect">
 			<li>
-				<select class="object-select"></select>
+				<select class="object-select location-selectable"></select>
 				goes in state
-				<input type="number" min="0" max="15" value="0">
+				<input disabled size="10">
 				<button data-type="delete">delete</button>
 			</li>
 		</div>
@@ -153,7 +161,6 @@
 					</option>
 				</select>
 				<select class="object-select"></select>
-				
 				<button data-type="delete">delete</button>
 			</li>
 		</div>
@@ -325,30 +332,67 @@
 	const all_objects = {};
 	all_objects.load = new Promise(resolve => all_objects.trigger = resolve);
 
-	ajax('GET', '/all-objects').then(objs => {
+	ajax('GET', '/all-objects').then(({ response }) => {
 		all_objects.trigger();
 		const selects = document.querySelectorAll('.object-select');
 		for (const select of selects) select.append(document.createElement('option'));
 		let current;
-		for (const { id, name, loc_id, loc_name } of objs.response) {
-			if (current === loc_id || loc_id === null) {
-				for (const select of selects) {
-					const elem = document.createElement('option');
-					elem.value = id;
-					elem.text = name;
-					(loc_id === null ? select : select.lastChild).append(elem);
-				}
-			} else {
+		for (const { id, name, loc_id, loc_name } of response) {
+			if (current !== loc_id && loc_id !== null) {
 				current = loc_id;
 				for (const select of selects) {
-					const elem = document.createElement('optgroup');
-					elem.label = loc_name;
-					elem.dataset.id = loc_id;
+					let elem;
+					if (select.classList.contains('location-selectable')) {
+						elem = document.createElement('option');
+						elem.classList.add('group');
+						elem.text = loc_name;
+						elem.value = 'l'+loc_id;
+					} else {
+						elem = document.createElement('optgroup');
+						elem.label = loc_name;
+						elem.dataset.id = loc_id;
+					}
 					select.append(elem);
 				}
+				create_datalist(`location-${id}-states`);
 			}
+			for (const select of selects) {
+				const elem = document.createElement('option');
+				elem.value = id;
+				const location_selectable = select.classList.contains('location-selectable');
+				elem.text = location_selectable && loc_id !== null ? '   ' + name : name;
+				(loc_id === null || location_selectable ? select : select.lastChild).append(elem);
+			}
+			create_datalist(`object-${id}-states`);
 		}
+
+		function create_datalist(id) {
+			const datalist = document.createElement('datalist');
+			const option = document.createElement('option');
+			option.text = 'default';
+			datalist.append(option);
+			datalist.id = id;
+			document.querySelector('body > div[hidden]').append(datalist);
+		}
+
+		ajax('GET', '/all-states').then(states => {
+			for (const { name, obj, loc } of states.response) {
+				add_state(name, obj ?
+					`object-${obj}-states` : `location-${loc}-states`);
+			}
+		});
 	});
+
+	function add_state(name, id) {
+		if (name === null) return;
+		const list = document.getElementById(id);
+		for (const option of list.options) {
+			if (option.text === name) return;
+		}
+		const elem = document.createElement('option');
+		elem.text = name;			
+		list.append(elem);
+	}
  
 	{
 		const locations = document.querySelectorAll('ul[data-type="location"] > li:not(.nobullet)');
@@ -388,26 +432,34 @@
 							description_elem[0].dataset.id = description_part[0].id;
 							description_elem[0].querySelector('textarea').value =
 								description_part[0].text;
-							for (const constraint of description_part) {
-								if (constraint.obj) {
+							for (const { obj, loc, name, loc_obj, location, inv_obj, have_it }
+									of description_part) {
+								if (obj || loc) {
 									const elem = clone('constraint')[0];
-									elem.querySelector('select').value =
-										elem.dataset.id = constraint.obj;
-									elem.querySelector('input').value = constraint.state;
+									elem.querySelector('select').value = elem.dataset.id =
+										obj || `l${loc}`;
+									const input = elem.querySelector('input');
+									if (name === null) {
+										input.value = 'default';
+										input.classList.add('default');
+									} else input.value = name;
+									input.disabled = false;
+									input.setAttribute('list', obj ?
+										`object-${obj}-states` : `location-${loc}-states`);
 									description_elem[0].children[0].append(elem);
 								}
-								if (constraint.loc_obj) {
+								if (loc_obj) {
 									const elem = clone('location-constriant')[0];
 									elem.querySelector('.location-select').value =
-										elem.dataset.id = constraint.loc_obj;
-									elem.querySelector('.object-select').value = constraint.location;
+										elem.dataset.id = loc_obj;
+									elem.querySelector('.object-select').value = location;
 									description_elem[0].children[1].append(elem);
 								}
-								if (constraint.inv_obj) {
+								if (inv_obj) {
 									const elem = clone('inventory-constraint')[0];
 									elem.querySelector('.object-select').value =
-										elem.dataset.id = constraint.inv_obj;
-									elem.querySelector('select').value = constraint.have_it;
+										elem.dataset.id = inv_obj;
+									elem.querySelector('select').value = have_it;
 									description_elem[0].children[2].append(elem);
 								}
 							}
@@ -464,11 +516,19 @@
 						const action_elem = clone('expanded-action');
 						action_elem[1].value = text;
 						for (const is_constraint of [true, false]) {
-							for (const { obj, state } of is_constraint ? constraints : effects) {
+							for (const { obj, loc, name }
+									of is_constraint ? constraints : effects) {
 								const elem = clone(is_constraint ? 'constraint' : 'effect')[0];
-								elem.dataset.id = obj;
-								elem.querySelector('select').value = obj;
-								elem.querySelector('input').value = state;
+								elem.querySelector('select').value = elem.dataset.id =
+									obj || 'l'+loc;
+								const input = elem.querySelector('input');
+								if (name === null) {
+									input.value = 'default';
+									input.classList.add('default');
+								} else input.value = name;
+								input.disabled = false;
+								input.setAttribute('list', obj ?
+									`object-${obj}-states` : `location-${loc}-states`);
 								action_elem[is_constraint ? 2 : 3].append(elem);
 							}
 							for (const { obj, location } of location_constraints) {
@@ -607,7 +667,7 @@
 				update_selects(path[2]);
 			} else if (path[0].dataset.type === 'remove-description-part') {
 				await ajax('DELETE', '/remove', {
-					item: path[3].dataset.id,
+					item: path[4].dataset.id,
 					type: 'description',
 					num: description_num(path[1])
 				});
@@ -616,7 +676,7 @@
 			} else if (path[0].dataset.type === 'add-description-part') {
 				const [elem, plus] = clone('description');
 				elem.dataset.id = (await ajax('POST', '/add', {
-					item: path[3].dataset.id,
+					item: path[4].dataset.id,
 					type: 'description',
 					num: description_num(path[1])
 				})).response;
@@ -681,6 +741,12 @@
 		}
 	});
 
+	game_view.addEventListener('input', e => {
+		if (['constraint', 'effect'].includes(e.composedPath()[2].dataset.type)) {
+			e.target.classList[e.target.value === 'default' ? 'add' : 'remove']('default');
+		}
+	});
+
 	document.querySelector('iframe').addEventListener('load', resize);
 
 	function update_selects(elem) {
@@ -713,6 +779,24 @@
 			path[1].dataset.id = inputs[1].value;
 			obj.obj = inputs[1].value;
 			obj.value = inputs[0].value;
+		} else if (['constraint', 'effect'].includes(path[2].dataset.type)) {
+			if (path[0] === inputs[0]) {
+				path[1].dataset.id = inputs[0].value;
+				inputs[1].value = '';
+				if (inputs[0].value) {
+					inputs[1].disabled = false;
+					const [, is_location, id] = inputs[0].value.match(/(l?)(\d+)/);
+					inputs[1].setAttribute('list',
+						`${is_location ? 'location' : 'object'}-${id}-states`);
+				} else inputs[1].disabled = true;
+				return;
+			} else if (inputs[1].value === '') return;
+			obj.obj = undefined;
+			const [, is_location, id] = inputs[0].value.match(/(l?)(\d+)/);
+			obj[is_location ? 'loc' : 'obj'] = id;
+			if (inputs[1].value === 'default') obj.name = undefined;
+			else add_state(obj.name = inputs[1].value,
+				`${is_location ? 'location' : 'object'}-${id}-states`);
 		} else {
 			try {
 				if (!inputs[0].value || !inputs[1].value) return;
@@ -726,9 +810,7 @@
 
 	function resize({ target }) {
 		target.height = 0;
-		target.height =
-			target.contentDocument
-				.getElementsByTagName('html')[0].scrollHeight;
+		target.height =	target.contentDocument.documentElement.scrollHeight;
 	}
 
 	function description_num(element) {
@@ -752,7 +834,9 @@
 			}
 			let body = 'game=%s';
 			for (const i in query) {
-				body += `&${encodeURIComponent(i)}=${encodeURIComponent(query[i])}`
+				if (query[i] !== undefined) {
+					body += `&${encodeURIComponent(i)}=${encodeURIComponent(query[i])}`;
+				}
 			}
 			xhttp.open(method, url + (method === "POST" ? '' : '?' + body), true);
 			xhttp.send(method === "POST" ? body : undefined);

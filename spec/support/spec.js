@@ -213,11 +213,11 @@ describe('server', () => {
     });
 
     it("should let you add a constraint", () =>
-        add(`type=constraint&parenttype=action&item=${action_id}&obj=${object_id}&value=0`)
+        add(`type=constraint&parenttype=action&item=${action_id}&obj=${object_id}`)
     );
 
     it("should let you add an effect", () =>
-        add(`type=effect&parenttype=action&item=${action_id}&obj=${object_id}&value=1`)
+        add(`type=effect&parenttype=action&item=${action_id}&obj=${object_id}&name=on`)
     );
 
     it("should let constraints and effects work", async () => {
