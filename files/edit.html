@@ -477,9 +477,9 @@
 							const elem = clone('path')[0];
 							elem.dataset.id = id;
 							elem.querySelector('.location-select').value = end;
-							for (const input of elem.querySelectorAll('input')) {
-								input.name = `path${id}`;
-								if (String(win) === input.value) input.checked = true;
+							for (const input of elem.querySelectorAll('input[type="radio"]')) {
+								input.name = `path-${id}`;
+								if (input.value === String(win)) input.selected = true;
 							}
 							location_elem[2].append(elem);
 						}
@@ -493,7 +493,7 @@
 							elem.querySelector('.link').textContent = `use ${path[0].textContent} on `;
 							for (const input of elem.querySelectorAll('input[type="radio"]')) {
 								input.name = `action-${id}`;
-								if (input.value === win) input.selected = true;
+								if (input.value === String(win)) input.selected = true;
 							}
 							object_elem[0].append(elem);
 						}
@@ -504,7 +504,7 @@
 							if (success) elem.querySelector('input[type="checkbox"]').checked = true;
 							for (const input of elem.querySelectorAll('input[type="radio"]')) {
 								input.name = `grab-${id}`;
-								if (input.value === win) input.selected = true;
+								if (input.value === String(win)) input.selected = true;
 							}
 							object_elem[1].append(elem);
 						}
@@ -561,9 +561,10 @@
 					/constraint|effect/.test(path[2].dataset.type);
 				if (is_constraint_or_effect ||
 					confirm(
-						"Are you sure you want to delete this " +
-						(path[2].dataset.type || 'game') +
-						"? This operation cannot be undone")) {
+						'Are you sure you want to delete this ' +
+						((path[2].dataset.type === 'grab' ?
+							'pick up action' : path[2].dataset.type) || 'game') +
+						'? This operation cannot be undone.')) {
 					const obj = {
 						type: path[2].dataset.type || 'game',
 						id: path[1].dataset.id,
@@ -641,7 +642,6 @@
 					}
 					path[2].insertBefore(elem, path[1].nextSibling);
 				}
-				update_selects(path[2]);
 			} else if (path[0].dataset.type === 'rename') {
 				const list = path[1].querySelector('.link');
 				const element = document.createElement('input');
@@ -664,7 +664,6 @@
 				element.select();
 			} else if (path[0].dataset.type === 'add-description-constraint') {
 				path[2].insertBefore(clone(path[2].dataset.type)[0], path[1].nextSibling);
-				update_selects(path[2]);
 			} else if (path[0].dataset.type === 'remove-description-part') {
 				await ajax('DELETE', '/remove', {
 					item: path[4].dataset.id,
@@ -749,17 +748,6 @@
 
 	document.querySelector('iframe').addEventListener('load', resize);
 
-	function update_selects(elem) {
-		let values = new Set();
-		const selects = elem.querySelectorAll('select:not(.noupdate)');
-		for (const select of selects) values.add(select.value);
-		for (const select of selects) for (const option of select) {
-			if (option.value && !option.selected) {
-				option.hidden = values.has(option.value);
-			}
-		}
-	}
-
 	async function change_constraint_or_effect(path) {
 		const obj = {
 			obj: path[1].dataset.id,
@@ -772,7 +760,6 @@
 			await ajax('DELETE', '/remove', obj);
 		}
 
-		update_selects(path[2]);
 		const inputs = path[1].querySelectorAll('select, input');
 		if (path[2].dataset.type === 'inventory-constraint') {
 			if (!inputs[1].value) return;
