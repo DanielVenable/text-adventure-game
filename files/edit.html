@@ -463,7 +463,7 @@
 									description_elem[0].children[2].append(elem);
 								}
 							}
-							location_elem[0].children[0].append(...description_elem);
+							location_elem[0].append(...description_elem);
 						}
 
 						for (const { name, id } of objects) {
@@ -667,7 +667,7 @@
 				path[2].insertBefore(clone(path[2].dataset.type)[0], path[1].nextSibling);
 			} else if (path[0].dataset.type === 'remove-description-part') {
 				await ajax('DELETE', '/remove', {
-					item: path[4].dataset.id,
+					item: path[3].dataset.id,
 					type: 'description',
 					num: description_num(path[1])
 				});
@@ -676,7 +676,7 @@
 			} else if (path[0].dataset.type === 'add-description-part') {
 				const [elem, plus] = clone('description');
 				elem.dataset.id = (await ajax('POST', '/add', {
-					item: path[4].dataset.id,
+					item: path[3].dataset.id,
 					type: 'description',
 					num: description_num(path[1])
 				})).response;
