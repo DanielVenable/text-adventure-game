@@ -810,10 +810,10 @@
 		return i;
 	}
 
-	function ajax(method, url, query) {
+	function ajax(method, url, query, type = 'json') {
 		return new Promise((resolve, reject) => {
 			const xhttp = new XMLHttpRequest();
-			xhttp.responseType = 'json';
+			xhttp.responseType = type;
 			xhttp.onreadystatechange = function () {
 				if (this.readyState === 4) {
 					(this.status < 400 ? resolve : reject)(this);
