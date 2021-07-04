@@ -491,6 +491,7 @@
 							const elem = clone('action')[0];
 							elem.dataset.id = id;
 							elem.querySelector('.link').textContent = `use ${path[0].textContent} on `;
+							elem.querySelector('select').value = obj2;
 							for (const input of elem.querySelectorAll('input[type="radio"]')) {
 								input.name = `action-${id}`;
 								if (input.value === String(win)) input.selected = true;

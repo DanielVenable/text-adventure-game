@@ -295,7 +295,7 @@ if (cluster.isMaster) {
 						if (item1.length === 1 && inventory.has(item1[0].id)) {
 							return await use_on(item1[0].id, split_use[2]);
 						} else return await show(show_data,
-							`You don't have ${a_an(split_use[1])}`);
+							`You don't have ${a_an(split_use[1])}.`);
 					}
 					async function use_on(first_ID, second_name) {
 						const valid_items = await objects_here(second_name, true);
@@ -322,10 +322,9 @@ if (cluster.isMaster) {
 										action_to_location_constraint.constraint_
 								LEFT JOIN action_to_inventory_constraint
 									ON actions.id = action_to_inventory_constraint.action
-								WHERE actions.obj1 = %L AND actions.obj2 %s
-								ORDER BY actions.id`,
+								WHERE actions.obj1 = %L AND actions.obj2 %s`,
 								first_ID ?
-									[first_ID, pg_format('%L', valid_items[0].id)] :
+									[first_ID, pg_format('= %L', valid_items[0].id)] :
 									[valid_items[0].id, 'IS NULL']);
 							const result = await satisfy_constraints(show_data, constraints);
 							if (result) {
@@ -335,8 +334,7 @@ if (cluster.isMaster) {
 											constraint_and_effect.name IS NOT NULL AS should_be_there,
 											location_constraint_and_effect.obj AS loc_obj,
 											location_constraint_and_effect.location,
-											action_to_inventory_effect.obj AS inv_obj
-										FROM actions
+											action_to_inventory_effect.obj AS inv_obj FROM actions
 										LEFT JOIN action_to_effect
 											ON actions.id = action_to_effect.action
 										LEFT JOIN constraint_and_effect
