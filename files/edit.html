@@ -485,7 +485,7 @@
 						}
 						path[1].append(...location_elem);
 					} else if (path[2].dataset.type === 'object') {
-						const [actions, grab] = result.response;
+						const [actions, grab, names] = result.response;
 						const object_elem = clone('expanded-object');
 						for (const { id, obj2, win } of actions) {
 							const elem = clone('action')[0];
@@ -496,7 +496,7 @@
 								input.name = `action-${id}`;
 								if (input.value === String(win)) input.selected = true;
 							}
-							object_elem[0].append(elem);
+							object_elem[1].append(elem);
 						}
 						for (const { id, success, win } of grab) {
 							const elem = clone('grab')[0];
@@ -507,7 +507,7 @@
 								input.name = `grab-${id}`;
 								if (input.value === String(win)) input.selected = true;
 							}
-							object_elem[1].append(elem);
+							object_elem[2].append(elem);
 						}
 						path[1].append(...object_elem);
 					} else {
@@ -613,14 +613,19 @@
 						const elem = clone('object')[0];
 						elem.dataset.id = response;
 						elem.children[0].textContent = text;
-						path[4].append(elem);
+						path[2].append(elem);
 						for (const select of document.querySelectorAll('.object-select')) {
 							const option = document.createElement('option');
 							option.value = response;
 							option.text = text;
-							(path[3].dataset.id ?
-								select.querySelector(`[data-id="${path[3].dataset.id}"]`) :
-								select).append(option);
+							if (select.classList.contains('location-selectable')) {
+								select.insertBefore(option,
+									select.querySelector(`[value="l${path[3].dataset.id}"] + *`));
+							} else {
+								(path[3].dataset.id ?
+									select.querySelector(`[data-id="${path[3].dataset.id}"]`) :
+									select).append(option);
+							}
 						}
 					}
 				} else {
