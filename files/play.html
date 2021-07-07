@@ -6,6 +6,40 @@
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<link rel="stylesheet" href="navbar.css">
+	<style>
+		.container > form {
+			display: flex;
+			align-items: center;
+		}
+
+		.container > form > * {
+			margin-right: 5px;
+		}
+
+		.container > form > div {
+			position: relative;
+		}
+
+		svg {
+			height: 15px;
+			width: 15px;
+			cursor: default;
+		}
+
+		.container > form > div > div {
+			display: none;
+		}
+
+		svg:hover + div > div {
+			display: block;
+			position: absolute;
+			border: 1px solid black;
+			background-color: rgb(229, 255, 136);
+			border-radius: 5px;
+			padding: 2px;
+			width: 200px;
+		}
+	</style>
 </head>
 
 <body>
@@ -17,6 +51,33 @@
 			<input id="command" name="cmd" autofocus>
 			<input hidden value="%s" name="gameState">
 			<input type="submit" id="submit" value="Submit">
+			<svg viewbox="0 0 20 20">
+				<circle r=9 cx=10 cy=10 fill="white" stroke="black"/>
+				<text dominant-baseline="middle" text-anchor="middle"
+					x=10 y=11 style="font-size: 15px;">?</text>
+			</svg>
+			<div>
+				<div>
+					Commands:
+					<ul>
+						<li>
+							Go to <i>place</i>: Go to a place. 
+						</li>
+						<li>
+							Pick up <i>thing</i> / Get <i>thing</i> / Grab <i>thing</i>:
+								Pick up a thing. 
+						</li>
+						<li>
+							Use <i>thing</i>: Use a thing.
+						</li>
+						<li>
+							Use <i>thing</i> on <i>thing</i>:
+								Use something in your inventory on something.
+						</li>
+					</ul>
+					All commands are case insensitive.
+				</div>
+			</div>
 		</form>
 		<p>%s</p>
 		<a href="/start?game=%d"><button>Restart this game</button></a>
@@ -26,8 +87,7 @@
 <script>
 	const navbar = document.getElementById('navbar'),
 		input = document.getElementById('command'),
-		submit_button = document.getElementById('submit'),
-		valid_cmd = /^(?:go|use|get|grab|pick up) ./i;
+		submit_button = document.getElementById('submit');
 
 	try {
 		if (window.self !== window.top) navbar.hidden = true;
@@ -37,7 +97,7 @@
 
 	submit_button.disabled = true;
 	input.addEventListener('input', () => {
-		submit_button.disabled = !valid_cmd.test(input.value);
+		submit_button.disabled = !/^(?:go|use|get|grab|pick up) ./i.test(input.value);
 	});
 
 	if (!navbar.hidden) {
