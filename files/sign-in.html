@@ -27,7 +27,7 @@
 			color: blue;
 		}
 
-		#warning {
+		.warning {
 			background-color: yellow;
 		}
 	</style>
@@ -43,7 +43,7 @@
 				<label>Password:<br><input type="password" name="password"></label><br>
 				<input name="url" value="%s" hidden>
 				<input type="submit" value="Sign in">
-				<p %s><span id="warning">Incorrect username or password.</span></p>
+				<p %s><span class="warning">Incorrect username or password.</span></p>
 			</form>
 			<p>Don't have an account? <span class="link">Sign up!</span></p>
 			<p><small>By signing in you agree to the use of cookies.</small></p>
@@ -52,6 +52,7 @@
 			<h3>Sign up:</h3>
 			<form action="/signup" method="POST">
 				<label>Username:<br><input name="username"></label><br>
+				<span class="warning" hidden>Username already taken<br></span>
 				<label>Password:<br><input type="password" name="password"></label><br>
 				<label>Comfirm password:<br><input type="password"></label><br>
 				<input name="url" value="%s" hidden>
@@ -64,11 +65,14 @@
 </body>
 
 <script>
+{
 	const signinbox = document.getElementById('sign-in');
 	const signupbox = document.getElementById('sign-up');
 	const [pass, confirm] = document.querySelectorAll('#sign-up input[type="password"]');
 	const username = document.querySelector('#sign-up input[name="username"]');
 	const links = document.querySelectorAll('.container .link');
+	const sign_up_sumbit = document.querySelector('input[value="Sign up"]');
+	const sign_up_warn = document.querySelector('#sign-up .warning');
 
 	links[0].addEventListener('click', () => {
 		signinbox.hidden = true;
@@ -94,6 +98,19 @@
 			return e.preventDefault();
 		}
 	});
+
+	username.addEventListener('input', () => {
+		const xhttp = new XMLHttpRequest();
+		xhttp.open('GET', `/check/username?name=${encodeURIComponent(username.value)}`);
+		xhttp.send();
+		xhttp.onreadystatechange = () => {
+			if (xhttp.readyState === 4 && xhttp.status === 200) {
+				sign_up_warn.hidden = !+xhttp.response;
+				sign_up_sumbit.disabled = !!+xhttp.response;
+			} 
+		}
+	});
+}
 </script>
 
 </html>
