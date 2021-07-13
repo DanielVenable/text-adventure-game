@@ -221,6 +221,12 @@ CREATE TABLE IF NOT EXISTS description_to_constraint (
     FOREIGN KEY (description) REFERENCES descriptions (id) ON DELETE CASCADE,
     FOREIGN KEY (constraint_) REFERENCES constraint_and_effect (id) ON DELETE CASCADE);
 
+CREATE TABLE IF NOT EXISTS names (
+    name varchar(255) NOT NULL,
+    obj int NOT NULL,
+    FOREIGN KEY (obj) REFERENCES objects (id) ON DELETE CASCADE,
+    UNIQUE (name, obj));
+
 ALTER TABLE games
     ADD CONSTRAINT constraint_fk
     FOREIGN KEY (start)

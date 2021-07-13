@@ -72,6 +72,23 @@
 		input.default {
 			font-style: italic;
 		}
+
+		[data-type="names"] > button {
+			margin: 0.5em;
+			text-decoration: underline;
+			cursor: pointer;
+			background-color: transparent;
+			border: 0;
+			font: inherit;
+		}
+
+		[data-type="names"] {
+			margin-top: 5px;
+		}
+
+		[data-type="names"]::before {
+			content: "Alternate names:";
+		}
 	</style>
 </head>
 
@@ -83,7 +100,7 @@
 				<svg viewbox="0 0 20 20">
 					<circle r=9 cx=10 cy=10 fill="white" stroke="black"/>
 					<text dominant-baseline="middle" text-anchor="middle"
-						x=10 y=10 style="font-size: 15px;">?</text>
+						x=10 y=11 style="font-size: 15px;">?</text>
 				</svg>
 			</a>
 			<br>
@@ -189,6 +206,9 @@
 			</ul>
 		</div>
 		<div id="expanded-object">
+			<div data-type="names">
+				<input>
+			</div>
 			<ul data-type="action">
 				<li class="nobullet">
 					<button data-type="add">Add an action</button>
@@ -297,7 +317,6 @@
 					<input type="radio" value="0">
 					You lose
 				</label>
-				
 				<button data-type="delete">delete</button>
 			</li>
 		</div>
@@ -354,7 +373,7 @@
 					}
 					select.append(elem);
 				}
-				create_datalist(`location-${id}-states`);
+				create_datalist(`location-${loc_id}-states`);
 			}
 			for (const select of selects) {
 				const elem = document.createElement('option');
@@ -410,6 +429,7 @@
 	game_view.addEventListener('click', async event => {
 		const path = event.composedPath();
 		if (path[0] instanceof HTMLButtonElement) {
+			if (path[0].firstChild instanceof HTMLInputElement) return;
 			if (path[0].classList.contains('link')) {
 				if (opened.has(path[1])) {
 					const lists = path[1].getElementsByTagName('ul');
@@ -509,6 +529,12 @@
 							}
 							object_elem[2].append(elem);
 						}
+						for (const { name } of names) {
+							const elem = document.createElement('button');
+							elem.textContent = name;
+							object_elem[0].insertBefore(elem, object_elem[0].lastElementChild);
+						}
+
 						path[1].append(...object_elem);
 					} else {
 						const [constraints, effects,
@@ -605,6 +631,7 @@
 							optgroup.dataset.id = response;
 							select.append(optgroup);
 						}
+						create_datalist(`location-${response}-states`);
 					} else if (path[2].dataset.type === 'object') {
 						const { response } = await ajax('POST', '/add', {
 							type: 'object', name,
@@ -627,6 +654,7 @@
 									select).append(option);
 							}
 						}
+						create_datalist(`object-${response}-states`);
 					}
 				} else {
 					const elem = clone(path[2].dataset.type)[0];
@@ -696,6 +724,29 @@
 				} else document.querySelector('iframe').contentWindow.reload();
 				path[1].classList.add('start');
 				path[0].hidden = true;
+			} else if (path[1].dataset.type === 'names') {
+				await ajax('DELETE', '/remove', {
+					type: 'name',
+					name: path[0].textContent,
+					obj: path[2].dataset.id
+				});
+				path[0].textContent = '';
+				const elem = document.createElement('input');
+				path[0].append(elem);
+				elem.select();
+				elem.addEventListener('blur', () => {
+					if (elem.value) {
+						ajax('POST', '/add', {
+							type: 'name',
+							obj: path[2].dataset.id,
+							name: elem.value
+						});
+					}
+					path[0].textContent = elem.value;
+				});
+				elem.addEventListener('keypress', e => {
+					if (e.key === 'Enter') e.target.blur();
+				});
 			}
 		}
 	});
@@ -742,6 +793,16 @@
 					type: path[3].dataset.type,
 					value: path[0].value
 				});
+			} else if (path[1].dataset.type === 'names') {
+				await ajax('POST', '/add', {
+					type: 'name',
+					obj: path[2].dataset.id,
+					name: path[0].value
+				});
+				const elem = document.createElement('button');
+				elem.textContent = path[0].value;
+				path[1].insertBefore(elem, path[0]);
+				path[0].value = '';
 			}
 		}
 	});
