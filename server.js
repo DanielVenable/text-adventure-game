@@ -256,7 +256,7 @@ if (cluster.isMaster) {
 								if (result.win === null) {
 									const effects = await query(`
 										SELECT constraint_and_effect.id AS state,
-											constraint_and_effect.name IS NOT NULL AS should_be_there,	
+											constraint_and_effect.name IS NOT NULL AS should_be_there,
 											location_constraint_and_effect.obj AS loc_obj,
 											location_constraint_and_effect.location,
 											grab_to_inventory_effect.obj AS inv_obj FROM grab
@@ -488,7 +488,7 @@ if (cluster.isMaster) {
 						await object_match_game(data.get('id'), game);
 						return await Promise.all([
 							query(`
-								SELECT id, obj2, win FROM actions 
+								SELECT id, obj2, win FROM actions
 								WHERE obj1 = %L`, [data.get('id')]),
 							query(`
 								SELECT id, success, win FROM grab
@@ -708,7 +708,7 @@ if (cluster.isMaster) {
 								await location_match_game(data.get('loc'), game);
 							}
 							table = start_table_list.get(data.get('parenttype')) + type2;
-							
+
 							const params = [
 								data.get('obj'), data.get('loc'),
 								data.has('name') ? data.get('name').toLowerCase() : null];
@@ -911,7 +911,11 @@ if (cluster.isMaster) {
 					[data.get('obj'), data.get('name')]);
 				break;
 			default: {
-				await object_match_game(data.get('obj'), game);
+				const is_regular = ['constraint', 'effect'].includes(data.get('type'));
+				if (is_regular) {
+					if (data.has('obj')) await object_match_game(data.get('obj'), game);
+					if (data.has('loc')) await location_match_game(data.get('loc'), game);
+				} else await object_match_game(data.get('obj'), game);
 				if (data.get('parenttype') === 'description') {
 					const valid = await query(`
 						SELECT FROM descriptions
@@ -931,21 +935,17 @@ if (cluster.isMaster) {
 						data.get('obj'),
 						column_list.get(data.get('parenttype')),
 						data.get('item')]);
-				} else {
-					const table1 = start_table_list.get(data.get('parenttype')) +
-						(type1 ? 'location_' : '') + type2;
-					const table2 = (type1 ? 'location_' : '') +
-						'constraint_and_effect';
+				} else if (is_regular) {
+					const table = start_table_list.get(data.get('parenttype')) + type2;
 					await query(`
-						DELETE FROM %I USING %I
-						WHERE %I.%I = %I.id
+						DELETE FROM %I USING constraint_and_effect
+						WHERE %I.%I = constraint_and_effect.id
 						AND %I.%I = %L
-						AND %I.obj = %L`,
-						[table1, table2, table1,
-							type2 === 'constraint' ? 'constraint_' : 'effect',
-							table2, table1, column_list.get(data.get('parenttype')),
-							data.get('item'), table2, data.get('obj')]);
-					if (['constraint', 'effect'].includes(data.get('type'))) await query(`
+						AND (constraint_and_effect.obj = %L OR constraint_and_effect.loc = %L)`,
+						[table, table, type2 === 'constraint' ? 'constraint_' : 'effect',
+							table, column_list.get(data.get('parenttype')),
+							data.get('item'), data.get('obj'), data.get('loc')]);
+					await query(`
 						DELETE FROM constraint_and_effect WHERE id = %L AND
 						id NOT in (SELECT constraint_ FROM description_to_constraint) AND
 						id NOT in (SELECT constraint_ FROM grab_to_constraint) AND
@@ -954,6 +954,17 @@ if (cluster.isMaster) {
 						id NOT in (SELECT effect FROM path_to_effect) AND
 						id NOT in (SELECT constraint_ FROM action_to_constraint) AND
 						id NOT in (SELECT effect FROM action_to_effect)`, [data.get('item')]);
+				} else {
+					const table = start_table_list.get(data.get('parenttype')) +
+						'location_' + type2;
+					await query(`
+						DELETE FROM %I USING location_constraint_and_effect
+						WHERE %I.%I = location_constraint_and_effect.id
+						AND %I.%I = %L
+						AND location_constraint_and_effect.obj = %L`,
+						[table, table, type2 === 'constraint' ? 'constraint_' : 'effect',
+							table, column_list.get(data.get('parenttype')),
+							data.get('item'), data.get('obj')]);
 				}
 			}
 		}
@@ -1014,7 +1025,7 @@ if (cluster.isMaster) {
 			}
 		}
 	}
- 
+
 	async function satisfy_constraints({ states, moved_objects, inventory }, constraints) {
 		let current_ID,
 			valid = null;
