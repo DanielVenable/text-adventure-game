@@ -357,16 +357,16 @@ if (cluster.isMaster) {
 					}
 				} else return await show(show_data, "Invalid command.");
 
-				async function objects_here(name, include_inventory = false) {
-					const obj = await query(`
+				function objects_here(name, include_inventory = false) {
+					const unemptify = a => a.length ? a : [0];
+					return query(`
 						SELECT id, location FROM objects
-						LEFT JOIN names ON objects.id = names.obj
-						WHERE %L in (objects.name, names.name) AND game = %L`,
-						[name, gameid]);
-					return obj.filter(({ id, location }) =>
-						location === locationID ^
-							moved_object_list.includes(id) ||
-						include_inventory && inventory.has(id));
+						WHERE (%L = name OR %L IN (
+							SELECT name FROM names WHERE obj = objects.id
+						)) AND game = %L
+						AND ((location = %L) <> (id IN (%L)) OR %L AND id IN (%L))`,
+						[name, name, gameid, locationID, unemptify(moved_object_list),
+							include_inventory, unemptify(inventory_list)]);
 				}
 			} case '/': {
 				const listify = path => (acc, { id, name }) =>
@@ -690,7 +690,7 @@ if (cluster.isMaster) {
 						await object_match_game(data.get('obj'), data.get('game'));
 						if (data.get('name')) {
 							await query(`INSERT INTO names (obj, name) VALUES (%L, %L)`,
-								[data.get('obj'), data.get('name')]);
+								[data.get('obj'), data.get('name').toLowerCase()]);
 						} else req.statusCode = 400;
 						return;
 					} default: {

@@ -729,7 +729,7 @@
 				if (old_start) {
 					old_start.classList.remove('start');
 					old_start.querySelector('[data-type="make-start"]').hidden = false;
-				} else document.querySelector('iframe').contentWindow.reload();
+				} else document.querySelector('iframe').contentWindow.location.reload();
 				path[1].classList.add('start');
 				path[0].hidden = true;
 			} else if (path[1].dataset.type === 'names') {
@@ -738,8 +738,9 @@
 					name: path[0].textContent,
 					obj: path[2].dataset.id
 				});
-				path[0].textContent = '';
 				const elem = document.createElement('input');
+				elem.value = path[0].textContent;
+				path[0].textContent = '';
 				path[0].append(elem);
 				elem.select();
 				elem.addEventListener('blur', () => {
@@ -749,8 +750,8 @@
 							obj: path[2].dataset.id,
 							name: elem.value
 						});
-					}
-					path[0].textContent = elem.value;
+						path[0].textContent = elem.value.toLowerCase();
+					} else path[0].remove();
 				});
 				elem.addEventListener('keypress', e => {
 					if (e.key === 'Enter') e.target.blur();
@@ -808,7 +809,7 @@
 					name: path[0].value
 				});
 				const elem = document.createElement('button');
-				elem.textContent = path[0].value;
+				elem.textContent = path[0].value.toLowerCase();
 				path[1].insertBefore(elem, path[0]);
 				path[0].value = '';
 			}
