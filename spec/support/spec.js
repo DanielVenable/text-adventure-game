@@ -165,7 +165,7 @@ describe('server', () => {
         await game.next();
         const { value: [, text, inventory] } = await game.next('pick up thing');
         expect(text).toBe('You have a thing.');
-        expect(inventory).toBe('You have: thing');
+        expect(inventory).toBe('You have: thing.');
     });
 
     it("should let you do an action on something in your inventory", async () => {
@@ -194,6 +194,7 @@ describe('server', () => {
         const [, { name }] = await response(await get(`/all-objects?game=${game_id}`, user1));
         expect(name).toBe('other thing');
     });
+
     const description_ids = [];
     it("should let you add text to a location", async () => {
         const add_description = num => add(`type=description&item=${location_id}&num=${num}`);
@@ -212,12 +213,22 @@ describe('server', () => {
     });
 
     it("should let constraints and effects work", async () => {
-        await add(`type=constraint&parenttype=action&item=${action_id}&obj=${object_id}`);
-        await add(`type=effect&parenttype=action&item=${action_id}&obj=${object_id}&name=on`);
+        await add(`type=constraint&parenttype=action&item=${action_id}&obj=${object_id}&value=default`);
+        await add(`type=effect&parenttype=action&item=${action_id}&obj=${object_id}&value=on`);
         const game = play_game(game_id);
         await game.next();
         expect((await game.next('use thing')).value[1]).toBe('Something happens!');
         expect((await game.next('use thing')).value[1]).toBe('Nothing happens.');
+    });
+
+    it("should let description constraints work", async () => {
+        await add(`item=${description_ids[0]
+            }&type=constraint&parenttype=description&obj=${object_id}&value=default`);
+        await add(`item=${description_ids[1]
+            }&type=constraint&parenttype=description&obj=${object_id}&value=on`);
+        const game = play_game(game_id);
+        expect((await game.next()).value[1]).toBe('first part, third part.');
+        expect((await game.next('use thing')).value[0]).toBe('second part, third part.');
     });
 
     it("should let location constraints and effects work", async () => {
@@ -252,7 +263,7 @@ describe('server', () => {
         await game.next();
         expect((await game.next('use thing')).value[1]).toBe('Nothing happens.');
         expect((await game.next('use other thing')).value.slice(1))
-            .toEqual(['You get it.', 'You have: other thing']);
+            .toEqual(['You get it.', 'You have: other thing.']);
         expect((await game.next('use thing')).value[1]).toBe('Something happens!');
         expect((await game.next('use other thing')).value[1]).toBe('Nothing happens.');
     });

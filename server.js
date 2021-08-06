@@ -698,10 +698,17 @@ if (cluster.isMaster) {
 							if (data.has('loc')) return;
 							await object_match_game(data.get('obj'), game);
 						}
-						await action_match_game(data.get('parenttype'), data.get('item'), game);
+						if (data.get('parenttype') === 'description') {
+							if (!(await query(`
+								SELECT FROM descriptions
+								JOIN locations ON location = locations.id
+								WHERE game = %L AND descriptions.id = %L LIMIT 1`,
+								[game, data.get('item')])
+							).length) throw 'Description does not match game';
+						} else await action_match_game(
+							data.get('parenttype'), data.get('item'), game);
 						const [, type1, type2] = data.get('type').match(
 							/^(location-|inventory-)?(constraint|effect)$/);
-						const select_params = [data.get('obj'), data.get('value')];
 						let id, table;
 						if (!type1) {
 							if (data.has('loc')) {
@@ -711,7 +718,8 @@ if (cluster.isMaster) {
 
 							const params = [
 								data.get('obj'), data.get('loc'),
-								data.has('name') ? data.get('name').toLowerCase() : null];
+								data.get('value').toLowerCase() === 'default' ?
+									null : data.get('value').toLowerCase()];
 							const exists = await query(`
 								SELECT id FROM constraint_and_effect
 								WHERE (obj = %L OR loc = %L) AND name = %L`, params);
@@ -719,6 +727,7 @@ if (cluster.isMaster) {
 								INSERT INTO constraint_and_effect (game, obj, loc, name)
 								VALUES (%L, %L, %L, %L) RETURNING id`, [game, ...params]);
 						} else if (type1 === 'location-') {
+							const select_params = [data.get('obj'), data.get('value')];
 							await location_match_game(data.get('value'), game);
 							const exists = await query(`
 								SELECT id FROM location_constraint_and_effect
@@ -1076,8 +1085,8 @@ if (cluster.isMaster) {
 			token, data.inventory.size ?
 				sanitize((await query(`
 					SELECT name FROM objects WHERE id in (%L)`,
-					[[...data.inventory]])).reduce(
-						(acc, cur, index) => acc + (index ? ', ' : '') + cur.name, 'You have: '))
+					[[...data.inventory]])).reduce((acc, cur, index) => 
+						acc + (index ? ', ' : '') + cur.name, 'You have: ') + '.')
 				: '',
 			data.gameid, data.gameid);
 	}

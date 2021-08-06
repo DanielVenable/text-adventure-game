@@ -652,11 +652,12 @@
 						for (const select of document.querySelectorAll('.object-select')) {
 							const option = document.createElement('option');
 							option.value = response;
-							option.text = text;
 							if (select.classList.contains('location-selectable')) {
+								option.text = '   ' + text;
 								select.insertBefore(option,
 									select.querySelector(`[value="l${path[3].dataset.id}"] + *`));
 							} else {
+								option.text = text;
 								(path[3].dataset.id ?
 									select.querySelector(`[data-id="${path[3].dataset.id}"]`) :
 									select).append(option);
@@ -849,8 +850,8 @@
 			const [, is_location, id] = inputs[0].value.match(/(l?)(\d+)/);
 			obj[is_location ? 'loc' : 'obj'] = id;
 			if (path[1].dataset.id) await ajax('DELETE', '/remove', obj);
-			if (inputs[1].value !== 'default') {
-				add_state(obj.name = inputs[1].value,
+			if (inputs[1].value.toLowerCase() !== 'default') {
+				add_state(inputs[1].value,
 					`${is_location ? 'location' : 'object'}-${id}-states`);
 			}
 		} else if (path[1].dataset.id) {
