@@ -43,11 +43,6 @@
 			margin-top: 1em;
 		}
 
-		.description textarea {
-			margin-left: 3em;
-			margin-bottom: 1em;
-		}
-
 		#join-link {
 			text-decoration: underline;
 		}
@@ -88,6 +83,26 @@
 
 		[data-type="names"]::before {
 			content: "Alternate names:";
+		}
+
+		.add-button {
+			display: flex;
+		}
+
+		.add-button > div {
+			position: relative;
+		}
+
+		.add-button > div > div {
+			display: none;
+		}
+
+		.add-button > button:hover + div > div,
+		.add-button > div > div:hover {
+			display: flex;
+			flex-direction: column;
+			position: absolute;
+			top: -100%;
 		}
 	</style>
 </head>
@@ -221,62 +236,51 @@
 			</ul>
 		</div>
 		<div id="expanded-action">
-			<br>
-			<textarea data-type="action-description"></textarea>
-			<ul data-type="constraint">
-				<li class="nobullet">
-					<button data-type="add">Add a constraint</button>
-				</li>
-			</ul>
-			<ul data-type="effect">
-				<li class="nobullet">
-					<button data-type="add">Add an effect</button>
-				</li>
-			</ul>
-			<ul data-type="location-constraint">
-				<li class="nobullet">
-					<button data-type="add">Add a location constraint</button>
-				</li>
-			</ul>
-			<ul data-type="location-effect">
-				<li class="nobullet">
-					<button data-type="add">Add a location effect</button>
-				</li>
-			</ul>
-			<ul data-type="inventory-constraint">
-				<li class="nobullet">
-					<button data-type="add">Add an inventory constraint</button>
-				</li>
-			</ul>
-			<ul data-type="inventory-effect">
-				<li class="nobullet">
-					<button data-type="add">Add an inventory effect</button>
-				</li>
-			</ul>
+			<p>
+				<textarea data-type="action-description"></textarea>
+			</p>
+			<div class="add-button">
+				<button>Add a constraint &gt;</button>
+				<div>
+					<div>
+						<button data-type="constraint">Regular</button>
+						<button data-type="location-constraint">Location</button>
+						<button data-type="inventory-constraint">Inventory</button>
+					</div>
+				</div>
+			</div>
+			<div class="add-button" data-type="effect">
+				<button>Add an effect &gt;</button>
+				<div>
+					<div>
+						<button data-type="effect">Regular</button>
+						<button data-type="location-effect">Location</button>
+						<button data-type="inventory-effect">Inventory</button>
+					</div>
+				</div>
+			</div>
+			<ul data-type="constraint"></ul>
+			<ul data-type="effect"></ul>
+			<ul data-type="location-constraint"></ul>
+			<ul data-type="location-effect"></ul>
+			<ul data-type="inventory-constraint"></ul>
+			<ul data-type="inventory-effect"></ul>
 		</div>
 		<div id="description">
 			<div class="description">
-				<ul data-type="constraint">
-					<li class="nobullet">
-						<button data-type="add-description-constraint">
-							Add a constraint
-						</button>
-					</li>
-				</ul>
-				<ul data-type="location-constraint">
-					<li class="nobullet">
-						<button data-type="add-description-constraint">
-							Add a location constraint
-						</button>
-					</li>
-				</ul>
-				<ul data-type="inventory-constraint">
-					<li class="nobullet">
-						<button data-type="add-description-constraint">
-							Add a inventory constraint
-						</button>
-					</li>
-				</ul>
+				<div class="add-button">
+					<button>Add a constraint &gt;</button>
+					<div>
+						<div>
+							<button data-type="constraint">Regular</button>
+							<button data-type="location-constraint">Location</button>
+							<button data-type="inventory-constraint">Inventory</button>
+						</div>
+					</div>
+				</div>
+				<ul data-type="constraint"></ul>
+				<ul data-type="location-constraint"></ul>
+				<ul data-type="inventory-constraint"></ul>
 				<textarea></textarea>
 				<button data-type="remove-description-part">Delete</button>
 			</div>
@@ -466,21 +470,21 @@
 									input.disabled = false;
 									input.setAttribute('list', obj ?
 										`object-${obj}-states` : `location-${loc}-states`);
-									description_elem[0].children[0].append(elem);
+									description_elem[0].children[1].append(elem);
 								}
 								if (loc_obj) {
 									const elem = clone('location-constriant')[0];
 									elem.querySelector('.location-select').value =
 										elem.dataset.id = loc_obj;
 									elem.querySelector('.object-select').value = location;
-									description_elem[0].children[1].append(elem);
+									description_elem[0].children[2].append(elem);
 								}
 								if (inv_obj) {
 									const elem = clone('inventory-constraint')[0];
 									elem.querySelector('.object-select').value =
 										elem.dataset.id = inv_obj;
 									elem.querySelector('select').value = +have_it;
-									description_elem[0].children[2].append(elem);
+									description_elem[0].children[3].append(elem);
 								}
 							}
 							location_elem[0].append(...description_elem);
@@ -541,7 +545,7 @@
 							location_constraints, location_effects,
 							inventory_constraints, inventory_effects, text] = result.response;
 						const action_elem = clone('expanded-action');
-						action_elem[1].value = text;
+						action_elem[0].children[0].value = text;
 						for (const is_constraint of [true, false]) {
 							for (const { obj, loc, name }
 									of is_constraint ? constraints : effects) {
@@ -556,7 +560,7 @@
 								input.disabled = false;
 								input.setAttribute('list', obj ?
 									`object-${obj}-states` : `location-${loc}-states`);
-								action_elem[is_constraint ? 2 : 3].append(elem);
+								action_elem[is_constraint ? 3 : 4].append(elem);
 							}
 							for (const { obj, location } of location_constraints) {
 								const elem = clone(`location-${
@@ -564,7 +568,7 @@
 								elem.dataset.id = obj;
 								elem.querySelector('.object-select').value = obj;
 								elem.querySelector('.location-select').value = state;
-								action_elem[is_constraint ? 4 : 5].append(elem);
+								action_elem[is_constraint ? 5 : 6].append(elem);
 							}
 						}
 						for (const { obj, have_it } of inventory_constraints) {
@@ -572,13 +576,13 @@
 							elem.dataset.id = obj;
 							elem.querySelector('select').value = +have_it;
 							elem.querySelector('.object-select').value = obj;
-							action_elem[6].append(elem);
+							action_elem[7].append(elem);
 						}
 						for (const { obj } of inventory_effects) {
 							const elem = clone('inventory-effect')[0];
 							elem.dataset.id = obj;
 							elem.querySelector('.object-select').value = obj;
-							action_elem[7].append(elem);
+							action_elem[8].append(elem);
 						}
 						path[1].append(...action_elem);
 					}
@@ -595,6 +599,10 @@
 					const obj = { type: path[2].dataset.type || 'game' };
 					if (is_constraint_or_effect) {
 						if (['constraint', 'effect'].includes(path[2].dataset.type)) {
+							if (!path[1].dataset.id) {
+								path[1].remove();
+								return;
+							}
 							const [, is_loc, id] = path[1].dataset.id.match(/^(l?)(\d+)$/);
 							obj[is_loc ? 'loc' : 'obj'] = id;
 						} else obj.obj = path[1].dataset.id;
@@ -667,24 +675,25 @@
 					}
 				} else {
 					const elem = clone(path[2].dataset.type)[0];
-					if (['action', 'path', 'grab'].includes(path[2].dataset.type)) {
-						elem.dataset.id = (await ajax('POST', '/add', {
-							type: path[2].dataset.type,
-							item: path[3].dataset.id
-						})).response;
-						switch (path[2].dataset.type) {
-							case 'action':
-								elem.children[0].textContent =
-									`use ${path[3].children[0].textContent} on `;
-							break; case 'grab':
-								elem.children[0].textContent =
-									`pick up ${path[3].children[0].textContent}`;
-								elem.querySelector('[data-type="success-checkbox"').checked = true;
-						}
-						elem.querySelector('[value="null"]').selected = true;
+					elem.dataset.id = (await ajax('POST', '/add', {
+						type: path[2].dataset.type,
+						item: path[3].dataset.id
+					})).response;
+					switch (path[2].dataset.type) {
+						case 'action':
+							elem.children[0].textContent =
+								`use ${path[3].children[0].textContent} on `;
+						break; case 'grab':
+							elem.children[0].textContent =
+								`pick up ${path[3].children[0].textContent}`;
+							elem.querySelector('[data-type="success-checkbox"').checked = true;
 					}
+					elem.querySelector('[value="null"]').selected = true;
 					path[2].insertBefore(elem, path[1].nextSibling);
 				}
+			} else if (path[3].classList.contains('add-button')) {
+				path[4].querySelector(`ul[data-type="${path[0].dataset.type}"]`)
+					.append(...clone(path[0].dataset.type));
 			} else if (path[0].dataset.type === 'rename') {
 				const list = path[1].querySelector('.link');
 				const element = document.createElement('input');
