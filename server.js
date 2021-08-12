@@ -300,11 +300,14 @@ if (cluster.isMaster) {
 					} else {
 						const item1 = await query(`
 							SELECT id FROM objects
-							WHERE name = %L`, [split_use[1]]);
-						if (item1.length === 1 && inventory.has(item1[0].id)) {
+							WHERE name = %L AND id IN (%L) AND game = %L`,
+							[split_use[1], unemptify(inventory_list), gameid]);
+						if (item1.length === 1) {
 							return await use_on(item1[0].id, split_use[2]);
-						} else return await show(show_data,
-							`You don't have ${a_an(split_use[1])}.`);
+						} else if (item1.length === 0) {
+							return await show(show_data,
+								`You don't have ${a_an(split_use[1])}.`);
+						} else return await show(show_data, `Which one?`);
 					}
 					async function use_on(first_ID, second_name) {
 						const valid_items = await objects_here(second_name, true);
