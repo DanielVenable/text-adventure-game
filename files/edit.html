@@ -85,7 +85,7 @@
 			content: "Alternate names:";
 		}
 
-		.add-button {
+		.add-button:not([hidden]) {
 			display: flex;
 		}
 
@@ -350,7 +350,7 @@
 	'use strict';
 
 	const game_view = document.getElementById('game');
-	const opened = new Set;
+	const opened = new WeakSet;
 
 	const all_objects = {};
 	all_objects.load = new Promise(resolve => all_objects.trigger = resolve);
@@ -436,11 +436,15 @@
 			if (path[0].firstChild instanceof HTMLInputElement) return;
 			if (path[0].classList.contains('link')) {
 				if (opened.has(path[1])) {
-					const hidables = path[1].querySelectorAll('div, ul');
-					const textarea = path[1].querySelector('textarea, .textarea');
-					const show = !hidables[0].hidden;
-					if (textarea) textarea.hidden = show;
-					for (const elem of hidables) elem.hidden = show;
+					for (let i = 0, do_hide = false; i < path[1].childElementCount; i++) {
+						if (!do_hide) {
+							do_hide = path[1].children[i] instanceof HTMLDivElement ||
+								path[1].children[i] instanceof HTMLParagraphElement;
+						}
+						if (do_hide) {
+							path[1].children[i].hidden = !path[1].children[i].hidden;
+						}
+					}
 				} else {
 					opened.add(path[1]);
 					const result = await ajax('GET', '/expand', {
@@ -788,8 +792,8 @@
 			} else if (path[0].dataset.type === 'action-description') {
 				await ajax('POST', '/change/description', {
 					text: path[0].value,
-					id: path[1].dataset.id,
-					type: path[2].dataset.type
+					id: path[2].dataset.id,
+					type: path[3].dataset.type
 				});
 			} else await ajax('POST', '/change/description', {
 				text: path[0].value,
