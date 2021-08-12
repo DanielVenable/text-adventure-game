@@ -157,6 +157,9 @@ if (cluster.isMaster) {
 					location: locationID, inventory, moves, userid
 				};
 				if (!data.has('cmd')) return await show(show_data, '');
+
+				const unemptify = a => a.length ? a : [0];
+
 				const command = data.get('cmd').toLowerCase();
 				let split_go_to,
 					split_pick_up,
@@ -166,125 +169,131 @@ if (cluster.isMaster) {
 						SELECT id FROM locations
 						WHERE name = %L AND game = %L`,
 						[split_go_to[1], gameid]);
-					if (end_location.length === 1) {
-						const constraints = await query(`
-							SELECT paths.id, paths.text, paths.win,
-								constraint_and_effect.id AS state,
-								constraint_and_effect.obj,
-								constraint_and_effect.loc,
-								constraint_and_effect.name IS NOT NULL AS should_be_there,
-								location_constraint_and_effect.obj AS loc_obj,
-								location_constraint_and_effect.location,
-								path_to_inventory_constraint.obj AS inv_obj,
-								path_to_inventory_constraint.have_it FROM paths
-							LEFT JOIN path_to_constraint
-								ON paths.id = path_to_constraint.path
-							LEFT JOIN constraint_and_effect
-								ON constraint_and_effect.id =
-									path_to_constraint.constraint_
-							LEFT JOIN path_to_location_constraint
-								ON paths.id = path_to_location_constraint.path
-							LEFT JOIN location_constraint_and_effect
-								ON location_constraint_and_effect.id =
-									path_to_location_constraint.constraint_
-							LEFT JOIN path_to_inventory_constraint
-								ON paths.id = path_to_inventory_constraint.path
-							WHERE paths.start = %L AND paths.end_ = %L
-							ORDER BY paths.id;`,
-							[locationID, end_location[0].id]);
-						const result = await satisfy_constraints(show_data, constraints);
-						if (result) {
-							if (result.win === null) {
-								const effects = await query(`
-									SELECT constraint_and_effect.id AS state,
-										constraint_and_effect.name IS NOT NULL AS should_be_there,
-										location_constraint_and_effect.obj AS loc_obj,
-										location_constraint_and_effect.location,
-										path_to_inventory_effect.obj AS inv_obj FROM paths
-									LEFT JOIN path_to_effect
-										ON paths.id = path_to_effect.path
-									LEFT JOIN constraint_and_effect
-										ON constraint_and_effect.id =
-											path_to_effect.effect
-									LEFT JOIN path_to_location_effect
-										ON paths.id = path_to_location_effect.path
-									LEFT JOIN location_constraint_and_effect
-										ON location_constraint_and_effect.id =
-											path_to_location_effect.effect
-									LEFT JOIN path_to_inventory_effect
-										ON paths.id = path_to_inventory_effect.path
-									WHERE paths.start = %L AND paths.end_ = %L`,
-									[locationID, end_location[0].id]);
-								await handle_effects(show_data, effects);
-								show_data.location = end_location[0].id;
-								return await show(show_data, result.text);
-							} else return await win_lose(show_data, result);
-						} else return await show(show_data, 'Nothing happens.');
-					} else return await show(show_data, 'Nothing happens.');
-				} else if (split_pick_up = command.match(/^(?:pick up|grab|get) (.+)$/)) {
-					const obj = await objects_here(split_pick_up[1]);
-					if (obj.length === 1) {
-						if (inventory.has(obj[0].id)) {
-							return await show(show_data, 'You already have it.');
-						} else {
-							const constraints = await query(`
-								SELECT grab.id, grab.text, grab.success, grab.win,
-									constraint_and_effect.id AS state,
-									constraint_and_effect.obj,
-									constraint_and_effect.loc,
+					const constraints = await query(`
+						SELECT paths.id, paths.text, paths.win, paths.end_,
+							constraint_and_effect.id AS state,
+							constraint_and_effect.obj,
+							constraint_and_effect.loc,
+							constraint_and_effect.name IS NOT NULL AS should_be_there,
+							location_constraint_and_effect.obj AS loc_obj,
+							location_constraint_and_effect.location,
+							path_to_inventory_constraint.obj AS inv_obj,
+							path_to_inventory_constraint.have_it FROM paths
+						LEFT JOIN path_to_constraint
+							ON paths.id = path_to_constraint.path
+						LEFT JOIN constraint_and_effect
+							ON constraint_and_effect.id =
+								path_to_constraint.constraint_
+						LEFT JOIN path_to_location_constraint
+							ON paths.id = path_to_location_constraint.path
+						LEFT JOIN location_constraint_and_effect
+							ON location_constraint_and_effect.id =
+								path_to_location_constraint.constraint_
+						LEFT JOIN path_to_inventory_constraint
+							ON paths.id = path_to_inventory_constraint.path
+						WHERE paths.start = %L AND paths.end_ IN (%L)
+						ORDER BY paths.id`,
+						[locationID, unemptify(end_location.map(a => a.id))]);
+					const result = await satisfy_constraints(show_data, constraints);
+					if (!result.length) return await show(show_data, 'Nothing happens.');
+					if (new Set(result.map(a => a.end_)).size > 1) {
+						return await show(show_data, 'Which one?');
+					}
+					const texts = [];
+					for (const path of result) {
+						if (path.win === null) {
+							const effects = await query(`
+								SELECT constraint_and_effect.id AS state,
 									constraint_and_effect.name IS NOT NULL AS should_be_there,
 									location_constraint_and_effect.obj AS loc_obj,
 									location_constraint_and_effect.location,
-									grab_to_inventory_constraint.obj AS inv_obj,
-									grab_to_inventory_constraint.have_it FROM grab
-								LEFT JOIN grab_to_constraint
-									ON grab.id = grab_to_constraint.grab
+									path_to_inventory_effect.obj AS inv_obj FROM paths
+								LEFT JOIN path_to_effect
+									ON paths.id = path_to_effect.path
 								LEFT JOIN constraint_and_effect
 									ON constraint_and_effect.id =
-										grab_to_constraint.constraint_
-								LEFT JOIN grab_to_location_constraint
-									ON grab.id = grab_to_location_constraint.grab
+										path_to_effect.effect
+								LEFT JOIN path_to_location_effect
+									ON paths.id = path_to_location_effect.path
 								LEFT JOIN location_constraint_and_effect
 									ON location_constraint_and_effect.id =
-										grab_to_location_constraint.constraint_
-								LEFT JOIN grab_to_inventory_constraint
-									ON grab.id = grab_to_inventory_constraint.grab
-								WHERE grab.obj = %L
-								ORDER BY grab.id`, [obj[0].id]);
-							const result = await satisfy_constraints(show_data, constraints);
-							if (result) {
-								if (result.win === null) {
-									const effects = await query(`
-										SELECT constraint_and_effect.id AS state,
-											constraint_and_effect.name IS NOT NULL AS should_be_there,
-											location_constraint_and_effect.obj AS loc_obj,
-											location_constraint_and_effect.location,
-											grab_to_inventory_effect.obj AS inv_obj FROM grab
-										LEFT JOIN grab_to_effect
-											ON grab.id = grab_to_effect.grab
-										LEFT JOIN constraint_and_effect
-											ON constraint_and_effect.id =
-												grab_to_effect.effect
-										LEFT JOIN grab_to_location_effect
-											ON grab.id = grab_to_location_effect.grab
-										LEFT JOIN location_constraint_and_effect
-											ON location_constraint_and_effect.id =
-												grab_to_location_effect.effect
-										LEFT JOIN grab_to_inventory_effect
-											ON grab.id = grab_to_inventory_effect.grab
-										WHERE grab.id = %L`, [result.id]);
-									await handle_effects(show_data, effects);
-									if (result.success) {
-										inventory.add(obj[0].id);
-										return await show(show_data,
-											result.text ? result.text + ' ' : '' +
-												`You have ${a_an(split_pick_up[1])}.`);
-									} else return await show(show_data,
-										result.text || "Nothing happens.");
-								} else return await win_lose(show_data, result);
-							} else return await show(show_data, "Nothing happens.");
-						}
-					} else return await show(show_data, "Nothing happens.");
+										path_to_location_effect.effect
+								LEFT JOIN path_to_inventory_effect
+									ON paths.id = path_to_inventory_effect.path
+								WHERE paths.start = %L AND paths.end_ = %L`,
+								[locationID, path.end_]);
+							await handle_effects(show_data, effects);
+							show_data.location = path.end_;
+							if (path.text) texts.push(path.text);
+						} else return await win_lose(show_data, path);
+					}
+					return await show(show_data, texts.join('\n\n'));
+				} else if (split_pick_up = command.match(/^(?:pick up|grab|get) (.+)$/)) {
+					const obj = await objects_here(split_pick_up[1]);
+					if (!obj.length) return await show(show_data, 'Nothing happens.');
+					const constraints = await query(`
+						SELECT grab.id, grab.text, grab.success, grab.win, grab.obj AS grab_obj,
+							constraint_and_effect.id AS state,
+							constraint_and_effect.obj,
+							constraint_and_effect.loc,
+							constraint_and_effect.name IS NOT NULL AS should_be_there,
+							location_constraint_and_effect.obj AS loc_obj,
+							location_constraint_and_effect.location,
+							grab_to_inventory_constraint.obj AS inv_obj,
+							grab_to_inventory_constraint.have_it FROM grab
+						LEFT JOIN grab_to_constraint
+							ON grab.id = grab_to_constraint.grab
+						LEFT JOIN constraint_and_effect
+							ON constraint_and_effect.id =
+								grab_to_constraint.constraint_
+						LEFT JOIN grab_to_location_constraint
+							ON grab.id = grab_to_location_constraint.grab
+						LEFT JOIN location_constraint_and_effect
+							ON location_constraint_and_effect.id =
+								grab_to_location_constraint.constraint_
+						LEFT JOIN grab_to_inventory_constraint
+							ON grab.id = grab_to_inventory_constraint.grab
+						WHERE grab.obj IN (%L)
+						ORDER BY grab.id`, [unemptify(obj.map(a => a.id))]);
+					const result = await satisfy_constraints(show_data, constraints);
+					if (!result.length) return await show(show_data, 'Nothing happens.');
+					if (new Set(result.map(a => a.grab_obj)).size > 1) {
+						return await show(show_data, 'Which one?');
+					}
+					const texts = [];
+					let got_it = false;
+					for (const grab of result) {
+						if (grab.win === null) {
+							const effects = await query(`
+								SELECT constraint_and_effect.id AS state,
+									constraint_and_effect.name IS NOT NULL AS should_be_there,
+									location_constraint_and_effect.obj AS loc_obj,
+									location_constraint_and_effect.location,
+									grab_to_inventory_effect.obj AS inv_obj FROM grab
+								LEFT JOIN grab_to_effect
+									ON grab.id = grab_to_effect.grab
+								LEFT JOIN constraint_and_effect
+									ON constraint_and_effect.id =
+										grab_to_effect.effect
+								LEFT JOIN grab_to_location_effect
+									ON grab.id = grab_to_location_effect.grab
+								LEFT JOIN location_constraint_and_effect
+									ON location_constraint_and_effect.id =
+										grab_to_location_effect.effect
+								LEFT JOIN grab_to_inventory_effect
+									ON grab.id = grab_to_inventory_effect.grab
+								WHERE grab.id = %L`, [grab.id]);
+							await handle_effects(show_data, effects);
+							if (grab.success) {
+								got_it = true;
+								inventory.add(grab.grab_obj);
+							}
+							if (grab.text) texts.push(grab.text);
+						} else return await win_lose(show_data, result);
+					}
+					if (got_it) texts.push(`You have ${a_an(obj[0].name)}.`);
+					return await show(show_data,
+						texts.length ? texts.join('\n\n') : 'Nothing happens.');
 				} else if (split_use = command.match(/^use (?:(.+) on )?(.+)$/)) {
 					if (split_use[1] === undefined) {
 						return await use_on(null, split_use[2]);
@@ -299,68 +308,74 @@ if (cluster.isMaster) {
 					}
 					async function use_on(first_ID, second_name) {
 						const valid_items = await objects_here(second_name, true);
-						if (valid_items.length === 1) {
-							const constraints = await query(`
-								SELECT actions.id, actions.text, actions.win,
-									constraint_and_effect.id AS state,
-									constraint_and_effect.obj,
-									constraint_and_effect.loc,
-									constraint_and_effect.name IS NOT NULL AS should_be_there,
-									location_constraint_and_effect.obj AS loc_obj,
-									location_constraint_and_effect.location,
-									action_to_inventory_constraint.obj AS inv_obj,
-									action_to_inventory_constraint.have_it FROM actions
-								LEFT JOIN action_to_constraint
-									ON actions.id = action_to_constraint.action
-								LEFT JOIN constraint_and_effect
-									ON constraint_and_effect.id =
-										action_to_constraint.constraint_
-								LEFT JOIN action_to_location_constraint
-									ON actions.id = action_to_location_constraint.action
-								LEFT JOIN location_constraint_and_effect
-									ON location_constraint_and_effect.id =
-										action_to_location_constraint.constraint_
-								LEFT JOIN action_to_inventory_constraint
-									ON actions.id = action_to_inventory_constraint.action
-								WHERE actions.obj1 = %L AND actions.obj2 %s`,
-								first_ID ?
-									[first_ID, pg_format('= %L', valid_items[0].id)] :
-									[valid_items[0].id, 'IS NULL']);
-							const result = await satisfy_constraints(show_data, constraints);
-							if (result) {
-								if (result.win === null) {
-									const effects = await query(`
-										SELECT constraint_and_effect.id AS state,
-											constraint_and_effect.name IS NOT NULL AS should_be_there,
-											location_constraint_and_effect.obj AS loc_obj,
-											location_constraint_and_effect.location,
-											action_to_inventory_effect.obj AS inv_obj FROM actions
-										LEFT JOIN action_to_effect
-											ON actions.id = action_to_effect.action
-										LEFT JOIN constraint_and_effect
-											ON constraint_and_effect.id =
-												action_to_effect.effect
-										LEFT JOIN action_to_location_effect
-											ON actions.id = action_to_location_effect.action
-										LEFT JOIN location_constraint_and_effect
-											ON location_constraint_and_effect.id =
-												action_to_location_effect.effect
-										LEFT JOIN action_to_inventory_effect
-											ON actions.id = action_to_inventory_effect.action
-										WHERE actions.id = %L`, [result.id]);
-									await handle_effects(show_data, effects);
-									return await show(show_data,
-										result.text ? result.text : "Nothing happens.");
-								} else return await win_lose(show_data, result);
-							} else return await show(show_data, "Nothing happens.");
-						} else return await show(show_data, "Nothing happens.");
+						if (!valid_items.length) return await show(show_data, 'Nothing happens.');
+						const constraints = await query(`
+							SELECT actions.id, actions.text, actions.win,
+								actions.obj1, actions.obj2,
+								constraint_and_effect.id AS state,
+								constraint_and_effect.obj,
+								constraint_and_effect.loc,
+								constraint_and_effect.name IS NOT NULL AS should_be_there,
+								location_constraint_and_effect.obj AS loc_obj,
+								location_constraint_and_effect.location,
+								action_to_inventory_constraint.obj AS inv_obj,
+								action_to_inventory_constraint.have_it FROM actions
+							LEFT JOIN action_to_constraint
+								ON actions.id = action_to_constraint.action
+							LEFT JOIN constraint_and_effect
+								ON constraint_and_effect.id =
+									action_to_constraint.constraint_
+							LEFT JOIN action_to_location_constraint
+								ON actions.id = action_to_location_constraint.action
+							LEFT JOIN location_constraint_and_effect
+								ON location_constraint_and_effect.id =
+									action_to_location_constraint.constraint_
+							LEFT JOIN action_to_inventory_constraint
+								ON actions.id = action_to_inventory_constraint.action
+							WHERE actions.obj1 IN (%L) AND actions.obj2 %s
+							ORDER BY actions.id`,
+							first_ID ?
+								[first_ID, pg_format('= (%L)',
+									unemptify(valid_items.map(a => a.id)))] :
+								[unemptify(valid_items.map(a => a.id)), 'IS NULL']);
+						const result = await satisfy_constraints(show_data, constraints);
+						if (new Set(result.map(first_ID ? a => a.obj2 : a => a.obj1)).size > 1) {
+							return await show(show_data, 'Which one?');
+						}
+						const texts = [];
+						for (const action of result) {
+							if (action.win === null) {
+								const effects = await query(`
+									SELECT constraint_and_effect.id AS state,
+										constraint_and_effect.name IS NOT NULL AS should_be_there,
+										location_constraint_and_effect.obj AS loc_obj,
+										location_constraint_and_effect.location,
+										action_to_inventory_effect.obj AS inv_obj FROM actions
+									LEFT JOIN action_to_effect
+										ON actions.id = action_to_effect.action
+									LEFT JOIN constraint_and_effect
+										ON constraint_and_effect.id =
+											action_to_effect.effect
+									LEFT JOIN action_to_location_effect
+										ON actions.id = action_to_location_effect.action
+									LEFT JOIN location_constraint_and_effect
+										ON location_constraint_and_effect.id =
+											action_to_location_effect.effect
+									LEFT JOIN action_to_inventory_effect
+										ON actions.id = action_to_inventory_effect.action
+									WHERE actions.id = %L`, [action.id]);
+								await handle_effects(show_data, effects);
+								if (action.text) texts.push(action.text);
+							} else return await win_lose(show_data, action);
+						}
+						return await show(show_data,
+							texts.length ? texts.join('\n\n') : 'Nothing happens.');
 					}
-				} else return await show(show_data, "Invalid command.");
+				} else return await show(show_data, 'Invalid command.');
 
 				function objects_here(name, include_inventory = false) {
-					const unemptify = a => a.length ? a : [0];
 					return query(`
-						SELECT id, location FROM objects
+						SELECT id, name FROM objects
 						WHERE (%L = name OR %L IN (
 							SELECT name FROM names WHERE obj = objects.id
 						)) AND game = %L
@@ -402,8 +417,6 @@ if (cluster.isMaster) {
 					JOIN locations ON locations.id = games.start
 					WHERE games.id = %L`, [game]);
 				if (!result.public) restrict(permission, 0);
-				const list = Array(5).fill([]);
-				list[1] = result.id;
 				return await show_file('play.html',
 					sanitize(result.name),
 					await navbar(userid),
@@ -414,7 +427,7 @@ if (cluster.isMaster) {
 						moved_objects: new Map,
 						inventory: new Set
 					}),
-					jwt.sign({ data: list, moves: 0 }, jwtKey),
+					jwt.sign({ data: [[], result.id, [], [], []], moves: 0 }, jwtKey),
 					'', +game, +game);
 			} case '/edit': {
 				const [{ start, name, text }] = await query(`
@@ -1037,20 +1050,22 @@ if (cluster.isMaster) {
 
 	async function satisfy_constraints({ states, moved_objects, inventory }, constraints) {
 		let current_ID,
-			valid = null;
+			current = null,
+			valid = [];
+
 		for (const constraint of constraints) {
 			if (constraint.id !== current_ID) {
-				if (valid) return valid;
-				valid = constraint;
+				if (current) valid.push(current);
+				current = constraint;
 				current_ID = constraint.id;
 			}
-			if (valid && (
+			if (current && (
 				(constraint.state &&
 					(constraint.should_be_there ? !states.has(constraint.state) :
 					states.size && (await query(`
-						SELECT true FROM constraint_and_effect
+						SELECT FROM constraint_and_effect
 						WHERE (obj = %L OR loc = %L) AND id IN (%L) LIMIT 1`,
-						[constraint.obj, constraint.loc, [...states]]))[0]?.bool)
+						[constraint.obj, constraint.loc, [...states]])).length)
 				) ||
 				(constraint.loc_obj &&
 					(moved_objects.get(constraint.loc_obj) ?? (await query(`
@@ -1061,8 +1076,9 @@ if (cluster.isMaster) {
 				(constraint.inv_obj &&
 					constraint.have_it !== inventory.has(constraint.inv_obj)
 				)
-			)) valid = null;
+			)) current = null;
 		}
+		if (current) valid.push(current);
 		return valid;
 	}
 
@@ -1103,7 +1119,7 @@ if (cluster.isMaster) {
 	const describe = async data =>
 		show_newlines(sanitize(await (await get_description_constraint_array(data.location))
 			.reduce(async (acc, cur) =>
-				await acc + ((await satisfy_constraints(data, cur))?.text ?? ''), '')));
+				await acc + ((await satisfy_constraints(data, cur))[0]?.text ?? ''), '')));
 
 	async function get_description_constraint_array(location) {
 		const chunks = await query(`
