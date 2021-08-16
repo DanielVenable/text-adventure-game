@@ -215,10 +215,13 @@ describe('server', () => {
     it("should let constraints and effects work", async () => {
         await add(`type=constraint&parenttype=action&item=${action_id}&obj=${object_id}&value=default`);
         await add(`type=effect&parenttype=action&item=${action_id}&obj=${object_id}&value=on`);
+        await add(`type=effect&parenttype=grab&item=${grab_id}&obj=${object_id}&value=default`);
         const game = play_game(game_id);
         await game.next();
         expect((await game.next('use thing')).value[1]).toBe('Something happens!');
         expect((await game.next('use thing')).value[1]).toBe('Nothing happens.');
+        await game.next('pick up thing');
+        expect((await game.next('use thing')).value[1]).toBe('Something happens!');
     });
 
     it("should let description constraints work", async () => {

@@ -158,8 +158,6 @@ if (cluster.isMaster) {
 				};
 				if (!data.has('cmd')) return await show(show_data, '');
 
-				const unemptify = a => a.length ? a : [0];
-
 				const command = data.get('cmd').toLowerCase();
 				let split_go_to,
 					split_pick_up,
@@ -204,6 +202,8 @@ if (cluster.isMaster) {
 						if (path.win === null) {
 							const effects = await query(`
 								SELECT constraint_and_effect.id AS state,
+									constraint_and_effect.obj,
+									constraint_and_effect.loc,
 									constraint_and_effect.name IS NOT NULL AS should_be_there,
 									location_constraint_and_effect.obj AS loc_obj,
 									location_constraint_and_effect.location,
@@ -266,6 +266,8 @@ if (cluster.isMaster) {
 						if (grab.win === null) {
 							const effects = await query(`
 								SELECT constraint_and_effect.id AS state,
+									constraint_and_effect.obj,
+									constraint_and_effect.loc,
 									constraint_and_effect.name IS NOT NULL AS should_be_there,
 									location_constraint_and_effect.obj AS loc_obj,
 									location_constraint_and_effect.location,
@@ -350,6 +352,8 @@ if (cluster.isMaster) {
 							if (action.win === null) {
 								const effects = await query(`
 									SELECT constraint_and_effect.id AS state,
+										constraint_and_effect.obj,
+										constraint_and_effect.loc,
 										constraint_and_effect.name IS NOT NULL AS should_be_there,
 										location_constraint_and_effect.obj AS loc_obj,
 										location_constraint_and_effect.location,
@@ -1031,10 +1035,18 @@ if (cluster.isMaster) {
 		}
 	}
 
+	const unemptify = a => a.length ? a : [0];
+
 	async function handle_effects({ states, moved_objects, inventory }, effects) {
 		for (const effect of effects) {
 			if (effect.state) {
-				states[effect.should_be_there ? 'add' : 'delete'](effect.state);
+				states.delete((await query(`
+					SELECT id FROM constraint_and_effect
+					WHERE (obj = %L OR loc = %L) AND id IN (%L) LIMIT 1`,
+					[effect.obj, effect.loc, unemptify([...states])]))[0]?.id);
+				if (effect.should_be_there) {
+					states.add(effect.state);
+				}
 			}
 			if (effect.loc_obj) {
 				if ((await query(`
