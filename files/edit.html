@@ -692,8 +692,8 @@
 								`pick up ${path[3].children[0].textContent}`;
 							elem.querySelector('[data-type="success-checkbox"').checked = true;
 					}
-					elem.querySelector('[value="null"]').selected = true;
-					path[2].insertBefore(elem, path[1].nextSibling);
+					path[2].append(elem);
+					elem.querySelector('button').click();
 				}
 			} else if (path[3].classList.contains('add-button')) {
 				path[4].querySelector(`ul[data-type="${path[0].dataset.type}"]`)
@@ -719,7 +719,7 @@
 				list.appendChild(element);
 				element.select();
 			} else if (path[0].dataset.type === 'add-description-constraint') {
-				path[2].insertBefore(clone(path[2].dataset.type)[0], path[1].nextSibling);
+				path[2].append(clone(path[2].dataset.type)[0]);
 			} else if (path[0].dataset.type === 'remove-description-part') {
 				await ajax('DELETE', '/remove', {
 					item: path[3].dataset.id,
