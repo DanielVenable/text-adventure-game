@@ -1082,11 +1082,11 @@ if (cluster.isMaster) {
 						WHERE (obj = %L OR loc = %L) AND id IN (%L) LIMIT 1`,
 						[constraint.obj, constraint.loc, [...states]])).length)
 				) ||
-				(constraint.loc_obj &&
+				(constraint.loc_obj && (inventory.has(constraint.loc_obj) ||
 					(moved_objects.get(constraint.loc_obj) ?? (await query(`
 						SELECT location FROM objects WHERE id = %L`,
 						[constraint.loc_obj]))[0].location)
-					!== constraint.location
+					!== constraint.location)
 				) ||
 				(constraint.inv_obj &&
 					constraint.have_it !== inventory.has(constraint.inv_obj)
