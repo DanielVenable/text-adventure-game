@@ -551,8 +551,8 @@
 						const action_elem = clone('expanded-action');
 						action_elem[0].children[0].value = text;
 						for (const is_constraint of [true, false]) {
-							for (const { obj, loc, name }
-									of is_constraint ? constraints : effects) {
+							for (const { obj, loc, name } of
+									is_constraint ? constraints : effects) {
 								const elem = clone(is_constraint ? 'constraint' : 'effect')[0];
 								elem.querySelector('select').value = elem.dataset.id =
 									obj || 'l'+loc;
@@ -566,7 +566,8 @@
 									`object-${obj}-states` : `location-${loc}-states`);
 								action_elem[is_constraint ? 3 : 4].append(elem);
 							}
-							for (const { obj, location } of location_constraints) {
+							for (const { obj, location } of
+									is_constraint ? location_constraints : location_effects) {
 								const elem = clone(`location-${
 									is_constraint ? 'constraint' : 'effect'}`)[0];
 								elem.dataset.id = obj;
