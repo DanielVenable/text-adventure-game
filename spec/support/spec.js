@@ -215,13 +215,24 @@ describe('server', () => {
     it("should let constraints and effects work", async () => {
         await add(`type=constraint&parenttype=action&item=${action_id}&obj=${object_id}&value=default`);
         await add(`type=effect&parenttype=action&item=${action_id}&obj=${object_id}&value=on`);
+        await add(`type=constraint&parenttype=grab&item=${grab_id}&obj=${object_id}&value=on`);
         await add(`type=effect&parenttype=grab&item=${grab_id}&obj=${object_id}&value=default`);
+        await post('/change/description',
+            `type=grab&id=${grab_id}&text=You+don't+get+it.&game=${game_id}`, user1);
         const game = play_game(game_id);
         await game.next();
+        expect((await game.next('pick up thing')).value[1]).toBe('Nothing happens.');
         expect((await game.next('use thing')).value[1]).toBe('Something happens!');
         expect((await game.next('use thing')).value[1]).toBe('Nothing happens.');
-        await game.next('pick up thing');
+        expect((await game.next('pick up thing')).value[1]).toBe("You don't get it.");
         expect((await game.next('use thing')).value[1]).toBe('Something happens!');
+    });
+
+    it("should let you remove a constraint", async () => {
+        await remove(`type=constraint&parenttype=grab&item=${grab_id}&obj=${object_id}`);
+        const game = play_game(game_id);
+        await game.next();
+        expect((await game.next('pick up thing')).value[1]).toBe("You don't get it.");
     });
 
     it("should let description constraints work", async () => {
@@ -241,8 +252,6 @@ describe('server', () => {
             }&parenttype=path&item=${path_id}`);
         await add(`type=location-constraint&obj=${object_id}&value=${location_id
             }&parenttype=grab&item=${grab_id}`);
-        await post('/change/description',
-            `type=grab&id=${grab_id}&text=You+don't+get+it.&game=${game_id}`, user1);
         const game = play_game(game_id);
         await game.next();
         expect((await game.next('go to somewhere else')).value[1]).toBe('Nothing happens.');
@@ -283,6 +292,36 @@ describe('server', () => {
         const game = play_game(game_id);
         await game.next();
         expect((await game.next('use thing2')).value[1]).toBe('Nothing happens.');
+    });
+
+    let action2_id;
+    it("should let actions with two objects work", async () => {
+        action2_id = await add(`type=action&item=${obj2_id}`);
+        expect((await post('/change/item', `type=action&newitem=${object_id}&id=${
+            action2_id}&game=${game_id}`, user1)).statusCode).toBe(204);
+        expect((await post('/change/description',
+            `type=action&id=${action2_id}&text=you+used+it&game=${
+            game_id}`, user1)).statusCode).toBe(204);
+        const game = play_game(game_id);
+        await game.next();
+        expect((await game.next('use other thing on thing')).value[1])
+            .toBe("You don't have an other thing.");
+        await game.next('use other thing');
+        expect((await game.next('use other thing on thing')).value[1])
+            .toBe('you used it');
+        await game.next('pick up thing');
+        expect((await game.next('use other thing on thing')).value[1])
+            .toBe('Nothing happens.');
+    });
+
+    it("should let you put states on locations", async () => {
+        await add(`type=constraint&parenttype=action&item=${action2_id}&loc=${location_id}&value=default`);
+        await add(`type=effect&parenttype=action&item=${action2_id}&loc=${location_id}&value=used`);
+        const game = play_game(game_id);
+        await game.next();
+        await game.next('use other thing');
+        expect((await game.next('use other thing on thing')).value[1]).toBe('you used it');
+        expect((await game.next('use other thing on thing')).value[1]).toBe('Nothing happens.');
     });
 
     it("should not let unauthorized users play the game", async () => {
