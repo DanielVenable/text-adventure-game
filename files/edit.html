@@ -85,7 +85,7 @@
 			content: "Alternate names:";
 		}
 
-		.path-names > * {
+		.path-names > :not([hidden]) {
 			display: block;
 			margin-top: 5px;
 		}
@@ -613,7 +613,8 @@
 							for (const text of ['', 'to the ']) {
 								const { options, selectedIndex } = path[0].nextElementSibling;
 								const span = document.createElement('span');
-								span.textContent = text + options[selectedIndex].text;
+								if (selectedIndex < 1) span.hidden = true;
+								else span.textContent = text + options[selectedIndex].text;
 								elem.append(span);
 							}
 							for (const { name } of path_names) {
@@ -737,24 +738,55 @@
 				path[4].querySelector(`ul[data-type="${path[0].dataset.type}"]`)
 					.append(...clone(path[0].dataset.type));
 			} else if (path[0].dataset.type === 'rename') {
-				const list = path[1].querySelector('.link');
+				const link = path[1].querySelector('.link');
 				const element = document.createElement('input');
-				element.value = list.textContent;
+				element.value = link.textContent;
 				element.addEventListener('blur', event => {
-					const path = event.composedPath();
-					const text = path[0].value;
+					const text = element.value;
 					ajax('POST', '/rename', {
-						id: path[2].dataset.id,
+						id: path[1].dataset.id,
 						name: text,
-						type: path[3].dataset.type
+						type: path[2].dataset.type
 					});
-					path[1].textContent = text;
+					link.textContent = text;
+					if (path[2].dataset.type === 'location') {
+						for (const elem of document.querySelectorAll(
+								`optgroup[data-id="${path[1].dataset.id}"]`)) {
+							elem.label = text;
+						}
+						for (const elem of document.querySelectorAll(
+								`.location-select > option[value="${path[1].dataset.id}"]`)) {
+							elem.text = text;
+							if (elem.selected) {
+								const path_names =
+									elem.parentElement.parentElement.querySelector('.path-names');
+								if (path_names) {
+									for (let i = 0; i < 2; i++) {
+										path_names.children[i].textContent = (i ? '' : 'to the ') + text;
+									}
+								}
+							}
+						}
+					} else if (path[2].dataset.type === 'object') {
+						for (const elem of document.querySelectorAll(
+								`.object-select option[value="${path[1].dataset.id}"]`)) {
+							elem.text = text;
+						}
+						for (const elem of path[1].querySelectorAll(
+								`[data-type="action"] .link`)) {
+							elem.textContent = `use ${text} on `;
+						}
+						for (const elem of path[1].querySelectorAll(
+								`[data-type="grab"] .link`)) {
+							elem.textContent = `pick up ${text}`;
+						}
+					}
 				});
 				element.addEventListener('keypress', e => {
 					if (e.key === 'Enter') e.target.blur();
 				});
-				list.textContent = '';
-				list.appendChild(element);
+				link.textContent = '';
+				link.appendChild(element);
 				element.select();
 			} else if (path[0].dataset.type === 'add-description-constraint') {
 				path[2].append(clone(path[2].dataset.type)[0]);
@@ -826,11 +858,21 @@
 		if (path[0] instanceof HTMLSelectElement) {
 			if (/constraint|effect/.test(path[2].dataset.type)) {
 				await change_constraint_or_effect(path);
-			} else if (path[1].dataset.id) await ajax('POST', '/change/item', {
-				type: path[2].dataset.type,
-				newitem: path[0].value,
-				id: path[1].dataset.id
-			});
+			} else if (path[1].dataset.id) {
+				await ajax('POST', '/change/item', {
+					type: path[2].dataset.type,
+					newitem: path[0].value,
+					id: path[1].dataset.id
+				});
+				const path_names = path[1].querySelector('.path-names');
+				if (path_names) {
+					for (let i = 0; i < 2; i++) {
+						path_names.children[i].hidden = path[0].selectedIndex < 1;
+						path_names.children[i].textContent =
+							(i ? '' : 'to the ') + path[0].options[path[0].selectedIndex].text;
+					}
+				}
+			}
 		} else if (path[0] instanceof HTMLTextAreaElement) {
 			if (path[0].id === 'start-text') {
 				await ajax('POST', '/change/start-text', {
