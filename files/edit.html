@@ -85,6 +85,23 @@
 			content: "Alternate names:";
 		}
 
+		.path-names > * {
+			display: block;
+			margin-top: 5px;
+		}
+
+		.path-names > button {
+			text-decoration: underline;
+			cursor: pointer;
+			background-color: transparent;
+			border: 0;
+			font: inherit;
+		}
+
+		.path-names > ::before {
+			content: "go ";
+		}
+
 		.add-button:not([hidden]) {
 			display: flex;
 		}
@@ -546,8 +563,8 @@
 						path[1].append(...object_elem);
 					} else {
 						const [constraints, effects,
-							location_constraints, location_effects,
-							inventory_constraints, inventory_effects, text] = result.response;
+							location_constraints, location_effects, inventory_constraints,
+							inventory_effects, text, path_names] = result.response;
 						const action_elem = clone('expanded-action');
 						action_elem[0].children[0].value = text;
 						for (const is_constraint of [true, false]) {
@@ -588,6 +605,26 @@
 							elem.dataset.id = obj;
 							elem.querySelector('.object-select').value = obj;
 							action_elem[8].append(elem);
+						}
+
+						if (path[2].dataset.type === 'path') {
+							const elem = document.createElement('div');
+							elem.classList.add('path-names');
+							for (const text of ['', 'to the ']) {
+								const { options, selectedIndex } = path[0].nextElementSibling;
+								const span = document.createElement('span');
+								span.textContent = text + options[selectedIndex].text;
+								elem.append(span);
+							}
+							for (const { name } of path_names) {
+								const button = document.createElement('button');
+								button.textContent = name;
+								elem.append(button);
+							}
+							const span = document.createElement('span');
+							span.append(document.createElement('input'));
+							elem.append(span);
+							action_elem.unshift(elem);
 						}
 						path[1].append(...action_elem);
 					}
@@ -747,23 +784,32 @@
 				} else document.querySelector('iframe').contentWindow.location.reload();
 				path[1].classList.add('start');
 				path[0].hidden = true;
-			} else if (path[1].dataset.type === 'names') {
+			} else if (path[1].dataset.type === 'names' ||
+					path[1].classList.contains('path-names')) {
+				const is_obj = path[1].dataset.type === 'names';
+				if (path[0].querySelector('input')) return;
 				await ajax('DELETE', '/remove', {
-					type: 'name',
+					type: is_obj ? 'name' : 'path-name',
 					name: path[0].textContent,
-					obj: path[2].dataset.id
+					[is_obj ? 'obj' : 'path']: path[2].dataset.id
 				});
 				const elem = document.createElement('input');
 				elem.value = path[0].textContent;
 				path[0].textContent = '';
-				path[0].append(elem);
+				if (is_obj) {
+					path[0].append(elem);
+				} else {
+					const span = document.createElement('span');
+					span.append(elem);
+					path[0].append(span);
+				}
 				elem.select();
 				elem.addEventListener('blur', () => {
 					if (elem.value) {
 						ajax('POST', '/add', {
-							type: 'name',
-							obj: path[2].dataset.id,
-							name: elem.value
+							type: is_obj ? 'name' : 'path-name',
+							name: elem.value,
+							[is_obj ? 'obj' : 'path']: path[2].dataset.id
 						});
 						path[0].textContent = elem.value.toLowerCase();
 					} else path[0].remove();
@@ -771,7 +817,7 @@
 				elem.addEventListener('keypress', e => {
 					if (e.key === 'Enter') e.target.blur();
 				});
-			}
+			} 
 		}
 	});
 
@@ -817,15 +863,17 @@
 					type: path[3].dataset.type,
 					value: path[0].value
 				});
-			} else if (path[1].dataset.type === 'names') {
+			} else if (path[1].dataset.type === 'names' ||
+					path[2].classList.contains('path-names')) {
+				const is_obj = path[1].dataset.type === 'names';
 				await ajax('POST', '/add', {
-					type: 'name',
-					obj: path[2].dataset.id,
+					type: is_obj ? 'name' : 'path-name',
+					[is_obj ? 'obj' : 'path']: path[3 - is_obj].dataset.id,
 					name: path[0].value
 				});
 				const elem = document.createElement('button');
 				elem.textContent = path[0].value.toLowerCase();
-				path[1].insertBefore(elem, path[0]);
+				path[2 - is_obj].insertBefore(elem, path[1 - is_obj]);
 				path[0].value = '';
 			}
 		}

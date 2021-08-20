@@ -211,7 +211,7 @@ CREATE TABLE IF NOT EXISTS description_to_location_constraint (
 CREATE TABLE IF NOT EXISTS description_to_inventory_constraint (
     description int NOT NULL,
     obj int NOT NULL,
-    have_it int NOT NULL,
+    have_it bool NOT NULL,
     FOREIGN KEY (description) REFERENCES descriptions (id) ON DELETE CASCADE,
     FOREIGN KEY (obj) REFERENCES objects (id) ON DELETE CASCADE);
 
@@ -226,6 +226,12 @@ CREATE TABLE IF NOT EXISTS names (
     obj int NOT NULL,
     FOREIGN KEY (obj) REFERENCES objects (id) ON DELETE CASCADE,
     UNIQUE (name, obj));
+
+CREATE TABLE IF NOT EXISTS path_names (
+    name varchar(255) NOT NULL,
+    path int NOT NULL,
+    FOREIGN KEY (path) REFERENCES paths (id) ON DELETE CASCADE,
+    UNIQUE (name, path));
 
 ALTER TABLE games
     ADD CONSTRAINT constraint_fk

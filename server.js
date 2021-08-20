@@ -162,11 +162,7 @@ if (cluster.isMaster) {
 				let split_go_to,
 					split_pick_up,
 					split_use;
-				if (split_go_to = command.match(/^go (?:to (?:the )?)?(.+)$/)) {
-					const end_location = await query(`
-						SELECT id FROM locations
-						WHERE name = %L AND game = %L`,
-						[split_go_to[1], gameid]);
+				if (split_go_to = command.match(/^go ((?:to (?:the )?)?(.+))$/)) {
 					const constraints = await query(`
 						SELECT paths.id, paths.text, paths.win, paths.end_,
 							constraint_and_effect.id AS state,
@@ -177,6 +173,10 @@ if (cluster.isMaster) {
 							location_constraint_and_effect.location,
 							path_to_inventory_constraint.obj AS inv_obj,
 							path_to_inventory_constraint.have_it FROM paths
+						LEFT JOIN locations
+							ON locations.id = paths.end_
+						LEFT JOIN path_names
+							ON path_names.path = paths.id
 						LEFT JOIN path_to_constraint
 							ON paths.id = path_to_constraint.path
 						LEFT JOIN constraint_and_effect
@@ -189,9 +189,9 @@ if (cluster.isMaster) {
 								path_to_location_constraint.constraint_
 						LEFT JOIN path_to_inventory_constraint
 							ON paths.id = path_to_inventory_constraint.path
-						WHERE paths.start = %L AND paths.end_ IN (%L)
+						WHERE paths.start = %L AND (path_names.name = %L OR locations.name = %L)
 						ORDER BY paths.id`,
-						[locationID, unemptify(end_location.map(a => a.id))]);
+						[locationID, ...split_go_to.slice(1)]);
 					const result = await satisfy_constraints(show_data, constraints);
 					if (!result.length) return await show(show_data, 'Nothing happens.');
 					if (new Set(result.map(a => a.end_)).size > 1) {
@@ -545,7 +545,7 @@ if (cluster.isMaster) {
 									table, column, data.get('id')
 								];
 							};
-						return await Promise.all([
+						const arr = [
 							query(sql, params('constraint')),
 							query(sql, params('effect')),
 							query(location_sql, params('location_constraint')),
@@ -559,7 +559,13 @@ if (cluster.isMaster) {
 							query(`SELECT text FROM %I WHERE id = %L`,
 								[table_list.get(data.get('type')), data.get('id')])
 									.then(a => a[0].text)
-						]);
+						];
+						if (data.get('type') === 'path') {
+							arr.push(query(`
+								SELECT name FROM path_names WHERE path = %L`,
+								[data.get('id')]));
+						}
+						return await Promise.all(arr);
 					} default: res.statusCode = 400;
 				}
 				break;
@@ -711,6 +717,13 @@ if (cluster.isMaster) {
 						if (data.get('name')) {
 							await query(`INSERT INTO names (obj, name) VALUES (%L, %L)`,
 								[data.get('obj'), data.get('name').toLowerCase()]);
+						} else req.statusCode = 400;
+						return;
+					} case 'path-name': {
+						await action_match_game('path', data.get('path'), data.get('game'));
+						if (data.get('name')) {
+							await query(`INSERT INTO path_names (path, name) VALUES (%L, %L)`,
+								[data.get('path'), data.get('name').toLowerCase()]);
 						} else req.statusCode = 400;
 						return;
 					} default: {
@@ -938,6 +951,12 @@ if (cluster.isMaster) {
 				await query(`
 					DELETE FROM names WHERE obj = %L AND name = %L`,
 					[data.get('obj'), data.get('name')]);
+				break;
+			case 'path-name':
+				await action_match_game('path', data.get('path'), data.get('game'));
+				await query(`
+					DELETE FROM path_names WHERE path = %L AND name = %L`,
+					[data.get('path'), data.get('name')]);
 				break;
 			default: {
 				const is_regular = ['constraint', 'effect'].includes(data.get('type'));

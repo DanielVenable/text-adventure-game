@@ -324,6 +324,27 @@ describe('server', () => {
         expect((await game.next('use other thing on thing')).value[1]).toBe('Nothing happens.');
     });
 
+    it("should let path names work", async () => {
+        const path2_id = await add(`type=path&item=${location_id}`);
+        expect((await post('/change/item',
+            `type=path&id=${path2_id}&newitem=${location_id}&game=${game_id}`, user1))
+            .statusCode).toBe(204);
+        const game = play_game(game_id);
+        await game.next();
+        await game.next('pick up thing');
+        expect((await game.next('go place')).value[1]).toBe('');
+        await add(`type=path-name&path=${path2_id}&name=through+mirror`);
+        expect((await game.next('go through mirror')).value[1]).toBe('');
+        await remove(`type=path-name&path=${path2_id}&name=through+mirror`);
+        expect((await game.next('go through mirror')).value[1]).toBe('Nothing happens.');
+    });
+
+    it("should have commands case insensitive", async () => {
+        const game = play_game(game_id);
+        await game.next();
+        expect((await game.next('pIcK UP tHinG')).value[1]).toBe("You don't get it.");
+    })
+
     it("should not let unauthorized users play the game", async () => {
         user2 = (await post('/signup', 'username=other+guy&password=some_pass&url='))
             .headers['set-cookie'][0];
