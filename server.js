@@ -223,7 +223,7 @@ if (cluster.isMaster) {
 								WHERE paths.start = %L AND paths.end_ = %L`,
 								[locationID, path.end_]);
 							await handle_effects(show_data, effects);
-							show_data.location = path.end_;
+							show_data.location = path.end_ ?? locationID;
 							if (path.text) texts.push(path.text);
 						} else return await win_lose(show_data, path);
 					}
@@ -855,11 +855,11 @@ if (cluster.isMaster) {
 				if (data.get('type') === 'action') {
 					await query(`
 						UPDATE actions SET obj2 = %L
-						WHERE id = %L`, [data.get('newitem'), data.get('id')]);
+						WHERE id = %L`, [data.get('newitem') || null, data.get('id')]);
 				} else if (data.get('type') === 'path') {
 					await query(`
 						UPDATE paths SET end_ = %L
-						WHERE id = %L`, [data.get('newitem'), data.get('id')]);
+						WHERE id = %L`, [data.get('newitem') || null, data.get('id')]);
 				} else if (data.get('type') === 'grab') {
 					await query(`
 						UPDATE grab SET success = %L
