@@ -489,6 +489,8 @@ if (cluster.isMaster) {
 			case '/navbar.css':
 				res.setHeader('Content-Type', 'text/css');
 				return await show_file('navbar.css');
+			case '/about':
+				return await show_file('about.html', await navbar(userid));
 			case '/expand':
 				restrict(permission, 1);
 				switch (data.get('type')) {
