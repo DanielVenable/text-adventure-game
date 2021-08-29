@@ -11,10 +11,6 @@
 			padding: 0;
 		}
 
-		.nobullet {
-			list-style: none;
-		}
-
 		li {
 			margin-top: 1em;
 		}
@@ -38,9 +34,8 @@
 			margin-top: 1em;
 		}
 
-		textarea {
-			height: auto;
-			margin-top: 1em;
+		[data-type="action-description"] {
+			margin: 1em 0.5em 1em 0;
 		}
 
 		#join-link {
@@ -51,25 +46,12 @@
 			margin: 10px;
 		}
 
-		svg {
-			height: 1em;
-			width: 1em;
+		.names > :not(.help) {
+			margin-left: 0.5em;
+			margin-right: 0.5em;
 		}
 
-		li > button:not(.link) {
-			margin-left: 1em;
-		}
-
-		.location-selectable .group {
-			font-weight: bold;
-		}
-
-		input.default {
-			font-style: italic;
-		}
-
-		[data-type="names"] > button {
-			margin: 0.5em;
+		.names > button {
 			text-decoration: underline;
 			cursor: pointer;
 			background-color: transparent;
@@ -77,15 +59,19 @@
 			font: inherit;
 		}
 
-		[data-type="names"] {
+		.names {
+			display: flex;
+			align-items: center;
+			flex-wrap: wrap;
 			margin-top: 5px;
+			margin-bottom: 5px;
 		}
 
-		[data-type="names"]::before {
+		.names::before {
 			content: "Alternate names:";
 		}
 
-		.path-names > :not([hidden]) {
+		.path-names > * {
 			display: block;
 			margin-top: 5px;
 		}
@@ -102,24 +88,96 @@
 			content: "go ";
 		}
 
-		.add-button:not([hidden]) {
-			display: flex;
+		.path-names > .flex > input {
+			margin-left: 5px;
 		}
 
-		.add-button > div {
+		.help {
+			background-image: url(/help-icon.svg);
+			background-size: 1em;
+			width: 1em;
+			height: 1em;
+		}
+
+		.help + div {
 			position: relative;
 		}
 
-		.add-button > div > div {
+		.help + div > div {
+			display: none;
+		}
+
+		.help:hover + div > div {
+			display: block;
+			position: absolute;
+			border: 1px solid black;
+			background-color: rgb(229, 255, 136);
+			border-radius: 5px;
+			padding: 3px;
+			width: 200px;
+		}
+
+		.flex {
+			display: flex;
+			align-items: center;
+		}
+
+		.flex > * {
+			margin-right: 5px;
+		}
+
+		[data-type="action"] .insert-type::after {
+			content: "action.";
+		}
+
+		[data-type="grab"] .insert-type::after {
+			content: "pick up action.";
+		}
+
+		[data-type="path"] .insert-type::after {
+			content: "path.";
+		}
+
+		li > button:not(.link) {
+			margin-left: 1em;
+		}
+
+		.location-selectable .group {
+			font-weight: bold;
+		}
+
+		input.default {
+			font-style: italic;
+		}
+
+		.add-button > button + div {
+			position: relative;
+		}
+
+		.add-button > button {
+			margin-right: 0;
+		}
+
+		.add-button > button + div > div {
 			display: none;
 		}
 
 		.add-button > button:hover + div > div,
-		.add-button > div > div:hover {
-			display: flex;
-			flex-direction: column;
+		.add-button > button       + div > div:hover {
+			display: grid;
 			position: absolute;
-			top: -100%;
+			grid-template-columns: auto auto auto;
+			grid-column-gap: 5px;
+			align-items: center;
+			top: -29px;
+		}
+
+		[data-type="object"] > li > div, [data-type="location"] > li > div, ul {
+    		margin-bottom: 1em;
+		}
+
+		[hidden] {
+			display: none;
 		}
 	</style>
 </head>
@@ -128,23 +186,41 @@
 	%s
 	<div class="container">
 		<div id="game">
-			<a href="/how-to-make-a-game" target="_blank" rel="noreferrer" title="How do I make a game?">
-				<svg viewbox="0 0 20 20">
-					<circle r=9 cx=10 cy=10 fill="white" stroke="black"/>
-					<text dominant-baseline="middle" text-anchor="middle"
-						x=10 y=11 style="font-size: 15px;">?</text>
-				</svg>
-			</a>
-			<br>
-			<textarea id="start-text">%s</textarea>
+			<div class="flex">
+				<textarea id="start-text">%s</textarea>
+				<span class="help"></span>
+				<div>
+					<div>
+						Put the text to be shown at the start of a game here.
+					</div>
+				</div>
+			</div>
 			<h3>Locations</h3>
-			<ul data-type="location">
-				<li class="nobullet"><button data-type="add">Add a location</button></li>
-				%s
-			</ul>
+			<div class="flex">
+				<button data-type="add">Add a location</button>
+				<span class="help"></span>
+				<div>
+					<div>
+						Locations are places the player can be in.
+					</div>
+				</div>
+			</div>
+			<ul data-type="location">%s</ul>
 			<h3>Objects</h3>
+			<div class="flex">
+				<button data-type="add">Add an object</button>
+				<span class="help"></span>
+				<div>
+					<div>
+						An object is a thing the player can interact with.
+						Create the object under the location you want it in.
+						<p></p>
+						Here is where you put objects that aren't in any location.
+						They can be used in states, or moved via location or inventory effects.
+					</div>
+				</div>
+			</div>
 			<ul data-type="object">
-				<li class="nobullet"><button data-type="add">Add an object</button></li>
 				%s
 			</ul>
 			<button data-type="delete">Delete this game</button>
@@ -226,53 +302,178 @@
 					<button data-type="add-description-part">+</button>
 				</p>
 			</div>
-			<ul data-type="object">
-				<li class="nobullet">
-					<button data-type="add">Add an object</button>
-				</li>
-			</ul>
-			<ul data-type="path">
-				<li class="nobullet">
-					<button data-type="add">Add a path</button>
-				</li>
-			</ul>
+			<div class="flex">
+				<button data-type="add">Add an object</button>
+				<span class="help"></span>
+				<div>
+					<div>
+						An object is a thing the player can interact with.
+						Create the object under the location you want it in.
+					</div>
+				</div>
+			</div>
+			<ul data-type="object"></ul>
+			<div class="flex">
+				<button data-type="add">Add a path</button>
+				<span class="help"></span>
+				<div>
+					<div>
+						A path is a way to get from one location to another.
+						Create the path in the location the path starts in,
+						then choose where it leads using the select box.
+						The player can use a path by typing: "go to <i>place</i>",
+						where <i>place</i> is the name of a location.
+						Paths are one way;
+						if you want the player to be able to go back, you will need two paths.
+						If you want a path that doesn't lead anywhere, leave the select box blank.
+					</div>
+				</div>
+			</div>
+			<ul data-type="path"></ul>
 		</div>
 		<div id="expanded-object">
-			<div data-type="names">
+			<div class="names">
 				<input>
+				<span class="help"></span>
+				<div>
+					<div>
+						Here is where you put alternate names for an object.
+						Any time the player can refer to an object using its name,
+						they can refer to it using one of these alternate names.
+					</div>
+				</div>
 			</div>
-			<ul data-type="action">
-				<li class="nobullet">
-					<button data-type="add">Add an action</button>
-				</li>
-			</ul>
-			<ul data-type="grab">
-				<li class="nobullet">
-					<button data-type="add">Add a pick up action</button>
-				</li>
-			</ul>
+			<div class="flex">
+				<button data-type="add">Add an action</button>
+				<span class="help"></span>
+				<div>
+					<div>
+						An action is a way for the player to interact with objects.
+						Actions either use one object or two.
+						<p>
+							If it uses one, create the action under the object it uses.
+							The player will activate it by typing: "use <i>object</i>",
+							where <i>object</i> is the name of the object it uses.
+							The object must be either in the location they are in or in their inventory.
+						</p>
+						If the action uses two objects,
+						the player will activate it by typing: "use <i>object 1</i> on <i>object 2</i>"
+						They will need object 1 in their inventory and
+						object 2 in either their inventory or the location they are in.
+						Create the action under object 1, and set the select box to object 2.
+					</div>
+				</div>
+			</div>
+			<ul data-type="action"></ul>
+			<div class="flex">
+				<button data-type="add">Add a pick up action</button>
+				<span class="help"></span>
+				<div>
+					<div>
+						Pick up actions allow the player to pick up an object.
+						Create one under the object to be picked up.
+						The player can pick up the object by typing:
+						"pick up <i>object</i>", "grab <i>object</i>", or "get <i>object</i>",
+						where <i>object</i> is the name of the object.
+						It will add it to their inventory.
+						If you don't want that to happen, deselect the "success" checkbox. 
+					</div>
+				</div>
+			</div>
+			<ul data-type="grab"></ul>
 		</div>
 		<div id="expanded-action">
-			<p>
+			<div class="flex">
 				<textarea data-type="action-description"></textarea>
-			</p>
-			<div class="add-button">
+				<span class="help"></span>
+				<div>
+					<div class="insert-type">
+						Here is where you put text describing what happens
+						when you use the <!-- css inserts type here -->
+					</div>
+				</div>
+			</div>
+			<div class="add-button flex">
 				<button>Add a constraint &gt;</button>
 				<div>
 					<div>
 						<button data-type="constraint">Regular</button>
+						<span class="help"></span>
+						<div>
+							<div>
+								Regular constraints check the state of something.
+								Choose an object or location from the select box,
+								then choose the state it has to be in.
+								"default" is the state it starts in.
+							</div>
+						</div>
 						<button data-type="location-constraint">Location</button>
+						<span class="help"></span>
+						<div>
+							<div>
+								Location constraints check where an object is.
+								Select an object, then choose the location it has to be in.
+							</div>
+						</div>
 						<button data-type="inventory-constraint">Inventory</button>
+						<span class="help"></span>
+						<div>
+							<div>
+								Inventory constraints check whether something
+								is in the player's inventory. Choose an object,
+								and choose whether they must or must not have it.
+							</div>
+						</div>
+					</div>
+				</div>
+				<span class="help"></span>
+				<div>
+					<div>
+						Constraints restrict whether an
+						action, pick up action, or path is allowed to happen.
+						It can only happen if it passes all the constraints.
 					</div>
 				</div>
 			</div>
-			<div class="add-button" data-type="effect">
+			<div class="add-button flex">
 				<button>Add an effect &gt;</button>
 				<div>
 					<div>
 						<button data-type="effect">Regular</button>
+						<span class="help"></span>
+						<div>
+							<div>
+								Regular effects change the state of something.
+								Choose an object or location from the select box,
+								then choose the state it goes in.
+								"default" is the state it starts in.
+							</div>
+						</div>
 						<button data-type="location-effect">Location</button>
+						<span class="help"></span>
+						<div>
+							<div>
+								Location constraints change where an object is.
+								Select an object, then choose the location it goes in.
+								These can be used to remove something from the player's inventory.
+							</div>
+						</div>
 						<button data-type="inventory-effect">Inventory</button>
+						<span class="help"></span>
+						<div>
+							<div>
+								Inventory constraints add something to the player's inventory.
+								Select the object they get. If you want the player to lose an
+								object instead, use a location effect.
+							</div>
+						</div>
+					</div>
+				</div>
+				<span class="help"></span>
+				<div>
+					<div>
+						Effects change the state of your game when the
+						player uses an action, pick up action, or path.
 					</div>
 				</div>
 			</div>
@@ -299,7 +500,7 @@
 				<ul data-type="location-constraint"></ul>
 				<ul data-type="inventory-constraint"></ul>
 				<textarea></textarea>
-				<button data-type="remove-description-part">Delete</button>
+				<button data-type="remove-description-part">delete</button>
 			</div>
 			<p><button data-type="add-description-part">+</button></p>
 		</div>
@@ -359,6 +560,20 @@
 				</label>
 				<button data-type="delete">delete</button>
 			</li>
+		</div>
+		<div id="path-names">
+			<div class="path-names">
+				<span class="flex">
+					<input>
+					<span class="help"></span>
+					<div>
+						<div>
+							Here is where you put alternate commands to use a path.
+							Any of the commands listed here will let you use this path.
+						</div>
+					</div>
+				</span>
+			</div>
 		</div>
 	</div>
 </body>
@@ -435,7 +650,7 @@
 	}
  
 	{
-		const locations = document.querySelectorAll('ul[data-type="location"] > li:not(.nobullet)');
+		const locations = document.querySelectorAll('ul[data-type="location"] > li');
 		for (const select of document.querySelectorAll('.location-select')) {
 			select.append(document.createElement('option'));
 			for (const location of locations) {
@@ -515,7 +730,7 @@
 							const elem = clone('object')[0];
 							elem.dataset.id = id;
 							elem.children[0].textContent = name;
-							location_elem[1].append(elem);
+							location_elem[2].append(elem);
 						}
 
 						for (const { id, end, win } of paths) {
@@ -526,7 +741,7 @@
 								input.name = `path-${id}`;
 								if (input.value === String(win)) input.selected = true;
 							}
-							location_elem[2].append(elem);
+							location_elem[4].append(elem);
 						}
 						path[1].append(...location_elem);
 					} else if (path[2].dataset.type === 'object') {
@@ -541,7 +756,7 @@
 								input.name = `action-${id}`;
 								if (input.value === String(win)) input.selected = true;
 							}
-							object_elem[1].append(elem);
+							object_elem[2].append(elem);
 						}
 						for (const { id, success, win } of grab) {
 							const elem = clone('grab')[0];
@@ -552,12 +767,12 @@
 								input.name = `grab-${id}`;
 								if (input.value === String(win)) input.selected = true;
 							}
-							object_elem[2].append(elem);
+							object_elem[4].append(elem);
 						}
 						for (const { name } of names) {
 							const elem = document.createElement('button');
 							elem.textContent = name;
-							object_elem[0].insertBefore(elem, object_elem[0].lastElementChild);
+							object_elem[0].insertBefore(elem, object_elem[0].querySelector('input'));
 						}
 
 						path[1].append(...object_elem);
@@ -608,23 +823,20 @@
 						}
 
 						if (path[2].dataset.type === 'path') {
-							const elem = document.createElement('div');
-							elem.classList.add('path-names');
+							const elem = clone('path-names')[0];
+							const ref = elem.querySelector('span');
 							for (const text of ['', 'to the ']) {
 								const { options, selectedIndex } = path[0].nextElementSibling;
 								const span = document.createElement('span');
 								if (selectedIndex < 1) span.hidden = true;
 								else span.textContent = text + options[selectedIndex].text;
-								elem.append(span);
+								elem.insertBefore(span, ref);
 							}
 							for (const { name } of path_names) {
 								const button = document.createElement('button');
 								button.textContent = name;
-								elem.append(button);
+								elem.insertBefore(button, ref);
 							}
-							const span = document.createElement('span');
-							span.append(document.createElement('input'));
-							elem.append(span);
 							action_elem.unshift(elem);
 						}
 						path[1].append(...action_elem);
@@ -659,25 +871,26 @@
 					if (path[2].dataset.type === 'location') {
 						document.querySelector('#game > ul[data-type="object"]').append(
 							...path[1].querySelectorAll(
-								'ul[data-type="object"] > li:not(.nobullet)'));
+								'ul[data-type="object"] > li'));
 					}
 					if (path[2].dataset.type) path[1].remove();
 					else window.location.replace('/');
 				}
 			} else if (path[0].dataset.type === 'add') {
-				if (['object', 'location'].includes(path[2].dataset.type)) {
+				const ul = path[1].nextElementSibling;
+				if (['object', 'location'].includes(ul.dataset.type)) {
 					const name = prompt(
-						`Choose a name for the ${path[2].dataset.type}.`, '');
+						`Choose a name for the ${ul.dataset.type}.`, '');
 					if (!name) return;
 					const text = name.toLowerCase();
-					if (path[2].dataset.type === 'location') {
+					if (ul.dataset.type === 'location') {
 						const { response } = await ajax('POST', '/add', {
 							type: 'location', name
 						});
 						const elem = clone('location')[0];
 						elem.dataset.id = response;
 						elem.children[0].textContent = text;
-						path[2].append(elem);
+						ul.append(elem);
 						for (const select of document.querySelectorAll('.location-select')) {
 							const option = document.createElement('option');
 							option.value = response;
@@ -691,26 +904,26 @@
 							select.append(optgroup);
 						}
 						create_datalist(`location-${response}-states`);
-					} else if (path[2].dataset.type === 'object') {
+					} else if (ul.dataset.type === 'object') {
 						const { response } = await ajax('POST', '/add', {
 							type: 'object', name,
-							location: path[3].dataset.id
+							location: path[2].dataset.id
 						});
 						const elem = clone('object')[0];
 						elem.dataset.id = response;
 						elem.children[0].textContent = text;
-						path[2].append(elem);
+						ul.append(elem);
 						for (const select of document.querySelectorAll('.object-select')) {
 							const option = document.createElement('option');
 							option.value = response;
 							if (select.classList.contains('location-selectable')) {
 								option.text = '   ' + text;
 								select.insertBefore(option,
-									select.querySelector(`[value="l${path[3].dataset.id}"] + *`));
+									select.querySelector(`[value="l${path[2].dataset.id}"] + *`));
 							} else {
 								option.text = text;
-								(path[3].dataset.id ?
-									select.querySelector(`[data-id="${path[3].dataset.id}"]`) :
+								(path[2].dataset.id ?
+									select.querySelector(`[data-id="${path[2].dataset.id}"]`) :
 									select).append(option);
 							}
 						}
@@ -816,9 +1029,9 @@
 				} else document.querySelector('iframe').contentWindow.location.reload();
 				path[1].classList.add('start');
 				path[0].hidden = true;
-			} else if (path[1].dataset.type === 'names' ||
+			} else if (path[1].classList.contains('names') ||
 					path[1].classList.contains('path-names')) {
-				const is_obj = path[1].dataset.type === 'names';
+				const is_obj = path[1].classList.contains('names');
 				if (path[0].querySelector('input')) return;
 				await ajax('DELETE', '/remove', {
 					type: is_obj ? 'name' : 'path-name',
@@ -905,9 +1118,9 @@
 					type: path[3].dataset.type,
 					value: path[0].value
 				});
-			} else if (path[1].dataset.type === 'names' ||
+			} else if (path[1].classList.contains('names') ||
 					path[2].classList.contains('path-names')) {
-				const is_obj = path[1].dataset.type === 'names';
+				const is_obj = path[1].classList.contains('names');
 				await ajax('POST', '/add', {
 					type: is_obj ? 'name' : 'path-name',
 					[is_obj ? 'obj' : 'path']: path[3 - is_obj].dataset.id,

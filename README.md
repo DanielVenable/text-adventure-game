@@ -40,7 +40,7 @@ You must be signed in to make a game. To do that, click the "Sign in/Sign up" bu
 Click the "make your own game" button to make your own game.
 Or you can mouse over the "edit a game button" to edit an already made game.
 
-Click the question mark in a circle button in the edit page for help on how to edit a game.
+Mouse over the question mark in a circle buttons in the edit page for help on how to edit a game.
 
 ## Publishing a Game
 

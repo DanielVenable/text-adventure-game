@@ -1,0 +1,12 @@
+<svg version="1.1" baseProfile="full" width="20" height="20" xmlns="http://www.w3.org/2000/svg">
+    <style>
+    * {
+        -webkit-user-select: none;  
+        -moz-user-select: none;    
+        -ms-user-select: none;      
+        user-select: none;
+    }
+    </style>
+    <circle r="9" cx="10" cy="10" fill="white" stroke="black"/>
+	<text text-anchor="middle" x="10" y="14" style="font-size: 15px;">?</text>
+</svg>

@@ -489,6 +489,9 @@ if (cluster.isMaster) {
 			case '/navbar.css':
 				res.setHeader('Content-Type', 'text/css');
 				return await show_file('navbar.css');
+			case '/help-icon.svg':
+				res.setHeader('Content-Type', 'image/svg+xml');
+				return await show_file('help-icon.svg');
 			case '/about':
 				return await show_file('about.html', await navbar(userid));
 			case '/expand':
@@ -571,8 +574,6 @@ if (cluster.isMaster) {
 					} default: res.statusCode = 400;
 				}
 				break;
-			case '/how-to-make-a-game':
-				return await show_file('instructions.html', await navbar(userid));
 			case '/check/username':
 				return (await query(`
 					SELECT FROM users WHERE username = %L LIMIT 1`,
@@ -719,14 +720,14 @@ if (cluster.isMaster) {
 						if (data.get('name')) {
 							await query(`INSERT INTO names (obj, name) VALUES (%L, %L)`,
 								[data.get('obj'), data.get('name').toLowerCase()]);
-						} else req.statusCode = 400;
+						} else res.statusCode = 400;
 						return;
 					} case 'path-name': {
 						await action_match_game('path', data.get('path'), data.get('game'));
 						if (data.get('name')) {
 							await query(`INSERT INTO path_names (path, name) VALUES (%L, %L)`,
 								[data.get('path'), data.get('name').toLowerCase()]);
-						} else req.statusCode = 400;
+						} else res.statusCode = 400;
 						return;
 					} default: {
 						if (data.has('obj')) {
