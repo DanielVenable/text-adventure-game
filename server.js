@@ -680,15 +680,14 @@ if (cluster.isMaster) {
 							VALUES (%L,%L) RETURNING id`,
 							[game, name]))[0].id
 					} case 'object': {
-						const is_anywhere = !isNaN(data.get('location'));
-						if (is_anywhere) {
+						if (data.has('location')) {
 							await location_match_game(data.get('location'), game);
 						}
 						return (await query(`
 							INSERT INTO objects (game, name, location)
 							VALUES (%L,%L,%L) RETURNING id`,
 							[game, data.get('name').toLowerCase(),
-							is_anywhere ? data.get('location') : null]))[0].id;
+							data.get('location')]))[0].id;
 					} case 'action': {
 						await object_match_game(data.get('item'), game);
 						return (await query(`
