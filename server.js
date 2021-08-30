@@ -582,9 +582,9 @@ if (cluster.isMaster) {
 				restrict(permission, 1);
 				return await query(`
 					SELECT objects.id, objects.name,
-						objects.location AS loc_id, locations.name AS loc_name FROM objects
+						locations.id AS loc_id, locations.name AS loc_name FROM objects
 					FULL JOIN locations ON objects.location = locations.id
-					WHERE objects.game = %L ORDER BY objects.location`, [game]);
+					WHERE %L IN (objects.game, locations.game) ORDER BY locations.id`, [game]);
 			case '/all-states':
 				restrict(permission, 1);
 				return await query(`

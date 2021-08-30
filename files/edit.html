@@ -611,6 +611,7 @@
 				}
 				create_datalist(`location-${loc_id}-states`);
 			}
+			if (id === null) continue;
 			for (const select of selects) {
 				const elem = document.createElement('option');
 				elem.value = id;
