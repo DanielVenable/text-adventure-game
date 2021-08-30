@@ -298,6 +298,17 @@
 		</div>
 		<div id="expanded-location">
 			<div class="textarea">
+				<div class="flex">
+					<span class="help"></span>
+					<div>
+						<div>
+							Here is where you put a description of the location.
+							Click the "+" buttons to add a part of the description.
+							Put some text in the textbox. You can add constraints to
+							each part of the description to choose what parts are shown.
+						</div>
+					</div>
+				</div>
 				<p>
 					<button data-type="add-description-part">+</button>
 				</p>
@@ -486,13 +497,45 @@
 		</div>
 		<div id="description">
 			<div class="description">
-				<div class="add-button">
+				<div class="add-button flex">
 					<button>Add a constraint &gt;</button>
 					<div>
 						<div>
 							<button data-type="constraint">Regular</button>
+							<span class="help"></span>
+							<div>
+								<div>
+									Regular constraints check the state of something.
+									Choose an object or location from the select box,
+									then choose the state it has to be in.
+									"default" is the state it starts in.
+								</div>
+							</div>
 							<button data-type="location-constraint">Location</button>
+							<span class="help"></span>
+							<div>
+								<div>
+									Location constraints check where an object is.
+									Select an object, then choose the location it has to be in.
+								</div>
+							</div>
 							<button data-type="inventory-constraint">Inventory</button>
+							<span class="help"></span>
+							<div>
+								<div>
+									Inventory constraints check whether something
+									is in the player's inventory. Choose an object,
+									and choose whether they must or must not have it.
+								</div>
+							</div>
+						</div>
+					</div>
+					<span class="help"></span>
+					<div>
+						<div>
+							Constraints restrict whether an
+							action, pick up action, or path is allowed to happen.
+							It can only happen if it passes all the constraints.
 						</div>
 					</div>
 				</div>
