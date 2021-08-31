@@ -187,7 +187,7 @@
 	<div class="container">
 		<div id="game">
 			<div class="flex">
-				<textarea id="start-text">%s</textarea>
+				<textarea id="start-text" maxlength="65535">%s</textarea>
 				<span class="help"></span>
 				<div>
 					<div>
@@ -248,7 +248,7 @@
 			<li>
 				<select class="object-select location-selectable"></select>
 				must be in state
-				<input disabled size="10">
+				<input disabled size="10" maxlength="255">
 				<button data-type="delete">delete</button>
 			</li>
 		</div>
@@ -256,7 +256,7 @@
 			<li>
 				<select class="object-select location-selectable"></select>
 				goes in state
-				<input disabled size="10">
+				<input disabled size="10" maxlength="255">
 				<button data-type="delete">delete</button>
 			</li>
 		</div>
@@ -344,7 +344,7 @@
 		</div>
 		<div id="expanded-object">
 			<div class="names">
-				<input>
+				<input maxlength="255">
 				<span class="help"></span>
 				<div>
 					<div>
@@ -395,7 +395,7 @@
 		</div>
 		<div id="expanded-action">
 			<div class="flex">
-				<textarea data-type="action-description"></textarea>
+				<textarea data-type="action-description" maxlength="255"></textarea>
 				<span class="help"></span>
 				<div>
 					<div class="insert-type">
@@ -542,7 +542,7 @@
 				<ul data-type="constraint"></ul>
 				<ul data-type="location-constraint"></ul>
 				<ul data-type="inventory-constraint"></ul>
-				<textarea></textarea>
+				<textarea maxlength="255"></textarea>
 				<button data-type="remove-description-part">delete</button>
 			</div>
 			<p><button data-type="add-description-part">+</button></p>
@@ -607,7 +607,7 @@
 		<div id="path-names">
 			<div class="path-names">
 				<span class="flex">
-					<input>
+					<input maxlength="255">
 					<span class="help"></span>
 					<div>
 						<div>
@@ -998,6 +998,7 @@
 				const link = path[1].querySelector('.link');
 				const element = document.createElement('input');
 				element.value = link.textContent;
+				element.maxLength = 255;
 				element.addEventListener('blur', event => {
 					const text = element.value;
 					ajax('POST', '/rename', {
@@ -1082,6 +1083,7 @@
 				});
 				const elem = document.createElement('input');
 				elem.value = path[0].textContent;
+				elem.maxLength = 255;
 				path[0].textContent = '';
 				if (is_obj) {
 					path[0].append(elem);

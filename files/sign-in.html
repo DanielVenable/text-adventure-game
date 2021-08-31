@@ -39,7 +39,7 @@
 		<div id="sign-in">
 			<h3>Sign in:</h3>
 			<form action="/signin" method="POST">
-				<label>Username:<br><input name="username"></label><br>
+				<label>Username:<br><input name="username" maxlength="255"></label><br>
 				<label>Password:<br><input type="password" name="password"></label><br>
 				<input name="url" value="%s" hidden>
 				<input type="submit" value="Sign in">
@@ -51,7 +51,7 @@
 		<div id="sign-up" hidden>
 			<h3>Sign up:</h3>
 			<form action="/signup" method="POST">
-				<label>Username:<br><input name="username"></label><br>
+				<label>Username:<br><input name="username" maxlength="255"></label><br>
 				<span class="warning" hidden>Username already taken<br></span>
 				<label>Password:<br><input type="password" name="password"></label><br>
 				<label>Comfirm password:<br><input type="password"></label><br>
