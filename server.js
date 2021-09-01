@@ -162,7 +162,7 @@ if (cluster.isMaster) {
 				let split_go_to,
 					split_pick_up,
 					split_use;
-				if (split_go_to = command.match(/^go ((?:to (?:the )?)?(.+))$/)) {
+				if (split_go_to = command.match(/^go ((?:to (?:the )?)?(.+?)) ?$/)) {
 					const constraints = await query(`
 						SELECT paths.id, paths.text, paths.win, paths.end_,
 							constraint_and_effect.id AS state,
@@ -228,7 +228,7 @@ if (cluster.isMaster) {
 						} else return await win_lose(show_data, path);
 					}
 					return await show(show_data, texts.join('\n\n'));
-				} else if (split_pick_up = command.match(/^(?:pick up|grab|get) (.+)$/)) {
+				} else if (split_pick_up = command.match(/^(?:pick up|grab|get) (.+?) ?$/)) {
 					const obj = await objects_here(split_pick_up[1]);
 					if (!obj.length) return await show(show_data, 'Nothing happens.');
 					const constraints = await query(`
@@ -296,7 +296,7 @@ if (cluster.isMaster) {
 					if (got_it) texts.push(`You have ${a_an(obj[0].name)}.`);
 					return await show(show_data,
 						texts.length ? texts.join('\n\n') : 'Nothing happens.');
-				} else if (split_use = command.match(/^use (?:(.+) on )?(.+)$/)) {
+				} else if (split_use = command.match(/^use (?:(.+) on )?(.+?) ?$/)) {
 					if (split_use[1] === undefined) {
 						return await use_on(null, split_use[2]);
 					} else {
