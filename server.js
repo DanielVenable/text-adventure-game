@@ -762,8 +762,8 @@ if (cluster.isMaster) {
 								INSERT INTO constraint_and_effect (game, obj, loc, name)
 								VALUES (%L, %L, %L, %L) RETURNING id`, [game, ...params]);
 						} else if (type1 === 'location-') {
-							const select_params = [data.get('obj'), data.get('value')];
-							await location_match_game(data.get('value'), game);
+							const select_params = [data.get('obj'), data.get('value') || null];
+							if (data.get('value')) await location_match_game(data.get('value'), game);
 							const exists = await query(`
 								SELECT id FROM location_constraint_and_effect
 								WHERE obj = %L AND location = %L`, select_params);

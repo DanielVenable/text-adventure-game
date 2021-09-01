@@ -752,7 +752,7 @@
 									description_elem[0].children[1].append(elem);
 								}
 								if (loc_obj) {
-									const elem = clone('location-constriant')[0];
+									const elem = clone('location-constraint')[0];
 									elem.querySelector('.location-select').value =
 										elem.dataset.id = loc_obj;
 									elem.querySelector('.object-select').value = location;
@@ -1226,7 +1226,8 @@
 			obj.value = inputs[0].value;
 		} else {
 			try {
-				if (!inputs[0].value || !inputs[1].value) return;
+				if (!inputs[0].value ||
+					!inputs[1].value && inputs[1] instanceof HTMLInputElement) return;
 			} catch (e) { }
 			path[1].dataset.id = inputs[0].value;
 			if (!('loc' in obj)) obj.obj = inputs[0].value;
