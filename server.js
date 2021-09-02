@@ -342,7 +342,7 @@ if (cluster.isMaster) {
 							WHERE actions.obj1 IN (%L) AND actions.obj2 %s
 							ORDER BY actions.id`,
 							first_ID ?
-								[first_ID, pg_format('= (%L)',
+								[first_ID, pg_format('IN (%L)',
 									unemptify(valid_items.map(a => a.id)))] :
 								[unemptify(valid_items.map(a => a.id)), 'IS NULL']);
 						const result = await satisfy_constraints(show_data, constraints);
