@@ -782,7 +782,7 @@
 							elem.querySelector('.location-select').value = end;
 							for (const input of elem.querySelectorAll('input[type="radio"]')) {
 								input.name = `path-${id}`;
-								if (input.value === String(win)) input.selected = true;
+								if (input.value == win) input.checked = true;
 							}
 							location_elem[4].append(elem);
 						}
@@ -797,7 +797,7 @@
 							elem.querySelector('select').value = obj2;
 							for (const input of elem.querySelectorAll('input[type="radio"]')) {
 								input.name = `action-${id}`;
-								if (input.value === String(win)) input.selected = true;
+								if (input.value == win) input.checked = true;
 							}
 							object_elem[2].append(elem);
 						}
@@ -808,7 +808,7 @@
 							if (success) elem.querySelector('input[type="checkbox"]').checked = true;
 							for (const input of elem.querySelectorAll('input[type="radio"]')) {
 								input.name = `grab-${id}`;
-								if (input.value === String(win)) input.selected = true;
+								if (input.value == win) input.checked = true;
 							}
 							object_elem[4].append(elem);
 						}
@@ -975,9 +975,13 @@
 				} else {
 					const { type } = path[1].nextElementSibling.dataset;
 					const elem = clone(type)[0];
-					elem.dataset.id = (await ajax('POST', '/add', {
+					const { response: id } = await ajax('POST', '/add', {
 						type, item: path[2].dataset.id
-					})).response;
+					});
+					elem.dataset.id = id;
+					for (const element of elem.querySelectorAll('input[type="radio"]')) {
+						element.name = `${type}-${id}`;
+					}
 					switch (type) {
 						case 'action':
 							elem.children[0].textContent =
