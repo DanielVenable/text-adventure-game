@@ -1134,8 +1134,8 @@ if (cluster.isMaster) {
 		return await show_file('play.html',
 			sanitize(data.game),
 			await navbar(data.userid),
-			await describe(data),
 			show_newlines(sanitize(text)),
+			await describe(data),
 			token, data.inventory.size ?
 				sanitize((await query(`
 					SELECT name FROM objects WHERE id in (%L)`,
@@ -1149,7 +1149,7 @@ if (cluster.isMaster) {
 		return await show_file('win.html',
 			sanitize(game),
 			await navbar(userid),
-			sanitize(text),
+			show_newlines(sanitize(text)),
 			win ? 'win!' : 'lose.', moves + 1,
 			encodeURIComponent(gameid));
 	}
