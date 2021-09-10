@@ -15,8 +15,22 @@
 			margin-top: 1em;
 		}
 
-		iframe {
+		#game + * {
+			display: flex;
+			flex-direction: column;
+		}
+
+		iframe, #super {
 			border: 1px solid black;
+		}
+
+		#super {
+			border-top: 0;
+			padding: 3px;
+		}
+
+		#super > * {
+			margin: 5px;
 		}
 
 		.container {
@@ -225,7 +239,29 @@
 			</ul>
 			<button data-type="delete">Delete this game</button>
 		</div>
-		<iframe src="/start?game=%s" title="Play your game"></iframe>
+		<div>
+			<iframe src="/start?game=%s" title="Play your game"></iframe>
+			<div id="super">
+				<div>
+					<button data-type="teleport" disabled>Teleport to </button>
+					<select class="location-select"></select>
+				</div>
+				<div>
+					<button data-type="aquire" disabled>Aquire a </button>
+					<select class="object-select"></select>
+				</div>
+				<div>
+					<select class="object-select location-selectable"></select>
+					<button data-type="state" disabled> becomes state </button>
+					<select disabled></select>
+				</div>
+				<div>
+					<select class="object-select"></select>
+					<button data-type="move" disabled> moves to </button>
+					<select class="location-select"></select>
+				</div>
+			</div>
+		</div>
 		%s
 	</div>
 	<div hidden>
@@ -387,7 +423,7 @@
 						"pick up <i>object</i>", "grab <i>object</i>", or "get <i>object</i>",
 						where <i>object</i> is the name of the object.
 						It will add it to their inventory.
-						If you don't want that to happen, deselect the "success" checkbox. 
+						If you don't want that to happen, deselect the "success" checkbox.
 					</div>
 				</div>
 			</div>
@@ -688,10 +724,10 @@
 			if (option.text === name) return;
 		}
 		const elem = document.createElement('option');
-		elem.text = name;			
+		elem.text = name;
 		list.append(elem);
 	}
- 
+
 	{
 		const locations = document.querySelectorAll('ul[data-type="location"] > li');
 		for (const select of document.querySelectorAll('.location-select')) {
@@ -1109,7 +1145,7 @@
 				elem.addEventListener('keypress', e => {
 					if (e.key === 'Enter') e.target.blur();
 				});
-			} 
+			}
 		}
 	});
 
@@ -1187,7 +1223,61 @@
 		}
 	});
 
-	document.querySelector('iframe').addEventListener('load', resize);
+	{
+		const frame = document.querySelector('iframe');
+		
+		frame.addEventListener('load', resize);
+
+		document.querySelector('#super .location-selectable')
+				.addEventListener('change', ({ target }) => {
+			const select = target.nextElementSibling.nextElementSibling;
+			select.options.length = 0;
+			select.disabled = !target.value;
+			if (target.value) {
+				const [, is_location, id] = target.value.match(/(l?)(\d+)/);
+				const { options } =	document.querySelector(
+					`#${is_location ? 'location' : 'object'}-${id}-states`);
+				for (const option of options) {
+					select.append(option.cloneNode(true));
+				}
+			}
+		});
+
+		const dont_disable = document.querySelector('#super [data-type="move"] + *');
+		document.querySelector('#super').addEventListener('change', ({ target }) => {
+			if (dont_disable !== target) {
+				target.parentElement.querySelector('button').disabled = !target.value;
+			}
+		});
+
+		document.querySelector('#super').addEventListener('click', ({ target }) => {
+			if (!(target instanceof HTMLButtonElement)) return;
+			const input = frame.contentDocument.querySelector('input[name="gameState"]');
+			let value;
+			if (input) value = input.value
+			else {
+				if (frame.contentWindow.location.pathname === '/start') {
+					if (target.datatset.type !== 'teleport') return;
+					value = '';
+				} else {
+					value = new URL(frame.contentWindow.location).searchParams.get('gameState');
+				}
+			}
+			const url = [`/super?gameState=${value}&type=${target.dataset.type}`];
+			const elem = target.parentElement;
+			if (target.dataset.type === 'state') {
+				const [, is_location, id] = elem.querySelector('select').value.match(/(l?)(\d+)/);
+				url.push(`${is_location ? 'loc' : 'obj'}=${id}&state=${
+					encodeURIComponent(elem.querySelector('button + *').value)}`);
+			} else {
+				const loc = elem.querySelector('.location-select');
+				const obj = elem.querySelector('.object-select');
+				if (loc) url.push(`loc=${encodeURIComponent(loc.value)}`);
+				if (obj) url.push(`obj=${encodeURIComponent(obj.value)}`);
+			}
+			frame.contentWindow.location = url.join('&');
+		});
+	}
 
 	async function change_constraint_or_effect(path) {
 		const obj = {
@@ -1198,7 +1288,7 @@
 		}
 
 		const inputs = path[1].querySelectorAll('select, input');
-		
+
 		if (['constraint', 'effect'].includes(path[2].dataset.type)) {
 			if (path[0] === inputs[0]) {
 				path[1].dataset.id = inputs[0].value;

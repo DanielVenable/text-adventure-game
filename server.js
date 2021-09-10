@@ -438,7 +438,77 @@ if (cluster.isMaster) {
 					}),
 					jwt.sign({ data: [[], result.id, [], [], []], moves: 0 }, jwtKey),
 					'', +game, +game);
-			} case '/edit': {
+			} case '/super': {
+				if (!data.get('gameState') && data.get('type') === 'teleport') {
+					const result = await query(`
+						SELECT permission, locations.game, games.name FROM user_to_game
+						JOIN locations ON locations.game = user_to_game.game
+						JOIN games ON games.id = locations.game
+						WHERE user_ = %L AND location = %L`, [userid, data.get('loc')]);
+					restrict(result, 1);
+					return await show_file('play.html',
+						sanitize(result[0].name),
+						await navbar(userid), '',
+						await describe({
+							location: data.get('loc'),
+							states: new Set,
+							moved_objects: new Map,
+							inventory: new Set
+						}),
+						jwt.sign( { data: [[], data.get('loc'), [], [], []], moves: 0 }, jwtKey),
+						'', +result[0].game, +result[0].game);
+				}
+				const { data: [
+						states, location, inventory,
+						moved_objects, locations], moves } =
+					jwt.verify(data.get('gameState'), jwtKey);
+
+				const result = await query(`
+					SELECT permission, locations.game, games.name FROM user_to_game
+					JOIN locations ON locations.game = user_to_game.game
+					JOIN games ON games.id = locations.game
+					WHERE user_ = %L AND locations.id = %L`, [userid, location]);
+				restrict(result, 1);
+
+				const show_data = {
+					moved_objects: new Map,
+					inventory: new Set(inventory),
+					states: new Set(states),
+					gameid: result[0].game,
+					game: result[0].name,
+					location, moves, userid
+				};
+				for (let i = 0; i < moved_objects.length; i++) {
+					show_data.moved_objects.set(moved_objects[i], locations[i]);
+				}
+
+				const obj = data.get('obj'), loc = data.get('loc');
+				if (obj) await object_match_game(obj, result[0].game);
+				if (loc) await location_match_game(loc, result[0].game);
+				switch (data.get('type')) {
+					case 'teleport':
+						show_data.location = loc;
+						break;
+					case 'aquire':
+						await handle_effects(show_data, [{ inv_obj: obj }]);
+						break;
+					case 'state':
+						await handle_effects(show_data, [{
+							obj, loc,
+							state: await get_constraint(
+								result[0].game, obj, loc, data.get('state')),
+							should_be_there: data.get('state').toLowerCase() !== 'default'
+						}]);
+						break;
+					case 'move':
+						await handle_effects(show_data, [{ loc_obj: obj, location: loc }]);
+						break;
+					default:
+						res.statusCode = 400;
+						return;
+				}
+				return await show(show_data, '');
+		 	} case '/edit': {
 				const [{ start, name, text }] = await query(`
 						SELECT start, name, text FROM games
 						WHERE id = %L`, [game]),
@@ -752,17 +822,8 @@ if (cluster.isMaster) {
 								await location_match_game(data.get('loc'), game);
 							}
 							table = start_table_list.get(data.get('parenttype')) + type2;
-
-							const params = [
-								data.get('obj'), data.get('loc'),
-								data.get('value').toLowerCase() === 'default' ?
-									null : data.get('value').toLowerCase()];
-							const exists = await query(`
-								SELECT id FROM constraint_and_effect
-								WHERE (obj = %L OR loc = %L) AND name = %L`, params);
-							[{ id }] = exists.length ? exists : await query(`
-								INSERT INTO constraint_and_effect (game, obj, loc, name)
-								VALUES (%L, %L, %L, %L) RETURNING id`, [game, ...params]);
+							id = await get_constraint(
+								game, data.get('obj'), data.get('loc'), data.get('value'));
 						} else if (type1 === 'location-') {
 							const select_params = [data.get('obj'), data.get('value') || null];
 							if (data.get('value')) await location_match_game(data.get('value'), game);
@@ -999,13 +1060,13 @@ if (cluster.isMaster) {
 							data.get('item'), data.get('obj'), data.get('loc')]);
 					await query(`
 						DELETE FROM constraint_and_effect WHERE id = %L AND
-						id NOT in (SELECT constraint_ FROM description_to_constraint) AND
-						id NOT in (SELECT constraint_ FROM grab_to_constraint) AND
-						id NOT in (SELECT effect FROM grab_to_effect) AND
-						id NOT in (SELECT constraint_ FROM path_to_constraint) AND
-						id NOT in (SELECT effect FROM path_to_effect) AND
-						id NOT in (SELECT constraint_ FROM action_to_constraint) AND
-						id NOT in (SELECT effect FROM action_to_effect)`, [data.get('item')]);
+						id NOT IN (SELECT constraint_ FROM description_to_constraint) AND
+						id NOT IN (SELECT constraint_ FROM grab_to_constraint) AND
+						id NOT IN (SELECT effect FROM grab_to_effect) AND
+						id NOT IN (SELECT constraint_ FROM path_to_constraint) AND
+						id NOT IN (SELECT effect FROM path_to_effect) AND
+						id NOT IN (SELECT constraint_ FROM action_to_constraint) AND
+						id NOT IN (SELECT effect FROM action_to_effect)`, [data.get('item')]);
 				} else {
 					const table = start_table_list.get(data.get('parenttype')) +
 						'location_' + type2;
@@ -1135,15 +1196,17 @@ if (cluster.isMaster) {
 			sanitize(data.game),
 			await navbar(data.userid),
 			show_newlines(sanitize(text)),
-			await describe(data),
-			token, data.inventory.size ?
-				sanitize((await query(`
-					SELECT name FROM objects WHERE id in (%L)`,
-					[[...data.inventory]])).reduce((acc, cur, index) => 
-						acc + (index ? ', ' : '') + cur.name, 'You have: ') + '.')
-				: '',
+			await describe(data), token,
+			await show_inventory(data.inventory),
 			data.gameid, data.gameid);
 	}
+
+	const show_inventory = async inventory => inventory.size ?
+		sanitize((await query(`
+			SELECT name FROM objects WHERE id IN (%L)`,
+			[[...inventory]])).reduce((acc, cur, index) => 
+				acc + (index ? ', ' : '') + cur.name, 'You have: ') + '.')
+		: ''
 
 	async function win_lose({ game, gameid, moves, userid }, { text, win }) {
 		return await show_file('win.html',
@@ -1197,6 +1260,16 @@ if (cluster.isMaster) {
 			}
 		}
 		return constraint_array;
+	}
+
+	async function get_constraint(game, obj, loc, name) {
+		const params = [obj, loc, name.toLowerCase() === 'default' ? null : name.toLowerCase()];
+		const exists = await query(`
+			SELECT id FROM constraint_and_effect
+			WHERE (obj = %L OR loc = %L) AND name = %L`, params);
+		return +(exists.length ? exists : await query(`
+			INSERT INTO constraint_and_effect (game, obj, loc, name)
+			VALUES (%L, %L, %L, %L) RETURNING id`, [game, ...params]))[0].id;
 	}
 
 	async function show_file(path, ...args) {
