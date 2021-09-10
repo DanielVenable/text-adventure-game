@@ -237,4 +237,4 @@ ALTER TABLE games
     ADD CONSTRAINT constraint_fk
     FOREIGN KEY (start)
     REFERENCES locations(id)
-    ON DELETE CASCADE;
+    ON DELETE SET NULL;
