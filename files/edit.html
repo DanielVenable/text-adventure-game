@@ -1052,6 +1052,10 @@
 							elem.label = text;
 						}
 						for (const elem of document.querySelectorAll(
+								`option.group[value="l${path[1].dataset.id}"]`)) {
+							elem.text = text;
+						}
+						for (const elem of document.querySelectorAll(
 								`.location-select > option[value="${path[1].dataset.id}"]`)) {
 							elem.text = text;
 							if (elem.selected) {
