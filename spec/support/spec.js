@@ -136,7 +136,7 @@ describe('server', () => {
     it("should let you do an action on an object in your location", async () => {
         const game = play_game(game_id);
         await game.next();
-        expect((await game.next('use thing')).value[1]).toBe('Something happens!');
+        expect((await game.next('use thing')).value[0]).toBe('Something happens!');
     });
 
     let loc2_id, path_id;
@@ -163,7 +163,7 @@ describe('server', () => {
     it("should let you pick up the object", async () => {
         const game = play_game(game_id);
         await game.next();
-        const { value: [, text, inventory] } = await game.next('pick up thing');
+        const { value: [text,, inventory] } = await game.next('pick up thing');
         expect(text).toBe('You have a thing.');
         expect(inventory).toBe('You have: thing.');
     });
@@ -173,7 +173,7 @@ describe('server', () => {
         await game.next();
         await game.next('pick up thing');
         await game.next('go to somewhere else');
-        expect((await game.next('use thing')).value[1]).toBe('Something happens!');
+        expect((await game.next('use thing')).value[0]).toBe('Something happens!');
     });
 
     it("should let you disable picking up the object", async () => {
@@ -181,8 +181,7 @@ describe('server', () => {
             `type=grab&id=${grab_id}&state=false&game=${game_id}`, user1)).statusCode).toBe(204);
         const game = play_game(game_id);
         await game.next();
-        expect((await game.next('pick up thing')).value.slice(1))
-            .toEqual(['Nothing happens.', '']);
+        expect((await game.next('pick up thing')).value[2]).toBe('');
     });
 
     let obj2_id;
@@ -221,18 +220,18 @@ describe('server', () => {
             `type=grab&id=${grab_id}&text=You+don't+get+it.&game=${game_id}`, user1);
         const game = play_game(game_id);
         await game.next();
-        expect((await game.next('pick up thing')).value[1]).toBe('Nothing happens.');
-        expect((await game.next('use thing')).value[1]).toBe('Something happens!');
-        expect((await game.next('use thing')).value[1]).toBe('Nothing happens.');
-        expect((await game.next('pick up thing')).value[1]).toBe("You don't get it.");
-        expect((await game.next('use thing')).value[1]).toBe('Something happens!');
+        expect((await game.next('pick up thing')).value[0]).toBe('Nothing happens.');
+        expect((await game.next('use thing')).value[0]).toBe('Something happens!');
+        expect((await game.next('use thing')).value[0]).toBe('Nothing happens.');
+        expect((await game.next('pick up thing')).value[0]).toBe("You don't get it.");
+        expect((await game.next('use thing')).value[0]).toBe('Something happens!');
     });
 
     it("should let you remove a constraint", async () => {
         await remove(`type=constraint&parenttype=grab&item=${grab_id}&obj=${object_id}`);
         const game = play_game(game_id);
         await game.next();
-        expect((await game.next('pick up thing')).value[1]).toBe("You don't get it.");
+        expect((await game.next('pick up thing')).value[0]).toBe("You don't get it.");
     });
 
     it("should let description constraints work", async () => {
@@ -242,7 +241,7 @@ describe('server', () => {
             }&type=constraint&parenttype=description&obj=${object_id}&value=on`);
         const game = play_game(game_id);
         expect((await game.next()).value[1]).toBe('first part, third part.');
-        expect((await game.next('use thing')).value[0]).toBe('second part, third part.');
+        expect((await game.next('use thing')).value[1]).toBe('second part, third part.');
     });
 
     it("should let location constraints and effects work", async () => {
@@ -254,12 +253,12 @@ describe('server', () => {
             }&parenttype=grab&item=${grab_id}`);
         const game = play_game(game_id);
         await game.next();
-        expect((await game.next('go to somewhere else')).value[1]).toBe('Nothing happens.');
-        expect((await game.next('pick up thing')).value[1]).toBe("You don't get it.");
-        expect((await game.next('use thing')).value[1]).toBe('Nothing happens.');
-        expect((await game.next('go to somewhere else')).value[1]).toBe('');
-        expect((await game.next('use thing')).value[1]).toBe('Something happens!');
-        expect((await game.next('pick up thing')).value[1]).toBe('Nothing happens.'); 
+        expect((await game.next('go to somewhere else')).value[0]).toBe('Nothing happens.');
+        expect((await game.next('pick up thing')).value[0]).toBe("You don't get it.");
+        expect((await game.next('use thing')).value[0]).toBe('Nothing happens.');
+        expect((await game.next('go to somewhere else')).value[0]).toBe('');
+        expect((await game.next('use thing')).value[0]).toBe('Something happens!');
+        expect((await game.next('pick up thing')).value[0]).toBe('Nothing happens.'); 
     });
 
     it("should let inventory constraints and effects work", async () => {
@@ -273,25 +272,25 @@ describe('server', () => {
             obj2_id}&item=${id}&value=0`);
         const game = play_game(game_id);
         await game.next();
-        expect((await game.next('use thing')).value[1]).toBe('Nothing happens.');
-        expect((await game.next('use other thing')).value.slice(1))
-            .toEqual(['You get it.', 'You have: other thing.']);
-        expect((await game.next('use thing')).value[1]).toBe('Something happens!');
-        expect((await game.next('use other thing')).value[1]).toBe('Nothing happens.');
+        expect((await game.next('use thing')).value[0]).toBe('Nothing happens.');
+        expect((await game.next('use other thing')).value)
+            .toEqual(['You get it.', 'first part, third part.', 'You have: other thing.']);
+        expect((await game.next('use thing')).value[0]).toBe('Something happens!');
+        expect((await game.next('use other thing')).value[0]).toBe('Nothing happens.');
     });
 
     it("should let you add an alternate name to an object", async () => {
         await add(`type=name&obj=${obj2_id}&name=thing2`);
         const game = play_game(game_id);
         await game.next();
-        expect((await game.next('use thing2')).value[1]).toBe('You get it.');
+        expect((await game.next('use thing2')).value[0]).toBe('You get it.');
     });
 
     it("should let you remove an alternate name", async () => {
         await remove(`type=name&obj=${obj2_id}&name=thing2`);
         const game = play_game(game_id);
         await game.next();
-        expect((await game.next('use thing2')).value[1]).toBe('Nothing happens.');
+        expect((await game.next('use thing2')).value[0]).toBe('Nothing happens.');
     });
 
     let action2_id;
@@ -304,13 +303,13 @@ describe('server', () => {
             game_id}`, user1)).statusCode).toBe(204);
         const game = play_game(game_id);
         await game.next();
-        expect((await game.next('use other thing on thing')).value[1])
+        expect((await game.next('use other thing on thing')).value[0])
             .toBe("You don't have an other thing.");
         await game.next('use other thing');
-        expect((await game.next('use other thing on thing')).value[1])
+        expect((await game.next('use other thing on thing')).value[0])
             .toBe('you used it');
         await game.next('pick up thing');
-        expect((await game.next('use other thing on thing')).value[1])
+        expect((await game.next('use other thing on thing')).value[0])
             .toBe('Nothing happens.');
     });
 
@@ -320,8 +319,8 @@ describe('server', () => {
         const game = play_game(game_id);
         await game.next();
         await game.next('use other thing');
-        expect((await game.next('use other thing on thing')).value[1]).toBe('you used it');
-        expect((await game.next('use other thing on thing')).value[1]).toBe('Nothing happens.');
+        expect((await game.next('use other thing on thing')).value[0]).toBe('you used it');
+        expect((await game.next('use other thing on thing')).value[0]).toBe('Nothing happens.');
     });
 
     it("should let path names work", async () => {
@@ -332,17 +331,17 @@ describe('server', () => {
         const game = play_game(game_id);
         await game.next();
         await game.next('pick up thing');
-        expect((await game.next('go place')).value[1]).toBe('');
+        expect((await game.next('go place')).value[0]).toBe('');
         await add(`type=path-name&path=${path2_id}&name=through+mirror`);
-        expect((await game.next('go through mirror')).value[1]).toBe('');
+        expect((await game.next('go through mirror')).value[0]).toBe('');
         await remove(`type=path-name&path=${path2_id}&name=through+mirror`);
-        expect((await game.next('go through mirror')).value[1]).toBe('Nothing happens.');
+        expect((await game.next('go through mirror')).value[0]).toBe('Nothing happens.');
     });
 
     it("should have commands case insensitive", async () => {
         const game = play_game(game_id);
         await game.next();
-        expect((await game.next('pIcK UP tHinG')).value[1]).toBe("You don't get it.");
+        expect((await game.next('pIcK UP tHinG')).value[0]).toBe("You don't get it.");
     })
 
     it("should not let unauthorized users play the game", async () => {
