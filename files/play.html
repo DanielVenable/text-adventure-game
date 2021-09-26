@@ -69,6 +69,9 @@
 							Use <i>thing</i> on <i>thing</i>:
 								Use something in your inventory on something.
 						</li>
+						<li>
+							Talk to <i>someone</i> / Talk <i>someone</i>: Talk to someone.
+						</li>
 					</ul>
 					All commands are case insensitive.
 				</div>
@@ -95,7 +98,7 @@
 
 	submit_button.disabled = true;
 	input.addEventListener('input', () => {
-		submit_button.disabled = !/^(?:go|use|get|grab|pick up) ./i.test(input.value);
+		submit_button.disabled = !/^(?:go|use|get|grab|pick up|talk) ./i.test(input.value);
 	});
 
 	if (!navbar.hidden) {

@@ -338,6 +338,16 @@ describe('server', () => {
         expect((await game.next('go through mirror')).value[0]).toBe('Nothing happens.');
     });
 
+    let dialog_id;
+    it("should let you add a talk to action", async () => {
+        dialog_id = await add(`type=dialog&item=${object_id}`);
+        expect((await post('/change/description',
+            `type=dialog&id=${dialog_id}&text=Hi&game=${game_id}`, user1)).statusCode).toBe(204);
+        const game = play_game(game_id);
+        await game.next();
+        expect((await game.next('talk to thing')).value[0]).toBe('Hi');
+    });
+
     it("should have commands case insensitive", async () => {
         const game = play_game(game_id);
         await game.next();

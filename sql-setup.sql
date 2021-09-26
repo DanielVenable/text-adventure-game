@@ -55,11 +55,26 @@ CREATE TABLE IF NOT EXISTS actions (
     FOREIGN KEY (obj1) REFERENCES objects (id) ON DELETE CASCADE,
     FOREIGN KEY (obj2) REFERENCES objects (id) ON DELETE CASCADE);
 
+CREATE OR REPLACE FUNCTION grab_default(obj int) RETURNS varchar(255) LANGUAGE plpgsql AS $$
+    BEGIN
+        RETURN (SELECT 'You have a' || CASE WHEN name SIMILAR TO '(a|e|i|o|u)%'
+            THEN 'n ' ELSE ' ' END || name || '.' FROM objects WHERE id = obj);
+    END;
+$$;
+
 CREATE TABLE IF NOT EXISTS grab (
     id SERIAL,
     obj int NOT NULL,
     success boolean NOT NULL DEFAULT true,
-    text varchar(255) NOT NULL DEFAULT '',
+    text varchar(255) NOT NULL,
+    win bool,
+    PRIMARY KEY (id),
+    FOREIGN KEY (obj) REFERENCES objects (id) ON DELETE CASCADE);
+
+CREATE TABLE IF NOT EXISTS dialogs (
+    id SERIAL,
+    obj int NOT NULL,
+    text varchar(65535) NOT NULL DEFAULT '',
     win bool,
     PRIMARY KEY (id),
     FOREIGN KEY (obj) REFERENCES objects (id) ON DELETE CASCADE);
@@ -84,19 +99,19 @@ CREATE TABLE IF NOT EXISTS grab_to_constraint (
 CREATE TABLE IF NOT EXISTS grab_to_effect (
     grab int NOT NULL,
     effect int NOT NULL,
-    FOREIGN KEY (grab) REFERENCES grab(id) ON DELETE CASCADE,
+    FOREIGN KEY (grab) REFERENCES grab (id) ON DELETE CASCADE,
     FOREIGN KEY (effect) REFERENCES constraint_and_effect (id) ON DELETE CASCADE);
 
 CREATE TABLE IF NOT EXISTS path_to_constraint (
     path int NOT NULL,
     constraint_ int NOT NULL,
-    FOREIGN KEY (path) REFERENCES paths(id) ON DELETE CASCADE,
+    FOREIGN KEY (path) REFERENCES paths (id) ON DELETE CASCADE,
     FOREIGN KEY (constraint_) REFERENCES constraint_and_effect (id) ON DELETE CASCADE);
 
 CREATE TABLE IF NOT EXISTS path_to_effect (
     path int NOT NULL,
     effect int NOT NULL,
-    FOREIGN KEY (path) REFERENCES paths(id) ON DELETE CASCADE,
+    FOREIGN KEY (path) REFERENCES paths (id) ON DELETE CASCADE,
     FOREIGN KEY (effect) REFERENCES constraint_and_effect (id) ON DELETE CASCADE);
 
 CREATE TABLE IF NOT EXISTS action_to_constraint (
@@ -109,6 +124,18 @@ CREATE TABLE IF NOT EXISTS action_to_effect (
     action int NOT NULL,
     effect int NOT NULL,
     FOREIGN KEY (action) REFERENCES actions (id) ON DELETE CASCADE,
+    FOREIGN KEY (effect) REFERENCES constraint_and_effect (id) ON DELETE CASCADE);
+
+CREATE TABLE IF NOT EXISTS dialog_to_constraint (
+    dialog int NOT NULL,
+    constraint_ int NOT NULL,
+    FOREIGN KEY (dialog) REFERENCES dialogs (id) ON DELETE CASCADE,
+    FOREIGN KEY (constraint_) REFERENCES constraint_and_effect (id) ON DELETE CASCADE);
+
+CREATE TABLE IF NOT EXISTS dialog_to_effect (
+    dialog int NOT NULL,
+    effect int NOT NULL,
+    FOREIGN KEY (dialog) REFERENCES dialogs (id) ON DELETE CASCADE,
     FOREIGN KEY (effect) REFERENCES constraint_and_effect (id) ON DELETE CASCADE);
 
 CREATE TABLE IF NOT EXISTS location_constraint_and_effect (
@@ -128,19 +155,19 @@ CREATE TABLE IF NOT EXISTS grab_to_location_constraint (
 CREATE TABLE IF NOT EXISTS grab_to_location_effect (
     grab int NOT NULL,
     effect int NOT NULL,
-    FOREIGN KEY (grab) REFERENCES grab(id) ON DELETE CASCADE,
+    FOREIGN KEY (grab) REFERENCES grab (id) ON DELETE CASCADE,
     FOREIGN KEY (effect) REFERENCES location_constraint_and_effect (id) ON DELETE CASCADE);
 
 CREATE TABLE IF NOT EXISTS path_to_location_constraint (
     path int NOT NULL,
     constraint_ int NOT NULL,
-    FOREIGN KEY (path) REFERENCES paths(id) ON DELETE CASCADE,
+    FOREIGN KEY (path) REFERENCES paths (id) ON DELETE CASCADE,
     FOREIGN KEY (constraint_) REFERENCES location_constraint_and_effect (id) ON DELETE CASCADE);
 
 CREATE TABLE IF NOT EXISTS path_to_location_effect (
     path int NOT NULL,
     effect int NOT NULL,
-    FOREIGN KEY (path) REFERENCES paths(id) ON DELETE CASCADE,
+    FOREIGN KEY (path) REFERENCES paths (id) ON DELETE CASCADE,
     FOREIGN KEY (effect) REFERENCES location_constraint_and_effect (id) ON DELETE CASCADE);
 
 CREATE TABLE IF NOT EXISTS action_to_location_constraint (
@@ -153,6 +180,18 @@ CREATE TABLE IF NOT EXISTS action_to_location_effect (
     action int NOT NULL,
     effect int NOT NULL,
     FOREIGN KEY (action) REFERENCES actions (id) ON DELETE CASCADE,
+    FOREIGN KEY (effect) REFERENCES location_constraint_and_effect (id) ON DELETE CASCADE);
+
+CREATE TABLE IF NOT EXISTS dialog_to_location_constraint (
+    dialog int NOT NULL,
+    constraint_ int NOT NULL,
+    FOREIGN KEY (dialog) REFERENCES dialogs (id) ON DELETE CASCADE,
+    FOREIGN KEY (constraint_) REFERENCES location_constraint_and_effect (id) ON DELETE CASCADE);
+
+CREATE TABLE IF NOT EXISTS dialog_to_location_effect (
+    dialog int NOT NULL,
+    effect int NOT NULL,
+    FOREIGN KEY (dialog) REFERENCES dialogs (id) ON DELETE CASCADE,
     FOREIGN KEY (effect) REFERENCES location_constraint_and_effect (id) ON DELETE CASCADE);
 
 CREATE TABLE IF NOT EXISTS grab_to_inventory_constraint (
@@ -192,6 +231,19 @@ CREATE TABLE IF NOT EXISTS action_to_inventory_effect (
     action int NOT NULL,
     obj int NOT NULL,
     FOREIGN KEY (action) REFERENCES actions (id) ON DELETE CASCADE,
+    FOREIGN KEY (obj) REFERENCES objects (id) ON DELETE CASCADE);
+
+CREATE TABLE IF NOT EXISTS dialog_to_inventory_constraint (
+    dialog int NOT NULL,
+    obj int NOT NULL,
+    have_it bool NOT NULL,
+    FOREIGN KEY (dialog) REFERENCES dialogs (id) ON DELETE CASCADE,
+    FOREIGN KEY (obj) REFERENCES objects (id) ON DELETE CASCADE);
+
+CREATE TABLE IF NOT EXISTS dialog_to_inventory_effect (
+    dialog int NOT NULL,
+    obj int NOT NULL,
+    FOREIGN KEY (dialog) REFERENCES dialogs (id) ON DELETE CASCADE,
     FOREIGN KEY (obj) REFERENCES objects (id) ON DELETE CASCADE);
 
 CREATE TABLE IF NOT EXISTS descriptions (

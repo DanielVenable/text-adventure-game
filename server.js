@@ -49,17 +49,20 @@ if (cluster.isMaster) {
 	}, table_list = new StrictMap([
 		['action', 'actions'],
 		['grab', 'grab'],
+		['dialog', 'dialogs'],
 		['path', 'paths'],
 		['description', 'descriptions']
 	]), start_table_list = new StrictMap([
 		['action', 'action_to_'],
 		['grab', 'grab_to_'],
+		['dialog', 'dialog_to_'],
 		['path', 'path_to_'],
 		['description', 'description_to_']
 	]), column_list = new StrictMap([
 		['action', 'action'],
 		['grab', 'grab'],
 		['path', 'path'],
+		['dialog', 'dialog'],
 		['description', 'description']
 	]), win_value_list = new StrictMap([
 		['1', 1], ['0', 0], ['null', null]
@@ -161,7 +164,8 @@ if (cluster.isMaster) {
 				const command = data.get('cmd').toLowerCase();
 				let split_go_to,
 					split_pick_up,
-					split_use;
+					split_use,
+					split_talk_to;
 				if (split_go_to = command.match(/^go ((?:to (?:the )?)?(.+?)) ?$/)) {
 					const constraints = await query(`
 						SELECT paths.id, paths.text, paths.win, paths.end_,
@@ -261,7 +265,6 @@ if (cluster.isMaster) {
 						return await show(show_data, 'Which one?');
 					}
 					const texts = [];
-					let got_it = false;
 					for (const grab of result) {
 						if (grab.win === null) {
 							const effects = await query(`
@@ -286,14 +289,10 @@ if (cluster.isMaster) {
 									ON grab.id = grab_to_inventory_effect.grab
 								WHERE grab.id = %L`, [grab.id]);
 							await handle_effects(show_data, effects);
-							if (grab.success) {
-								got_it = true;
-								inventory.add(grab.grab_obj);
-							}
+							if (grab.success) inventory.add(grab.grab_obj);
 							if (grab.text) texts.push(grab.text);
 						} else return await win_lose(show_data, result);
 					}
-					if (got_it) texts.push(`You have ${a_an(obj[0].name)}.`);
 					return await show(show_data,
 						texts.length ? texts.join('\n\n') : 'Nothing happens.');
 				} else if (split_use = command.match(/^use (?:(.+) on )?(.+?) ?$/)) {
@@ -380,6 +379,68 @@ if (cluster.isMaster) {
 						return await show(show_data,
 							texts.length ? texts.join('\n\n') : 'Nothing happens.');
 					}
+				} else if (split_talk_to = command.match(/^talk (?:to )?(.+?) ?$/)) {
+					const obj = await objects_here(split_talk_to[1]);
+					if (!obj.length) return await show(show_data, 'Nothing happens.');
+					const constraints = await query(`
+						SELECT dialogs.id, dialogs.text, dialogs.win, dialogs.obj AS dialog_obj,
+							constraint_and_effect.id AS state,
+							constraint_and_effect.obj,
+							constraint_and_effect.loc,
+							constraint_and_effect.name IS NOT NULL AS should_be_there,
+							location_constraint_and_effect.obj AS loc_obj,
+							location_constraint_and_effect.location,
+							dialog_to_inventory_constraint.obj AS inv_obj,
+							dialog_to_inventory_constraint.have_it FROM dialogs
+						LEFT JOIN dialog_to_constraint
+							ON dialogs.id = dialog_to_constraint.dialog
+						LEFT JOIN constraint_and_effect
+							ON constraint_and_effect.id =
+								dialog_to_constraint.constraint_
+						LEFT JOIN dialog_to_location_constraint
+							ON dialogs.id = dialog_to_location_constraint.dialog
+						LEFT JOIN location_constraint_and_effect
+							ON location_constraint_and_effect.id =
+								dialog_to_location_constraint.constraint_
+						LEFT JOIN dialog_to_inventory_constraint
+							ON dialogs.id = dialog_to_inventory_constraint.dialog
+						WHERE dialogs.obj IN (%L)
+						ORDER BY dialogs.id`, [unemptify(obj.map(a => a.id))]);
+					const result = await satisfy_constraints(show_data, constraints);
+					if (!result.length) return await show(show_data, 'Nothing happens.');
+					if (new Set(result.map(a => a.dialog_obj)).size > 1) {
+						return await show(show_data, 'Which one?');
+					}
+					const texts = [];
+					for (const dialog of result) {
+						if (dialog.win === null) {
+							const effects = await query(`
+								SELECT constraint_and_effect.id AS state,
+									constraint_and_effect.obj,
+									constraint_and_effect.loc,
+									constraint_and_effect.name IS NOT NULL AS should_be_there,
+									location_constraint_and_effect.obj AS loc_obj,
+									location_constraint_and_effect.location,
+									dialog_to_inventory_effect.obj AS inv_obj FROM dialogs
+								LEFT JOIN dialog_to_effect
+									ON dialogs.id = dialog_to_effect.dialog
+								LEFT JOIN constraint_and_effect
+									ON constraint_and_effect.id =
+										dialog_to_effect.effect
+								LEFT JOIN dialog_to_location_effect
+									ON dialogs.id = dialog_to_location_effect.dialog
+								LEFT JOIN location_constraint_and_effect
+									ON location_constraint_and_effect.id =
+										dialog_to_location_effect.effect
+								LEFT JOIN dialog_to_inventory_effect
+									ON dialogs.id = dialog_to_inventory_effect.dialog
+								WHERE dialogs.id = %L`, [dialog.id]);
+							await handle_effects(show_data, effects);
+							if (dialog.text) texts.push(dialog.text);
+						} else return await win_lose(show_data, result);
+					}
+					return await show(show_data,
+						texts.length ? texts.join('\n\n') : 'Nothing happens.');
 				} else return await show(show_data, 'Invalid command.');
 
 				function objects_here(name, include_inventory = false) {
@@ -589,14 +650,18 @@ if (cluster.isMaster) {
 								WHERE obj1 = %L`, [data.get('id')]),
 							query(`
 								SELECT id, success, win FROM grab
-								WHERE grab.obj = %L`, [data.get('id')]),
+								WHERE obj = %L`, [data.get('id')]),
+							query(`
+								SELECT id, win FROM dialogs
+								WHERE obj = %L`, data.get('id')),
 							query(`
 								SELECT name FROM names
 								WHERE obj = %L`, [data.get('id')])
 						]);
 					} case 'action':
 					case 'grab':
-					case 'path': {
+					case 'path':
+					case 'dialog': {
 						await action_match_game(
 							data.get('type'), data.get('id'), game);
 						const table_part = start_table_list.get(data.get('type')),
@@ -768,12 +833,18 @@ if (cluster.isMaster) {
 					} case 'grab': {
 						await object_match_game(data.get('item'), game);
 						return (await query(`
-							INSERT INTO grab (obj) VALUES (%L) RETURNING id`,
-							[data.get('item')]))[0].id;
+							INSERT INTO grab (obj, text)
+							VALUES (%L, grab_default(%L)) RETURNING id`,
+							[data.get('item'), data.get('item')]))[0].id;
 					} case 'path': {
 						await location_match_game(data.get('item'), game);
 						return (await query(`
 							INSERT INTO paths (start) VALUES (%L) RETURNING id`,
+							[data.get('item')]))[0].id;
+					} case 'dialog': {
+						await object_match_game(data.get('item'), game);
+						return (await query(`
+							INSERT INTO dialogs (obj) VALUES (%L) RETURNING id`,
 							[data.get('item')]))[0].id;
 					} case 'description': {
 						await location_match_game(data.get('item'), game);
@@ -993,6 +1064,7 @@ if (cluster.isMaster) {
 			case 'action':
 			case 'grab':
 			case 'path':
+			case 'dialog':
 				await action_match_game(data.get('type'), data.get('id'), game);
 				await query(`
 					DELETE FROM %I WHERE id = %L`,
@@ -1099,7 +1171,8 @@ if (cluster.isMaster) {
 	}
 
 	const obj_column_map = new StrictMap([
-		['action', 'obj1'], ['grab', 'obj'], ['path', 'start'], ['description', 'location']
+		['action', 'obj1'], ['grab', 'obj'], ['path', 'start'],
+		['dialog', 'obj'], ['description', 'location']
 	]);
 	async function action_match_game(type, id, game) {
 		const table = table_list.get(type);
