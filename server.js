@@ -653,7 +653,7 @@ if (cluster.isMaster) {
 								WHERE obj = %L`, [data.get('id')]),
 							query(`
 								SELECT id, win FROM dialogs
-								WHERE obj = %L`, data.get('id')),
+								WHERE obj = %L`, [data.get('id')]),
 							query(`
 								SELECT name FROM names
 								WHERE obj = %L`, [data.get('id')])
