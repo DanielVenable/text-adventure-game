@@ -825,8 +825,8 @@
 								if (loc_obj) {
 									const elem = clone('location-constraint')[0];
 									elem.querySelector('.location-select').value =
-										elem.dataset.id = loc_obj;
-									elem.querySelector('.object-select').value = location;
+										elem.dataset.id = location;
+									elem.querySelector('.object-select').value = loc_obj;
 									description_elem[0].children[2].append(elem);
 								}
 								if (inv_obj) {
