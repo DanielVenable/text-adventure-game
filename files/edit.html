@@ -920,7 +920,7 @@
 								input.disabled = false;
 								input.setAttribute('list', obj ?
 									`object-${obj}-states` : `location-${loc}-states`);
-								action_elem[is_constraint ? 5 : 6].append(elem);
+								action_elem[is_constraint ? 3 : 4].append(elem);
 							}
 							for (const { obj, location } of
 									is_constraint ? location_constraints : location_effects) {
@@ -929,7 +929,7 @@
 								elem.dataset.id = obj;
 								elem.querySelector('.object-select').value = obj;
 								elem.querySelector('.location-select').value = location;
-								action_elem[is_constraint ? 7 : 8].append(elem);
+								action_elem[is_constraint ? 5 : 6].append(elem);
 							}
 						}
 						for (const { obj, have_it } of inventory_constraints) {
@@ -937,13 +937,13 @@
 							elem.dataset.id = obj;
 							elem.querySelector('select').value = +have_it;
 							elem.querySelector('.object-select').value = obj;
-							action_elem[9].append(elem);
+							action_elem[7].append(elem);
 						}
 						for (const { obj } of inventory_effects) {
 							const elem = clone('inventory-effect')[0];
 							elem.dataset.id = obj;
 							elem.querySelector('.object-select').value = obj;
-							action_elem[10].append(elem);
+							action_elem[8].append(elem);
 						}
 
 						if (path[2].dataset.type === 'path') {
