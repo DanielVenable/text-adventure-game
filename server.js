@@ -1198,25 +1198,25 @@ if (cluster.isMaster) {
 	async function handle_effects({ states, moved_objects, inventory }, effects) {
 		for (const effect of effects) {
 			if (effect.state) {
-				states.delete((await query(`
+				states.delete(+(await query(`
 					SELECT id FROM constraint_and_effect
 					WHERE (obj = %L OR loc = %L) AND id IN (%L) LIMIT 1`,
 					[effect.obj, effect.loc, unemptify([...states])]))[0]?.id);
 				if (effect.should_be_there) {
-					states.add(effect.state);
+					states.add(+effect.state);
 				}
 			}
 			if (effect.loc_obj) {
 				if ((await query(`
 						SELECT location FROM objects WHERE id = %L`,
-						[effect.loc_obj]))[0].location === effect.location) {
-					moved_objects.delete(effect.loc_obj);
-				} else moved_objects.set(effect.loc_obj, effect.location);
-				inventory.delete(effect.loc_obj);
+						[effect.loc_obj]))[0].location == effect.location) {
+					moved_objects.delete(+effect.loc_obj);
+				} else moved_objects.set(+effect.loc_obj, +effect.location);
+				inventory.delete(+effect.loc_obj);
 			}
 			if (effect.inv_obj) {
-				inventory.add(effect.inv_obj);
-				moved_objects.delete(effect.inv_obj);
+				inventory.add(+effect.inv_obj);
+				moved_objects.delete(+effect.inv_obj);
 			}
 		}
 	}
