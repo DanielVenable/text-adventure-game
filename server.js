@@ -580,7 +580,7 @@ if (cluster.isMaster) {
 				restrict(permission, 1);
 				const location_list = await
 					(await query(`
-						SELECT id, name FROM locations WHERE game = %L`, [game])
+						SELECT id, name FROM locations WHERE game = %L ORDER BY id`, [game])
 					).reduce(
 						async (acc, { id, name }) =>
 							await acc + await show_file('location.html', id, ...(start === id ?
@@ -636,27 +636,27 @@ if (cluster.isMaster) {
 							get_description_constraint_array(data.get('id')),
 							query(`
 								SELECT name, id FROM objects
-								WHERE location = %L AND game = %L`,
+								WHERE location = %L AND game = %L ORDER BY id`,
 								[data.get('id'), game]),
 							query(`
 								SELECT id, end_ AS end, win FROM paths
-								WHERE start = %L`, [data.get('id')])
+								WHERE start = %L ORDER BY id`, [data.get('id')])
 						]);
 					} case 'object': {
 						await object_match_game(data.get('id'), game);
 						return await Promise.all([
 							query(`
 								SELECT id, obj2, win FROM actions
-								WHERE obj1 = %L`, [data.get('id')]),
+								WHERE obj1 = %L ORDER BY id`, [data.get('id')]),
 							query(`
 								SELECT id, success, win FROM grab
-								WHERE obj = %L`, [data.get('id')]),
+								WHERE obj = %L ORDER BY id`, [data.get('id')]),
 							query(`
 								SELECT id, win FROM dialogs
-								WHERE obj = %L`, [data.get('id')]),
+								WHERE obj = %L ORDER BY id`, [data.get('id')]),
 							query(`
 								SELECT name FROM names
-								WHERE obj = %L`, [data.get('id')])
+								WHERE obj = %L ORDER BY id`, [data.get('id')])
 						]);
 					} case 'action':
 					case 'grab':
