@@ -721,7 +721,8 @@ if (cluster.isMaster) {
 					SELECT objects.id, objects.name,
 						locations.id AS loc_id, locations.name AS loc_name FROM objects
 					FULL JOIN locations ON objects.location = locations.id
-					WHERE %L IN (objects.game, locations.game) ORDER BY locations.id`, [game]);
+					WHERE %L IN (objects.game, locations.game)
+					ORDER BY locations.id, objects.id`, [game]);
 			case '/all-states':
 				restrict(permission, 1);
 				return await query(`
