@@ -656,7 +656,7 @@ if (cluster.isMaster) {
 								WHERE obj = %L ORDER BY id`, [data.get('id')]),
 							query(`
 								SELECT name FROM names
-								WHERE obj = %L ORDER BY id`, [data.get('id')])
+								WHERE obj = %L`, [data.get('id')])
 						]);
 					} case 'action':
 					case 'grab':
