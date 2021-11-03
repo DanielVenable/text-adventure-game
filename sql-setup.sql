@@ -250,7 +250,7 @@ CREATE TABLE IF NOT EXISTS descriptions (
     id SERIAL,
     location int NOT NULL,
     num int NOT NULL,
-    text varchar(255) NOT NULL,
+    text varchar(65535) NOT NULL,
     PRIMARY KEY (id),
     FOREIGN KEY (location) REFERENCES locations (id) ON DELETE CASCADE);
 
