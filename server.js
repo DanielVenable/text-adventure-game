@@ -291,7 +291,7 @@ if (cluster.isMaster) {
 							await handle_effects(show_data, effects);
 							if (grab.success) inventory.add(grab.grab_obj);
 							if (grab.text) texts.push(grab.text);
-						} else return await win_lose(show_data, result);
+						} else return await win_lose(show_data, grab);
 					}
 					return await show(show_data,
 						texts.length ? texts.join('\n\n') : 'Nothing happens.');
@@ -437,7 +437,7 @@ if (cluster.isMaster) {
 								WHERE dialogs.id = %L`, [dialog.id]);
 							await handle_effects(show_data, effects);
 							if (dialog.text) texts.push(dialog.text);
-						} else return await win_lose(show_data, result);
+						} else return await win_lose(show_data, dialog);
 					}
 					return await show(show_data,
 						texts.length ? texts.join('\n\n') : 'Nothing happens.');
