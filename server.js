@@ -444,14 +444,18 @@ if (cluster.isMaster) {
 				} else return await show(show_data, 'Invalid command.');
 
 				function objects_here(name, include_inventory = false) {
+					const objects_moved_here = [];
+					for (const [obj, loc] of moved_objects) {
+						if (loc === locationID) objects_moved_here.push(obj);
+					}
 					return query(`
 						SELECT id, name FROM objects
 						WHERE (%L = name OR %L IN (
 							SELECT name FROM names WHERE obj = objects.id
 						)) AND game = %L
-						AND ((location = %L) <> (id IN (%L)) OR %L AND id IN (%L))`,
+						AND ((location = %L AND id NOT IN (%L)) OR (id IN (%L)) OR %L AND id IN (%L))`,
 						[name, name, gameid, locationID, unemptify(moved_object_list),
-							include_inventory, unemptify(inventory_list)]);
+							unemptify(objects_moved_here), include_inventory, unemptify(inventory_list)]);
 				}
 			} case '/': {
 				const listify = path => (acc, { id, name }) =>
