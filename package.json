@@ -1,8 +1,9 @@
 {
   "name": "text-adventure-game-creator",
-  "version": "1.0.0",
+  "version": "2.1.1",
   "description": "A program that lets you create and play text adventure games.",
   "main": "server.js",
+  "type": "module",
   "scripts": {
     "start": "node server.js",
     "test": "jasmine"
@@ -12,7 +13,7 @@
     "url": "git+https://github.com/DanielVenable/text-adventure-game.git"
   },
   "author": "Daniel Venable",
-  "license": "ISC",
+  "license": "MIT",
   "bugs": {
     "url": "https://github.com/DanielVenable/text-adventure-game/issues"
   },
