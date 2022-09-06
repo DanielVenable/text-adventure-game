@@ -3,20 +3,17 @@
 import { promises } from 'fs';
 import { format } from 'util';
 import { createHash } from 'crypto';
-import { verify, sign } from 'jsonwebtoken';
+import jsonwebtoken from 'jsonwebtoken';
 import { parse, serialize } from 'cookie';
-import { Client } from 'pg';
+import pg from 'pg';
 import pg_format from 'pg-format';
 
 if (process.env.VERCEL_ENV !== 'production') {
 	(await import('dotenv')).config();
 }
 
-const client = new Client({
-	connectionString: process.env.DATABASE_URL,
-	ssl: {
-		rejectUnauthorized: false
-	}
+const client = new pg.Client({
+	connectionString: process.env.DATABASE_URL
 });
 
 await client.connect();
@@ -25,7 +22,7 @@ async function query(str, arr = []) {
 	return (await client.query(pg_format(str, ...arr))).rows;
 }
 
-process.chdir(__dirname + '/files');
+process.chdir('./files');
 
 class StrictMap extends Map {
 	get(key) {
@@ -73,7 +70,7 @@ export default async function server(req, res) {
 	let userid;
 	try {
 		try {
-			userid = verify(parse(req.headers.cookie).token, jwtKey).id;
+			userid = jsonwebtoken.verify(parse(req.headers.cookie).token, jwtKey).id;
 		} catch { }
 		res.setHeader('Content-Type', 'text/html');
 		res.statusCode = 200;
@@ -128,7 +125,7 @@ async function get(path, data, userid, res) {
 				state_list,
 				locationID, inventory_list,
 				moved_object_list, location_list], moves
-			} = verify(data.get('gameState'), jwtKey),
+			} = jsonwebtoken.verify(data.get('gameState'), jwtKey),
 				[{ game: gameid }] = await query(`
 					SELECT game FROM locations
 					WHERE id = %L`, [locationID]),
@@ -494,7 +491,7 @@ async function get(path, data, userid, res) {
 					moved_objects: new Map,
 					inventory: new Set
 				}),
-				sign({ data: [[], result.id, [], [], []], moves: 0 }, jwtKey),
+				jsonwebtoken.sign({ data: [[], result.id, [], [], []], moves: 0 }, jwtKey),
 				'', +game, +game);
 		} case '/super': {
 			if (!data.get('gameState') && data.get('type') === 'teleport') {
@@ -513,13 +510,13 @@ async function get(path, data, userid, res) {
 						moved_objects: new Map,
 						inventory: new Set
 					}),
-					sign( { data: [[], data.get('loc'), [], [], []], moves: 0 }, jwtKey),
+					jsonwebtoken.sign( { data: [[], data.get('loc'), [], [], []], moves: 0 }, jwtKey),
 					'', +result[0].game, +result[0].game);
 			}
 			const { data: [
 					states, location, inventory,
 					moved_objects, locations], moves } =
-				verify(data.get('gameState'), jwtKey);
+				jsonwebtoken.verify(data.get('gameState'), jwtKey);
 
 			const result = await query(`
 				SELECT permission, locations.game, games.name FROM user_to_game
@@ -728,14 +725,14 @@ async function get(path, data, userid, res) {
 		case '/join-link':
 			restrict(permission, 2);
 			res.setHeader('Content-Type', 'text/plain');
-			return sign({
+			return jsonwebtoken.sign({
 				id: Number(game)
 			}, jwtKey, {
 				expiresIn: '5 days'
 			});
 		case '/join': {
 			if (!userid) throw 'Unauthorized action';
-			const game = verify(data.get('token'), jwtKey).id;
+			const game = jsonwebtoken.verify(data.get('token'), jwtKey).id;
 			const valid = await query(`
 				SELECT FROM user_to_game
 				WHERE user_ = %L AND game = %L LIMIT 1`, [userid, game]);
@@ -1253,7 +1250,7 @@ async function satisfy_constraints({ states, moved_objects, inventory }, constra
 }
 
 async function show(data, text) {
-	const token = sign({
+	const token = jsonwebtoken.sign({
 		data: [
 			[...data.states],
 			+data.location,
@@ -1373,7 +1370,7 @@ const jwtKey = process.env.SECRET_KEY;
 const expire_seconds = 60 * 60 * 24 * 100;
 
 function create_token(res, id) {
-	const token = sign({ id }, jwtKey, {
+	const token = jsonwebtoken.sign({ id }, jwtKey, {
 		algorithm: 'HS256',
 		expiresIn: expire_seconds,
 	});
