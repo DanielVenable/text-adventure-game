@@ -8,7 +8,7 @@ import { parse, serialize } from 'cookie';
 import pg from 'pg';
 import pg_format from 'pg-format';
 
-if (process.env.VERCEL_ENV !== 'production') {
+if (process.env.NODE_ENV !== 'production') {
 	(await import('dotenv')).config();
 }
 
@@ -62,7 +62,7 @@ const files = {
 
 export default async function server(req, res) {
 	if (req.headers['x-forwarded-proto'] !== 'https' &&
-			process.env.VERCEL_ENV === 'production') {
+			process.env.NODE_ENV === 'production') {
 		res.statusCode = 308;
 		res.setHeader('Location', `https://${req.headers.host}${req.url}`);
 		return res.end();
